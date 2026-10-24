@@ -16,6 +16,7 @@
   resolve-report                          dlaczego 0 sprzedanych: zapisane odpowiedzi resolvera + próbka do wysłania
   suspicious-report [--photo-flag]        flagi podejrzanych ofert (oszustwa, kontakt poza Vinted) -> analysis.db
   suspicious-diag                         rozkład photo.is_suspicious (i innych pól logicznych) wg stanu
+  relist-report                           ponowne wystawienia (usunięta + wystawiona od nowa) -> analysis.db
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
   status                                  podsumowanie bazy (oferty, stany, partycje, przejścia, transfer)
@@ -439,6 +440,8 @@ def main(argv=None):
     p_sdiag = sub.add_parser("suspicious-diag", help="rozkład photo.is_suspicious i innych pól logicznych pozycji "
                                                      "katalogu w stanach blocked/sold/deleted/active (bez sieci)")
     p_sdiag.add_argument("--per-state", type=int, default=2000)
+    sub.add_parser("relist-report", help="ponowne wystawienia (usunięta oferta wystawiona od nowa z nowym ID) -> "
+                                         "analysis.db + raport (bez sieci, baza tylko do odczytu)")
     p_sample = sub.add_parser("sample", help="próbka ofert z opisami do projektu ekstrakcji -> data/sample_*.jsonl")
     p_sample.add_argument("--per-category", type=int, default=150)
     sub.add_parser("classify-report", help="klasyfikacja ofert z kategorii mieszanych - bez sieci")
@@ -538,6 +541,21 @@ def main(argv=None):
             name = "suspicious.txt"
         conn.close()
         path = analysis.out_dir(cfg.db_path) / name
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        say("")
+        print("\n".join(lines))
+        say(f"\nZapisano też do {path}")
+    elif args.command == "relist-report":
+        from . import analysis, relist
+        say = lambda text: print(text, flush=True)  # noqa: E731
+        say(f"Otwieram bazę {cfg.db_path} (tylko do odczytu) ...")
+        conn, aconn = analysis.open_ro(cfg.db_path), analysis.open_analysis(cfg.db_path)
+        say(f"Szukam relistów -> {analysis.analysis_path(cfg.db_path)}")
+        relist.run(conn, aconn, progress=say)
+        lines = relist.report(conn, aconn)
+        conn.close()
+        aconn.close()
+        path = analysis.out_dir(cfg.db_path) / "relists.txt"
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         say("")
         print("\n".join(lines))

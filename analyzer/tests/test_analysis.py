@@ -122,3 +122,46 @@ def test_offsite_detected(title, desc, hits):
 def test_offsite_false_positives(desc):
     from analyzer.suspicious import offsite_hits
     assert offsite_hits("Laptop", desc)[0] == []
+
+
+# ------------------------------------------------------------------ A4: relisty
+
+
+@pytest.fixture(scope="module")
+def relisted(market):
+    from analyzer import relist
+    path, truth = market
+    conn, aconn = analysis.open_ro(path), analysis.open_analysis(path)
+    relist.run(conn, aconn)
+    yield conn, aconn, truth
+    conn.close()
+    aconn.close()
+
+
+def test_relists_match_truth_exactly(relisted):
+    from analyzer import relist
+    conn, aconn, truth = relisted
+    assert relist.load(aconn) == truth.relists     # para, łańcuch A→B→C, bez opisu; podobne nie-relisty pominięte
+    basis = dict(aconn.execute("SELECT new_id, basis FROM relists").fetchall())
+    assert basis[truth.ids["r1_new"]] == "description" and basis[truth.ids["r3_new"]] == "title"
+    assert basis[truth.ids["r2_c"]] == "description"          # podobny tytuł + podobny opis
+
+
+def test_relist_chain_roots_and_report(relisted):
+    from analyzer import relist
+    conn, aconn, truth = relisted
+    roots = relist.roots(relist.load(aconn))
+    ids = truth.ids
+    assert roots[ids["r2_c"]] == roots[ids["r2_b"]] == roots[ids["r2_a"]] == ids["r2_a"]
+    lines = relist.report(conn, aconn)
+    laptop = next(line for line in lines if line.startswith("laptop"))
+    deleted = sum(1 for r in truth.rows.values() if r["category"] == "laptop" and r["state"] == "deleted")
+    assert laptop.split()[1:3] == [str(deleted), "4"]          # r1_old, r2_a, r2_b, r3_old
+    assert any("łańcuchy" in line and "3: 2" in line for line in lines)
+
+
+def test_relist_rules_unit():
+    from analyzer.relist import match
+    # para najbliższa w czasie wygrywa; stara i nowa użyte najwyżej raz
+    pairs = [(5.0, 0.9, "title", 1, 3), (0.5, 0.9, "title", 1, 2), (0.5, 1.0, "description", 2, 3)]
+    assert {(o, n) for o, n, *_ in match(pairs)} == {(1, 2), (2, 3)}

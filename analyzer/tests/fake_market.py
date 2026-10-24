@@ -276,6 +276,9 @@ class Builder:
         self.add("phone", "iphone 16 pro 512 gb", 520.0, "deleted", first_seen=d(18), last_seen=d(19), flags=dup,
                  name="dup_deleted", **common)
         self.add("phone", "IPHONE 16 PRO 512 GB", 519.0, first_seen=d(21), flags=dup, name="dup_active", **common)
+        # oszust wystawia tę samą ofertę od nowa → to też relisty (blocked nie jest „zniknięciem” do relistu)
+        self.truth.relists[self.truth.ids["dup_deleted"]] = self.truth.ids["dup_sold"]
+        self.truth.relists[self.truth.ids["dup_active"]] = self.truth.ids["dup_deleted"]
         self.add("phone", "iPhone 15 Pro 256GB", 900.0, "sold", first_seen=d(15), last_seen=d(16),
                  key="iphone 15 pro|256", parent="iphone 15 pro", features=dict(model="iphone 15 pro", storage_gb=256),
                  description="Stan idealny. Sprzedaż wyłącznie przez OLX/Allegro, tutaj nie odpisuję.",
