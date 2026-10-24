@@ -14,6 +14,8 @@
   ntfy-test                               testowe powiadomienie na telefon (ntfy)
   check <link|ID> [...]                   czy oferta jest sprzedana (/services + sidebar przez proxy) + co wie baza
   resolve-report                          dlaczego 0 sprzedanych: zapisane odpowiedzi resolvera + próbka do wysłania
+  suspicious-report [--photo-flag]        flagi podejrzanych ofert (oszustwa, kontakt poza Vinted) -> analysis.db
+  suspicious-diag                         rozkład photo.is_suspicious (i innych pól logicznych) wg stanu
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
   status                                  podsumowanie bazy (oferty, stany, partycje, przejścia, transfer)
@@ -430,6 +432,13 @@ def main(argv=None):
     p_check = sub.add_parser("check", help="czy oferta jest sprzedana: link(i) albo ID - jedno zapytanie na ofertę")
     p_check.add_argument("items", nargs="+", help="link https://www.vinted.pl/items/... albo samo ID")
     sub.add_parser("resolve-report", help="diagnostyka rozpoznawania sprzedaży (zapisane odpowiedzi) - bez sieci")
+    p_susp = sub.add_parser("suspicious-report", help="flagi podejrzanych ofert -> analysis.db + raport (bez sieci, "
+                                                      "baza tylko do odczytu)")
+    p_susp.add_argument("--photo-flag", action="store_true",
+                        help="także flaga is_suspicious (photo.is_suspicious=true) - po sprawdzeniu suspicious-diag")
+    p_sdiag = sub.add_parser("suspicious-diag", help="rozkład photo.is_suspicious i innych pól logicznych pozycji "
+                                                     "katalogu w stanach blocked/sold/deleted/active (bez sieci)")
+    p_sdiag.add_argument("--per-state", type=int, default=2000)
     p_sample = sub.add_parser("sample", help="próbka ofert z opisami do projektu ekstrakcji -> data/sample_*.jsonl")
     p_sample.add_argument("--per-category", type=int, default=150)
     sub.add_parser("classify-report", help="klasyfikacja ofert z kategorii mieszanych - bez sieci")
@@ -512,6 +521,27 @@ def main(argv=None):
         conn = db.connect(cfg.db_path)
         print("\n".join(report(conn, Path(cfg.db_path).parent, progress=lambda t: print(t, flush=True))))
         conn.close()
+    elif args.command in ("suspicious-report", "suspicious-diag"):
+        from . import analysis, suspicious
+        say = lambda text: print(text, flush=True)  # noqa: E731
+        say(f"Otwieram bazę {cfg.db_path} (tylko do odczytu) ...")
+        conn = analysis.open_ro(cfg.db_path)
+        if args.command == "suspicious-diag":
+            lines = suspicious.photo_diag(conn, args.per_state, progress=say)
+            name = "suspicious_diag.txt"
+        else:
+            aconn = analysis.open_analysis(cfg.db_path)
+            say(f"Liczę flagi -> {analysis.analysis_path(cfg.db_path)}")
+            suspicious.run(conn, aconn, args.photo_flag, progress=say)
+            lines = suspicious.report(conn, aconn)
+            aconn.close()
+            name = "suspicious.txt"
+        conn.close()
+        path = analysis.out_dir(cfg.db_path) / name
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        say("")
+        print("\n".join(lines))
+        say(f"\nZapisano też do {path}")
     elif args.command == "sample":
         from .sample import export
         print(f"Otwieram bazę {cfg.db_path} ...", flush=True)

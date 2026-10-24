@@ -47,3 +47,78 @@ def test_helpers():
     assert analysis.parent_key("console", "playstation 5|disc|?") == "playstation 5|disc"
     assert analysis.parent_key("ram", "ddr4|so-dimm|16") == "ddr4|16"
     assert analysis.parent_key("storage", "nvme|1000") == "1000"
+
+
+# ------------------------------------------------------------------ A3: flagi podejrzanych
+
+
+@pytest.fixture(scope="module")
+def flagged(market):
+    from analyzer import suspicious
+    path, truth = market
+    conn, aconn = analysis.open_ro(path), analysis.open_analysis(path)
+    suspicious.run(conn, aconn)
+    yield conn, aconn, truth
+    conn.close()
+    aconn.close()
+
+
+def test_flags_match_truth_exactly(flagged):
+    conn, aconn, truth = flagged
+    got = {}
+    for lid, flag in aconn.execute("SELECT listing_id, flag FROM flags"):
+        got.setdefault(lid, set()).add(flag)
+    assert got == truth.flags          # tło atrapy nie dostaje żadnej flagi, scenariusze - dokładnie oczekiwane
+
+
+def test_suspicious_report_and_exclusions(flagged):
+    from analyzer import suspicious
+    conn, aconn, truth = flagged
+    excluded = suspicious.load(aconn)
+    assert truth.ids["shop0"] not in excluded and truth.ids["mention_allegro"] not in excluded   # informacyjne
+    assert excluded[truth.ids["dup_blocked"]] == {"blocked", "dup_title_price", "too_cheap"}
+    lines = suspicious.report(conn, aconn)
+    row = next(line for line in lines if line.startswith("dup_title_price"))
+    assert row.split()[1:9] == ["0", "4", "0", "0", "0", "0", "0", "4"]
+    assert any(f"https://www.vinted.pl/items/{truth.ids['off_olx']}" in line for line in lines)
+    assert "(is_suspicious wyłączone" in "\n".join(lines)
+
+
+def test_photo_flag_and_diag(market, tmp_path):
+    from analyzer import suspicious
+    path, truth = market
+    conn = analysis.open_ro(path)
+    photo = {lid for lid, flag, _ in suspicious.photo_flags(conn)}
+    assert photo == {truth.ids[n] for n in ("dup_blocked", "dup_sold", "dup_deleted", "dup_active",
+                                             "blocked_console")}
+    lines = suspicious.photo_diag(conn, per_state=500)
+    row = next(line for line in lines if line.startswith("photo.is_suspicious"))
+    assert "100.0% (2/2)" in row          # oba blocked mają is_suspicious=true
+    assert any(line.startswith("is_promoted") for line in lines)
+    conn.close()
+
+
+@pytest.mark.parametrize("title, desc, hits", [
+    ("iPhone 15 Pro", "Sprzedaż wyłącznie przez OLX/Allegro", ["tylko olx/allegro"]),
+    ("Laptop", "Kontakt: whats app", ["whatsapp"]),
+    ("Laptop", "Write me on Telegram", ["telegram"]),
+    ("Laptop", "Kontakt außerhalb von Vinted bitte", ["poza vinted"]),
+    ("Laptop", "Scrie-mi în afara Vinted", ["poza vinted"]),
+    ("Laptop", "Tylko odbiór osobisty i przelew", ["przelew poza"]),
+    ("Laptop", "Płatność BLIK na telefon", ["blik"]),
+    ("Laptop", "tel. 600-700-800", ["telefon"]),
+    ("Laptop", "Zadzwoń +48 600 700 800", ["telefon"]),
+    ("Laptop", "pisz: jan@example.com", ["e-mail"]),
+])
+def test_offsite_detected(title, desc, hits):
+    from analyzer.suspicious import offsite_hits
+    assert offsite_hits(title, desc)[0] == hits
+
+
+@pytest.mark.parametrize("desc", [
+    "Pojemności 128 256 512 GB do wyboru", "Rozdzielczość 1920 1080 144 Hz", "IMEI 356789012345678",
+    "Kupiony na Allegro, faktura", "Bateria 100%, numer seryjny na zdjęciu", "Signal wifi mocny",
+])
+def test_offsite_false_positives(desc):
+    from analyzer.suspicious import offsite_hits
+    assert offsite_hits("Laptop", desc)[0] == []

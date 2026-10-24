@@ -235,7 +235,7 @@ Jeśli raport ma być do udostępnienia – opublikuj jako stronę (Artifact) i 
 
 - [x] A1 testy zrzutu zielone (333 passed; test SDK uodporniony na `authorization: Bearer` z anthropic 2.x)
 - [x] A2 atrapa rynku do testów analizy (`analyzer/tests/fake_market.py`, ~3 tys. ofert + scenariusze; pomocnicze `analyzer/analysis.py`)
-- [ ] A3 `suspicious.py` + `suspicious-report`
+- [x] A3 `suspicious.py` + `suspicious-report` (+ `suspicious-diag` zamiast `python -c` z B2 – w `cmd` cudzysłowy są kłopotliwe; `is_suspicious` tylko z `--photo-flag`)
 - [ ] A4 `relist.py` + `relist-report`
 - [ ] A5 `stats.py` + `report.py` + `report`
 - [ ] A6 `export-analysis`

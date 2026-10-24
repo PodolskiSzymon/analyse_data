@@ -58,6 +58,15 @@ def open_analysis(db_path):
     return conn
 
 
+def out_dir(db_path, kind="reports", day=None):
+    """Folder wyników obok bazy: <folder bazy>/<kind>/<RRRR-MM-DD>/ (kind: reports / export)."""
+    from datetime import date
+
+    path = Path(db_path).parent / kind / (day or date.today().isoformat())
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def set_meta(aconn, key, value):
     aconn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, str(value)))
 
