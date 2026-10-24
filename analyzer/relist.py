@@ -39,7 +39,7 @@ def _ratio(a, b, minimum, matcher=None):
 
 
 class _Row:
-    __slots__ = ("id", "title", "brand", "model", "price", "first", "last", "state", "key", "has_desc", "words")
+    __slots__ = ("id", "title", "brand", "model", "price", "first", "last", "state", "key", "has_desc", "words", "block")
 
     def __init__(self, r):
         self.id, self.state, self.price = r["id"], r["state"], r["price_now"]
@@ -49,6 +49,7 @@ class _Row:
         self.first, self.last = analysis.parse_ts(r["first_seen"]), analysis.parse_ts(r["last_seen"])
         self.key, self.has_desc = r["config_key"], bool(r["has_desc"])
         self.words = frozenset(self.title.split())
+        self.block = self.brand, self.key or "t:" + " ".join(self.title.split()[:3])
 
 
 def _load(conn, category):
@@ -61,25 +62,35 @@ def _load(conn, category):
     return [_Row(r) for r in conn.execute(sql, (category, *NEW_STATES))]
 
 
-def _block(row):
-    return row.brand, row.key or "t:" + " ".join(row.title.split()[:3])
+def _span(index, key, t_lo, t_hi):
+    """(od, do) - zakres kandydatów indeksu `key` z first_seen w oknie czasowym."""
+    if key not in index:
+        return 0, 0
+    firsts = index[key][1]
+    return bisect_left(firsts, t_lo), bisect_right(firsts, t_hi)
 
 
 def candidates(conn, rows):
     """Pary (stara, nowa) spełniające warunki → [(gap_dni, score, basis, old_id, new_id)].
 
-    Dwa indeksy: identyczny tytuł (wszystkie oferty) i blok (marka, config_key albo 3 pierwsze słowa tytułu) tylko
-    ofert z opisem - podobny tytuł bez opisu i tak nie wystarcza. W obu kandydaci B posortowani po first_seen, okno
-    czasowe bisekcją - pętla w Pythonie tylko po ofertach z właściwego okresu."""
-    exact, fuzzy = {}, {}
+    Dwa indeksy, w obu kandydaci posortowani po first_seen (okno czasowe bisekcją):
+      * identyczny tytuł - wszystkie oferty,
+      * oferty z opisem (podobny tytuł bez opisu i tak nie wystarcza): blok (marka, config_key albo 3 pierwsze słowa
+        tytułu) oraz słowo tytułu → oferty. Tytuł podobny w ≥ 0,9 ma prawie wszystkie słowa wspólne, więc zamiast
+        całego bloku wystarczą oferty z DWOMA najrzadszymi słowami tytułu A (numer modelu, kolor…) - bierzemy
+        tańszą z dróg."""
+    exact, blocks, postings, freq = {}, {}, {}, {}
     for row in rows:
         if row.first is None:
             continue
         exact.setdefault(row.title, []).append(row)
         if row.has_desc:
-            fuzzy.setdefault(_block(row), []).append(row)
+            blocks.setdefault(row.block, []).append(row)
+            for word in row.words:
+                postings.setdefault(word, []).append(row)
+                freq[word] = freq.get(word, 0) + 1
     index = {}
-    for name, groups in (("exact", exact), ("fuzzy", fuzzy)):
+    for name, groups in (("exact", exact), ("block", blocks), ("word", postings)):
         for k, group in groups.items():
             group.sort(key=lambda r: r.first)
             index[name, k] = (group, [r.first for r in group])
@@ -98,12 +109,22 @@ def candidates(conn, rows):
         lo, hi = a.price * (1 - PRICE_TOL), a.price * (1 + PRICE_TOL)
         t_lo, t_hi = a.last - timedelta(days=BEFORE_DAYS), a.last + timedelta(days=AFTER_DAYS)
         pool = {}
-        for k in (("exact", a.title), ("fuzzy", _block(a)) if a.has_desc else None):
-            if k is None or k not in index:
+        block = a.block
+        spans = [(("exact", a.title),) + _span(index, ("exact", a.title), t_lo, t_hi)]
+        if a.has_desc:
+            # tańsza droga: cały blok (marka + klucz) albo dwa najrzadsze słowa tytułu - liczone bisekcją
+            words = [_span(index, ("word", w), t_lo, t_hi) + (("word", w),)
+                     for w in sorted(a.words, key=lambda w: (freq.get(w, 0), w))[:2]]
+            by_block = _span(index, ("block", block), t_lo, t_hi)
+            if sum(hi_ - lo_ for lo_, hi_, _k in words) < by_block[1] - by_block[0]:
+                spans += [(k,) + (lo_, hi_) for lo_, hi_, k in words]
+            else:
+                spans.append((("block", block),) + by_block)
+        for k, i_lo, i_hi in spans:
+            if i_hi <= i_lo:
                 continue
-            group, firsts = index[k]
-            for b in group[bisect_left(firsts, t_lo):bisect_right(firsts, t_hi)]:
-                if b.id > a.id and lo <= b.price <= hi:
+            for b in index[k][0][i_lo:i_hi]:
+                if b.id > a.id and lo <= b.price <= hi and (k[0] == "exact" or b.block == block):
                     pool[b.id] = b
         matcher = None
         for b in pool.values():

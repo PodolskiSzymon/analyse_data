@@ -237,8 +237,8 @@ Jeśli raport ma być do udostępnienia – opublikuj jako stronę (Artifact) i 
 - [x] A2 atrapa rynku do testów analizy (`analyzer/tests/fake_market.py`, ~3 tys. ofert + scenariusze; pomocnicze `analyzer/analysis.py`)
 - [x] A3 `suspicious.py` + `suspicious-report` (+ `suspicious-diag` zamiast `python -c` z B2 – w `cmd` cudzysłowy są kłopotliwe; `is_suspicious` tylko z `--photo-flag`)
 - [x] A4 `relist.py` + `relist-report` (podobny tytuł tylko z podobnym opisem; bez opisu – identyczny tytuł)
-- [ ] A5 `stats.py` + `report.py` + `report`
-- [ ] A6 `export-analysis`
+- [x] A5 `stats.py` + `report.py` + `report` (atrapa ×90 ≈ 190 tys. ofert: 20 s, 195 MB RAM)
+- [x] A6 `export-analysis`
 - [ ] B1 użytkownik sklonował repo, `status` działa z `ANALYZER_DB`
 - [ ] B2 wyniki diagnostyki (`is_suspicious`, relisty) wklejone i opisane tutaj
 - [ ] B3 pierwszy `report` – `summary.md` od użytkownika

@@ -17,6 +17,9 @@
   suspicious-report [--photo-flag]        flagi podejrzanych ofert (oszustwa, kontakt poza Vinted) -> analysis.db
   suspicious-diag                         rozkład photo.is_suspicious (i innych pól logicznych) wg stanu
   relist-report                           ponowne wystawienia (usunięta + wystawiona od nowa) -> analysis.db
+  report [--age-days 14] [--photo-flag]   raport rynku: flagi + relisty + statystyki -> reports/<data>/summary.md,
+                                          configs.csv, report.html (bez sieci, baza tylko do odczytu)
+  export-analysis [--with-descriptions]   eksport do analizy w czacie (csv.gz, bez danych sprzedawców) -> export/<data>/
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
   status                                  podsumowanie bazy (oferty, stany, partycje, przejścia, transfer)
@@ -442,6 +445,16 @@ def main(argv=None):
     p_sdiag.add_argument("--per-state", type=int, default=2000)
     sub.add_parser("relist-report", help="ponowne wystawienia (usunięta oferta wystawiona od nowa z nowym ID) -> "
                                          "analysis.db + raport (bez sieci, baza tylko do odczytu)")
+    p_report = sub.add_parser("report", help="raport rynku per konfiguracja -> reports/<data>/ (summary.md, "
+                                             "configs.csv, report.html) - bez sieci, baza tylko do odczytu")
+    p_report.add_argument("--age-days", type=int, default=14,
+                          help="aktywne starsze niż tyle dni liczą się do mianownika sell-through (domyślnie 14)")
+    p_report.add_argument("--photo-flag", action="store_true", help="wykluczaj też is_suspicious (po suspicious-diag)")
+    p_export = sub.add_parser("export-analysis", help="oferty, parametry, prawdziwe zmiany cen, przejścia (+ flagi, "
+                                                      "relisty) -> export/<data>/*.csv.gz - bez sieci, bez danych "
+                                                      "sprzedawców")
+    p_export.add_argument("--with-descriptions", action="store_true",
+                          help="także opisy (e-mail/telefon/link zamaskowane, max 2000 znaków) -> descriptions.jsonl.gz")
     p_sample = sub.add_parser("sample", help="próbka ofert z opisami do projektu ekstrakcji -> data/sample_*.jsonl")
     p_sample.add_argument("--per-category", type=int, default=150)
     sub.add_parser("classify-report", help="klasyfikacja ofert z kategorii mieszanych - bez sieci")
@@ -560,6 +573,36 @@ def main(argv=None):
         say("")
         print("\n".join(lines))
         say(f"\nZapisano też do {path}")
+    elif args.command == "report":
+        import time
+
+        from . import analysis, report
+        say = lambda text: print(text, flush=True)  # noqa: E731
+        started = time.monotonic()
+        say(f"Otwieram bazę {cfg.db_path} (tylko do odczytu) ...")
+        conn, aconn = analysis.open_ro(cfg.db_path), analysis.open_analysis(cfg.db_path)
+        out = analysis.out_dir(cfg.db_path)
+        paths, lines, _ = report.build(conn, aconn, out, args.age_days, args.photo_flag, progress=say)
+        conn.close()
+        aconn.close()
+        say("")
+        print("\n".join(lines))
+        say(f"\nGotowe w {(time.monotonic() - started) / 60:.1f} min. Pliki:")
+        for path in paths.values():
+            say(f"  {path}  ({path.stat().st_size / 1e6:.2f} MB)")
+        say("Wklej summary.md do czatu (albo wyślij plik); report.html otwórz w przeglądarce.")
+    elif args.command == "export-analysis":
+        from . import analysis, export
+        say = lambda text: print(text, flush=True)  # noqa: E731
+        say(f"Otwieram bazę {cfg.db_path} (tylko do odczytu) ...")
+        conn = analysis.open_ro(cfg.db_path)
+        aconn = analysis.open_analysis(cfg.db_path) if analysis.analysis_path(cfg.db_path).exists() else None
+        out = analysis.out_dir(cfg.db_path, "export")
+        result = export.run(conn, out, aconn, args.with_descriptions, say=say)
+        conn.close()
+        if aconn is not None:
+            aconn.close()
+        print("\n".join(export.size_lines(result, out)))
     elif args.command == "sample":
         from .sample import export
         print(f"Otwieram bazę {cfg.db_path} ...", flush=True)

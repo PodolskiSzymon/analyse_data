@@ -72,3 +72,34 @@ class ConsoleBar(logging.Filter):
             self.stream.write("\n")
             self.stream.flush()
             self.drawn = False
+
+
+class Bar:
+    """Prosty pasek „etap n/total” dla komend analizy (report, export-analysis) - jedna linia odświeżana co
+    `every` s, ASCII. total None = sam licznik."""
+
+    def __init__(self, label, total=None, stream=None, every=0.5):
+        self.label, self.total, self.every = label, total, every
+        self.stream = stream or sys.stderr
+        self.started = self.shown = time.monotonic()
+        self.n = 0
+
+    def update(self, n=None, force=False):
+        self.n = self.n + 1 if n is None else n
+        now = time.monotonic()
+        if not force and now - self.shown < self.every:
+            return
+        self.shown = now
+        if self.total:
+            pct = min(self.n / self.total, 1.0)
+            filled = int(20 * pct)
+            text = f"  {self.label} [{'#' * filled}{'-' * (20 - filled)}] {self.n}/{self.total} {pct:5.1%}"
+        else:
+            text = f"  {self.label}: {self.n}"
+        self.stream.write(f"\r{text} | {_hms(now - self.started)}   ")
+        self.stream.flush()
+
+    def finish(self):
+        self.update(self.n, force=True)
+        self.stream.write("\n")
+        self.stream.flush()
