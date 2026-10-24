@@ -155,6 +155,10 @@ class Builder:
         raw = {"id": lid, "title": title, "is_promoted": False,
                "photo": {"is_suspicious": bool(catalog_photo_suspicious), "is_main": True, "is_hidden": False}}
         db.put_raw(self.conn, lid, "catalog", raw, iso(first_seen))
+        if has_details:                 # szczegóły (sidebar): lista zdjęć z is_suspicious
+            db.put_raw(self.conn, lid, "sidebar", {"item": {"id": lid, "is_closed": False, "photos": [
+                {"is_main": True, "is_suspicious": False},
+                {"is_main": False, "is_suspicious": bool(catalog_photo_suspicious)}]}}, iso(first_seen))
         # rynek i obniżki - tak jak liczy analiza (waluta: details > listings; bez waluty ułamkowa cena = zagr.)
         cur = details_currency or seller_currency
         mkt = ("PL" if cur == "PLN" else "zagr") if cur else ("zagr" if abs(price_now - round(price_now)) >= 0.005
@@ -267,7 +271,8 @@ class Builder:
     def frauds(self):
         d = lambda day, hour=8: datetime(2026, 10, day, hour, tzinfo=UTC)  # noqa: E731
         key, parent, feats = "iphone 16 pro|512", "iphone 16 pro", dict(model="iphone 16 pro", storage_gb=512)
-        common = dict(key=key, parent=parent, features=feats, brand="Apple", catalog_photo_suspicious=True)
+        common = dict(key=key, parent=parent, features=feats, brand="Apple", catalog_photo_suspicious=True,
+                      description="Nowy, nieużywany, zafoliowany, gwarancja Apple 24 miesiące, wysyłka gratis.")
         dup = {"dup_title_price", "too_cheap"}
         self.add("phone", "iPhone 16 Pro 512 GB", 519.0, "blocked", first_seen=d(14), last_seen=d(15),
                  flags=dup | {"blocked"}, name="dup_blocked", **common)
@@ -346,6 +351,14 @@ class Builder:
                  name="n_desc_old")
         self.add("laptop", "Asus VivoBook 15 i3 8GB 256GB", 1000.0, first_seen=d(17), brand="Asus",
                  description="Nowy, nieotwierany, gwarancja producenta 24 miesiące, paragon.", name="n_desc_new")
+        # bez opisu: tytuł ogólnikowy („Laptop Lenovo”) i tytuł konkretny, ale B dopiero 5 dni później - nie relisty
+        self.add("laptop", "Laptop Lenovo", 800.0, "deleted", first_seen=d(13), last_seen=d(16), brand="Lenovo",
+                 name="n_generic_old")
+        self.add("laptop", "Laptop Lenovo", 800.0, first_seen=d(16, 20), brand="Lenovo", name="n_generic_new")
+        self.add("laptop", "Lenovo IdeaPad 5 Ryzen 5 16GB 512GB", 2000.0, "deleted", first_seen=d(13),
+                 last_seen=d(15), brand="Lenovo", name="n_gap_old")
+        self.add("laptop", "Lenovo IdeaPad 5 Ryzen 5 16GB 512GB", 2000.0, first_seen=d(20), brand="Lenovo",
+                 name="n_gap_new")
         self.add("laptop", "Laptop 15,6 i5 8GB 256GB", 1000.0, "deleted", first_seen=d(13), last_seen=d(16),
                  brand="Acer", name="n_brand_old")
         self.add("laptop", "Laptop 15,6 i5 8GB 256GB", 1000.0, first_seen=d(17), brand="Asus", name="n_brand_new")

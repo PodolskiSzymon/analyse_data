@@ -7,8 +7,10 @@ Oferta B jest relistem A, gdy:
   * B pojawiła się w katalogu od 1 dnia PRZED ostatnim widzeniem A do 14 dni po nim,
   * tytuł: ten sam po normalizacji (`analysis.norm_title`) albo podobny (difflib ≥ 0,9), oraz:
       - obie mają opis → opisy podobne (difflib ≥ 0,8 na pierwszych 500 znakach) - podstawa `description`,
-      - brak opisu do porównania → wymagany IDENTYCZNY tytuł - podstawa `title` (krótkie tytuły typu „iPhone 13
-        128GB” bez opisu to często różne sztuki - podobieństwo nie wystarcza).
+      - brak opisu do porównania → podstawa `title`, ostrzej (u użytkownika 2026-10-24 „Laptop”, „HP laptop”
+        z przerwą 12 dni wychodziły jako relisty - przypadek, nie ta sama rzecz): IDENTYCZNY tytuł, konkretny
+        (≥ 4 słowa albo ≥ 20 znaków po normalizacji), cena w ±5%, B pojawiła się najwyżej 2 dni po zniknięciu A,
+      - opis do porównania musi mieć ≥ 40 znaków (samo „Sprzedam” nie potwierdza niczego).
 Każda oferta jest relistem najwyżej jednej i ma najwyżej jeden relist (najbliższy w czasie). Łańcuch A→B→C = jedna
 „oferta logiczna” (czas na rynku od pierwszego first_seen). Zdjęć nie porównujemy (koszt transferu).
 
@@ -23,7 +25,14 @@ from . import analysis
 OLD_STATES = ("deleted", "closed", "sold", "unlisted")
 NEW_STATES = analysis.MARKET_STATES + ("unlisted", "hidden")
 PRICE_TOL, BEFORE_DAYS, AFTER_DAYS = 0.15, 1.0, 14.0
-TITLE_MIN, DESC_MIN, DESC_CHARS = 0.90, 0.80, 500
+TITLE_MIN, DESC_MIN, DESC_CHARS, DESC_MIN_CHARS = 0.90, 0.80, 500, 40
+# relist z samego tytułu (bez opisów): tytuł konkretny, cena prawie ta sama, krótka przerwa
+TITLE_BASIS_WORDS, TITLE_BASIS_CHARS, TITLE_BASIS_PRICE, TITLE_BASIS_DAYS = 4, 20, 0.05, 2.0
+
+
+def specific_title(title):
+    """Czy znormalizowany tytuł jest dość konkretny, by sam (bez opisu) potwierdzał relist."""
+    return len(title.split()) >= TITLE_BASIS_WORDS or len(title) >= TITLE_BASIS_CHARS
 
 
 def _ratio(a, b, minimum, matcher=None):
@@ -144,11 +153,15 @@ def candidates(conn, rows):
                 title_sim = 1.0
             gap = (b.first - a.last).total_seconds() / 86400
             if a.has_desc and b.has_desc:
-                desc_sim = _ratio(desc(a.id), desc(b.id), DESC_MIN)
+                da, dbb = desc(a.id), desc(b.id)
+                if min(len(da), len(dbb)) < DESC_MIN_CHARS:
+                    continue
+                desc_sim = _ratio(da, dbb, DESC_MIN)
                 if desc_sim < DESC_MIN:
                     continue
                 out.append((gap, round(title_sim * desc_sim, 3), "description", a.id, b.id))
-            elif same_title:
+            elif same_title and specific_title(a.title) and gap <= TITLE_BASIS_DAYS \
+                    and abs(b.price - a.price) <= TITLE_BASIS_PRICE * a.price:
                 out.append((gap, 0.9, "title", a.id, b.id))
     return out
 

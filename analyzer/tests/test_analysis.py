@@ -82,6 +82,9 @@ def test_suspicious_report_and_exclusions(flagged):
     assert row.split()[1:9] == ["0", "4", "0", "0", "0", "0", "0", "4"]
     assert any(f"https://www.vinted.pl/items/{truth.ids['off_olx']}" in line for line in lines)
     assert "(is_suspicious wyłączone" in "\n".join(lines)
+    head = next(i for i, line in enumerate(lines) if line.startswith("stan       ofert"))
+    blocked = lines[head + 1]
+    assert blocked.split()[1:4] == ["2", "1", "0.13"]        # 519 zł / mediana iPhone 16 Pro (~4100 zł)
 
 
 def test_photo_flag_and_diag(market, tmp_path):
@@ -93,8 +96,11 @@ def test_photo_flag_and_diag(market, tmp_path):
                                              "blocked_console")}
     lines = suspicious.photo_diag(conn, per_state=500)
     row = next(line for line in lines if line.startswith("photo.is_suspicious"))
-    assert "100.0% (2/2)" in row          # oba blocked mają is_suspicious=true
+    assert "100.0% (2/2)" in row          # oba blocked mają is_suspicious=true (katalog)
+    row = next(line for line in lines if line.startswith("photos[].is_suspicious"))
+    assert "100.0% (1/1)" in row          # sidebar: blocked z opisem (dup_blocked) - choć jedno zdjęcie true
     assert any(line.startswith("is_promoted") for line in lines)
+    assert any(line.startswith("is_closed") for line in lines)
     conn.close()
 
 

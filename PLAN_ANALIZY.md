@@ -260,8 +260,8 @@ Jeśli raport ma być do udostępnienia – opublikuj jako stronę (Artifact) i 
 - [x] A4 `relist.py` + `relist-report` (podobny tytuł tylko z podobnym opisem; bez opisu – identyczny tytuł)
 - [x] A5 `stats.py` + `report.py` + `report` (atrapa ×90 ≈ 190 tys. ofert: 20 s, 195 MB RAM)
 - [x] A6 `export-analysis`
-- [ ] B1 użytkownik sklonował repo, `status` działa z `ANALYZER_DB`
-- [ ] B2 wyniki diagnostyki (`is_suspicious`, relisty) wklejone i opisane tutaj
+- [x] B1 użytkownik sklonował repo, `status` działa z `ANALYZER_DB`
+- [x] B2 wyniki diagnostyki (`is_suspicious`, relisty) wklejone i opisane tutaj (dziennik 2026-10-24, wieczór)
 - [ ] B3 pierwszy `report` – `summary.md` od użytkownika
 - [ ] C1 kontrola jakości – wnioski dopisane tutaj
 - [ ] C2/C3 ceny i strategie – wnioski dopisane tutaj
@@ -275,3 +275,17 @@ Jeśli raport ma być do udostępnienia – opublikuj jako stronę (Artifact) i 
   Uwaga użytkownika: część (prawdopodobnie większość) sprzedanych z okresu przebudowy API trafiła do `deleted`.
 * 2026-10-24: A1–A6 gotowe (363 testy). Na atrapie ×90 (~190 tys. ofert) `report` 20 s / 195 MB RAM, eksport
   z opisami ~14 MB. Czekam na B1–B3 (wyniki `status`, `suspicious-diag`, `relist-report`, `summary.md`).
+* 2026-10-24 (wieczór), B1/B2 od użytkownika:
+  * `status`: aktywne laptop 17 606, phone 70 791, tablet 10 366, console 38 095, gpu 4 148, ram 5 914,
+    storage 2 856; **sold razem tylko 307** (console 72, phone 157, laptop 36, tablet 18, ram 13, storage 9, gpu 2),
+    **blocked 148**, deleted 13 328, unlisted 9 011, hidden 1 769, unclassified 11 016. Z recheck było 454 sold →
+    ~148 przeszło w `blocked` (html-details: strona 404) → **1/3 „sprzedanych” to blocked** – do sprawdzenia, czy to
+    oszustwa, czy Vinted usuwa stronę sprzedanej oferty (nowa tabelka „cena / mediana” w `suspicious-report` i
+    `summary.md`). Telefony: partycja 1850–1914,94 zł brakuje 210 ofert (oversize 14) – sprawa zbierania (C4).
+  * `suspicious-diag`: w pozycji katalogu **nie ma pola `photo.is_suspicious`** (są tylko photo.is_main,
+    is_favourite, promoted, show_1st_time_seller_discount). Promowane: sold 3,9% / deleted 2,0% / active 0,7%
+    (mała próbka sold 307). → diag rozszerzony o zapisane szczegóły (`sidebar`, `photos[].*`); flaga
+    `--photo-flag` sprawdza oba źródła.
+  * `relist-report` (stara reguła): 2 480 par, 15,2% deleted to relisty; przykłady z samego tytułu były
+    ogólnikowe („Laptop”, „HP laptop”, przerwa +12 d) → **reguła tytułowa zaostrzona** (tytuł ≥ 4 słowa / ≥ 20 znaków,
+    cena ±5%, przerwa ≤ 2 dni; opis do porównania ≥ 40 znaków). Mediana przerwy 0,5 d = jedno przejście `watch`.

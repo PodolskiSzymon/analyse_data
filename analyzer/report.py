@@ -174,7 +174,10 @@ def summary(result, flags_info, relist_info, day):
     lines += ["", "Flagi (ofert): " + ", ".join(f"{f} {counts.get(f, 0)}" for f in flags_info["all"])
               + f" · relistów: {relist_info['pairs']} (opis {relist_info['by_description']}, tytuł "
                 f"{relist_info['by_title']})", "",
-              "## 2. Jak szybko sprawdzono zniknięcie a udział sprzedanych (eksperyment C4)",
+              ]
+    if flags_info.get("price_check"):
+        lines += ["```"] + flags_info["price_check"] + ["```", ""]
+    lines += ["## 2. Jak szybko sprawdzono zniknięcie a udział sprzedanych (eksperyment C4)",
               "Zwłoka = `state_at − last_seen` (dni). Jeśli przy szybkim sprawdzeniu % sold jest dużo wyższy, "
               "sprzedane oferty znikają z Vinted po kilku dniach (strona 404).", ""]
     lines += table(["zniknięcia", "zwłoka", "sold", "deleted", "% sold", "mediana zwłoki"], delay_rows(result))
@@ -266,6 +269,15 @@ def write_html(path, summary_lines, groups):
     i = 0
     while i < len(summary_lines):
         line = summary_lines[i]
+        if line.startswith("```"):
+            i += 1
+            block = []
+            while i < len(summary_lines) and not summary_lines[i].startswith("```"):
+                block.append(html.escape(summary_lines[i]))
+                i += 1
+            out.append("<div class=wrap><pre>" + "\n".join(block) + "</pre></div>")
+            i += 1
+            continue
         if line.startswith("|"):
             block = []
             while i < len(summary_lines) and summary_lines[i].startswith("|"):
@@ -321,7 +333,8 @@ def build(conn, aconn, out, age_days=14, photo_flag=False, recompute=True, progr
     relists = relist.load(aconn)
     result = stats.collect(conn, excluded, relists, age_days, progress=bar)
     counts = dict(aconn.execute("SELECT flag, COUNT(*) FROM flags GROUP BY flag").fetchall())
-    flags_info = {"excluding": excluding, "counts": counts, "all": suspicious.ALL_FLAGS}
+    flags_info = {"excluding": excluding, "counts": counts, "all": suspicious.ALL_FLAGS,
+                  "price_check": suspicious.price_check(conn)}
     basis = dict(aconn.execute("SELECT basis, COUNT(*) FROM relists GROUP BY basis").fetchall())
     relist_info = {"pairs": len(relists), "by_description": basis.get("description", 0),
                    "by_title": basis.get("title", 0)}

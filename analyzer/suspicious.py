@@ -143,31 +143,35 @@ def price_flags(rows):
 
 
 def photo_flags(conn, progress=None):
-    """`is_suspicious` z ostatniej surowej pozycji katalogu (photo.is_suspicious = true)."""
+    """`is_suspicious` z ostatniej surowej odpowiedzi: pozycja katalogu (photo.is_suspicious) albo szczegóły oferty
+    (sidebar: photos[].is_suspicious) - true w którejkolwiek."""
     say = progress or (lambda _t: None)
-    out, last_id, last_body, n = [], None, None, 0
+    found = {}
+    for kind in ("catalog", "sidebar"):
+        last_id, last_body, n = None, None, 0
 
-    def check(lid, body):
-        try:
-            photo = rawstore.decompress(body).get("photo") or {}
-        except Exception:
-            return
-        if photo.get("is_suspicious") is True:
-            out.append((lid, "is_suspicious", "photo.is_suspicious=true"))
+        def check(lid, body):
+            try:
+                fields = _diag_fields(kind, rawstore.decompress(body))
+            except Exception:
+                return
+            hits = [name for name, value in fields.items() if value and name.lower().endswith("is_suspicious")]
+            if hits:
+                found.setdefault(lid, []).extend(f"{kind}:{h}" for h in hits)
 
-    sql = f"""SELECT r.listing_id, r.body FROM raw r JOIN listings l ON l.id = r.listing_id
-              WHERE r.kind='catalog' AND l.state IN ({",".join("?" * len(STATES))})
-              ORDER BY r.listing_id, r.fetched_at"""
-    for lid, body in conn.execute(sql, STATES):
-        if lid != last_id and last_id is not None:
+        sql = f"""SELECT r.listing_id, r.body FROM raw r JOIN listings l ON l.id = r.listing_id
+                  WHERE r.kind=? AND l.state IN ({",".join("?" * len(STATES))})
+                  ORDER BY r.listing_id, r.fetched_at"""
+        for lid, body in conn.execute(sql, (kind, *STATES)):
+            if lid != last_id and last_id is not None:
+                check(last_id, last_body)
+                n += 1
+                if n % 20000 == 0:
+                    say(f"  zdjęcia ({kind}): {n} ofert...")
+            last_id, last_body = lid, body
+        if last_id is not None:
             check(last_id, last_body)
-            n += 1
-            if n % 20000 == 0:
-                say(f"  zdjęcia: {n} ofert...")
-        last_id, last_body = lid, body
-    if last_id is not None:
-        check(last_id, last_body)
-    return out
+    return [(lid, "is_suspicious", ", ".join(hits) + "=true") for lid, hits in sorted(found.items())]
 
 
 def compute(conn, photo_flag=False, progress=None):
@@ -251,6 +255,7 @@ def report(conn, aconn, examples=10):
                  + f"{len(excluded):>8}")
     lines.append("ofert w kategorii" + "".join(f"{totals.get(c, 0):>8}" for c in analysis.CATEGORIES)
                  + f"{sum(totals.values()):>8}")
+    lines += [""] + price_check(conn)
     photo = aconn.execute("SELECT value FROM meta WHERE key='photo_flag'").fetchone()
     if not photo or photo[0] != "1":
         lines.append("(is_suspicious wyłączone - włącz: --photo-flag, po sprawdzeniu `suspicious-diag`)")
@@ -273,39 +278,109 @@ def report(conn, aconn, examples=10):
 # ---------------------------------------------------------------------------------------------- diagnostyka B2
 
 
+def _bool_leaves(obj, path="", depth=0):
+    """(ścieżka, wartość) każdego pola logicznego w JSON-ie; indeksy list zwinięte do „[]”."""
+    if depth > 6:
+        return
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _bool_leaves(v, f"{path}.{k}" if path else str(k), depth + 1)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _bool_leaves(v, f"{path}[]", depth + 1)
+    elif isinstance(obj, bool):
+        yield path, obj
+
+
+def _diag_fields(kind, body):
+    """Pola do diagnostyki: katalog - photo.* i najwyższy poziom; sidebar (szczegóły) - photos[].*, najwyższy poziom
+    i wszystko, co ma w nazwie „suspic”. Wartość per oferta = czy choć jedno true (lista zdjęć)."""
+    from sniper.extractor import unwrap_sidebar
+
+    item = unwrap_sidebar(body) if kind == "sidebar" else body
+    if not isinstance(item, dict):
+        return {}
+    fields = {}
+    for name, value in _bool_leaves(item):
+        top = "." not in name and "[]" not in name
+        keep = top or "suspic" in name.lower() or (
+            name.startswith("photo.") if kind == "catalog" else name.startswith("photos[]."))
+        if keep:
+            fields[name] = fields.get(name, False) or value
+    return fields
+
+
 def photo_diag(conn, per_state=2000, states=("blocked", "sold", "deleted", "active"), progress=None):
-    """Rozkład pól logicznych `photo.*` (i logicznych pól najwyższego poziomu) w ostatniej surowej pozycji katalogu,
-    osobno dla stanów - próbka losowa po `per_state`. Hipoteza: oszustwa (blocked) mają photo.is_suspicious=true."""
+    """Rozkład pól logicznych zdjęć (i najwyższego poziomu) w ostatniej surowej odpowiedzi: pozycja katalogu
+    (`catalog`) i szczegóły oferty (`sidebar`, lista `photos`), osobno dla stanów - próbka losowa po `per_state`.
+    Hipoteza użytkownika: oszustwa (blocked) mają is_suspicious=true. 2026-10-24: w katalogu pola NIE MA."""
     say = progress or (lambda _t: None)
-    counts, sizes = {}, {}
+    kinds = ("catalog", "sidebar")
+    counts = {k: {} for k in kinds}
+    sizes = {k: {} for k in kinds}
     for state in states:
         say(f"  {state}: losuję do {per_state} ofert...")
         ids = [r[0] for r in conn.execute("SELECT id FROM listings WHERE state=? ORDER BY RANDOM() LIMIT ?",
                                           (state, per_state))]
-        sizes[state] = 0
-        for lid in ids:
-            row = conn.execute("SELECT body FROM raw WHERE listing_id=? AND kind='catalog' ORDER BY fetched_at DESC "
-                               "LIMIT 1", (lid,)).fetchone()
-            if row is None:
+        for kind in kinds:
+            sizes[kind][state] = 0
+            for lid in ids:
+                row = conn.execute("SELECT body FROM raw WHERE listing_id=? AND kind=? ORDER BY fetched_at DESC "
+                                   "LIMIT 1", (lid, kind)).fetchone()
+                if row is None:
+                    continue
+                try:
+                    fields = _diag_fields(kind, rawstore.decompress(row[0]))
+                except Exception:
+                    continue
+                sizes[kind][state] += 1
+                for name, value in fields.items():
+                    c = counts[kind].setdefault(name, {}).setdefault(state, [0, 0])
+                    c[0] += value is True
+                    c[1] += 1
+    lines = []
+    for kind in kinds:
+        label = "pozycja katalogu (catalog)" if kind == "catalog" else "szczegóły oferty (sidebar)"
+        lines += [f"{label}: % true (true/z polem), próbka z zapisaną odpowiedzią: "
+                  + ", ".join(f"{s} {sizes[kind][s]}" for s in states), ""]
+        lines.append("pole".ljust(36) + "".join(s.rjust(20) for s in states))
+        names = sorted(counts[kind], key=lambda n: ("suspic" not in n.lower(), "." in n or "[]" in n, n),
+                       reverse=False)
+        for name in names:
+            cells = []
+            for state in states:
+                t, n = counts[kind][name].get(state, [0, 0])
+                cells.append((f"{t / n:6.1%} ({t}/{n})" if n else "-").rjust(20))
+            lines.append(f"{name[:35]:<36}" + "".join(cells))
+        if not any("suspic" in n.lower() for n in counts[kind]):
+            lines.append("(brak pola z „suspic” w nazwie)")
+        lines.append("")
+    return lines
+
+
+def price_check(conn):
+    """Cena blocked vs sold względem mediany sprawnych ofert tej samej konfiguracji (albo poziom wyżej): czy
+    `blocked` (sprzedana, a strona 404) to oszustwa (cena ≪ mediany), czy zwykłe sprzedaże, których stronę Vinted
+    potem usuwa (cena ~ mediany)."""
+    ratios = {"blocked": [], "sold": []}
+    total = {"blocked": 0, "sold": 0}
+    for category in analysis.CATEGORIES:
+        rows = list(_rows(conn, category))
+        med_key, med_parent = reference_medians(rows)
+        for _lid, _t, price, _fs, key, parent, damaged, state in rows:
+            if state not in ratios:
                 continue
-            try:
-                item = rawstore.decompress(row[0])
-            except Exception:
-                continue
-            sizes[state] += 1
-            fields = {f"photo.{k}": v for k, v in (item.get("photo") or {}).items() if isinstance(v, bool)}
-            fields.update({k: v for k, v in item.items() if isinstance(v, bool)})
-            for name, value in fields.items():
-                c = counts.setdefault(name, {}).setdefault(state, [0, 0])
-                c[0] += value is True
-                c[1] += 1
-    lines = ["Pola logiczne w surowej pozycji katalogu: % true (true/z polem), próbka: "
-             + ", ".join(f"{s} {sizes[s]}" for s in states), ""]
-    lines.append("pole".ljust(28) + "".join(s.rjust(20) for s in states))
-    for name in sorted(counts, key=lambda n: (not n.startswith("photo."), n)):
-        cells = []
-        for state in states:
-            t, n = counts[name].get(state, [0, 0])
-            cells.append((f"{t / n:6.1%} ({t}/{n})" if n else "-").rjust(20))
-        lines.append(f"{name[:27]:<28}" + "".join(cells))
+            total[state] += 1
+            ref = med_key.get(key) or med_parent.get(parent)
+            if ref and price and not damaged:
+                ratios[state].append(price / ref[0])
+    lines = ["Cena / mediana konfiguracji (sprawne): czy blocked to oszustwa (≪ mediany), czy zwykłe sprzedaże (~1,0)",
+             "stan       ofert  z medianą  mediana ilorazu  < 40%  < 60%  60-90%  ≥ 90%"]
+    for state, xs in ratios.items():
+        n = len(xs)
+        share = (lambda cond: f"{sum(1 for x in xs if cond(x)) / n:6.0%}") if n else (lambda cond: "     -")
+        med = analysis.median(xs)
+        lines.append(f"{state:<9} {total[state]:>6} {n:>10} {('-' if med is None else f'{med:.2f}'):>16} "
+                     f"{share(lambda x: x < .4)} {share(lambda x: x < .6)} {share(lambda x: .6 <= x < .9)}  "
+                     f"{share(lambda x: x >= .9)}")
     return lines
