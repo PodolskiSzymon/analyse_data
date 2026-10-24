@@ -193,7 +193,9 @@ def test_real_sdk_request_goes_direct_without_proxy(tmp_path, monkeypatch):
     assert record["status"] == STATUS_EVALUATED and record["evaluation"]["score"] == 8
     assert seen["url"].startswith("https://api.anthropic.com/v1/messages")
     assert FALLBACK_BETA in seen["headers"]["anthropic-beta"]
-    assert seen["headers"]["x-api-key"] == "sk-test" and "proxy-authorization" not in seen["headers"]
+    # starsze SDK: x-api-key, nowsze (2.x): authorization: Bearer
+    key = seen["headers"].get("x-api-key") or seen["headers"].get("authorization", "").removeprefix("Bearer ")
+    assert key == "sk-test" and "proxy-authorization" not in seen["headers"]
     body = seen["body"]
     assert body["model"] == "claude-opus-5-5" and body["fallbacks"] == "default"
     assert body["output_config"]["format"]["type"] == "json_schema"
