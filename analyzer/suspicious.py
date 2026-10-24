@@ -2,8 +2,10 @@
 `analysis.db: flags(listing_id, flag, detail)`.
 
 Flagi (każda osobno; WYKLUCZAJĄCE ze statystyk cen - `EXCLUDING`, informacyjne - reszta):
-  * `blocked`         - stan `blocked` (sprzedana, a strona oferty 404 - oszustwa zablokowane przez Vinted),
-  * `dup_title_price` - ten sam znormalizowany tytuł i ta sama cena (±1 zł) u ≥ 3 ofert w 30 dni, a cena < 60%
+  * `blocked`         - stan `blocked` (sprzedana, a strona oferty 404) - NIE wyklucza: 2026-10-25 ceny blocked
+                        rozkładają się jak ceny sold (to głównie sprzedane, których stronę Vinted usunął),
+  * `dup_title_price` - ten sam KONKRETNY znormalizowany tytuł (≥ 4 słowa / ≥ 20 znaków; „Laptop”, „iPhone 15”
+                        to tysiące niezależnych ofert) i ta sama cena (±1 zł) u ≥ 3 ofert w 30 dni, a cena < 60%
                         mediany konfiguracji (powtarzane „iPhone 16 Pro 512 GB za 519 zł”),
   * `shop_like`       - jak wyżej, ale po cenie rynkowej (sklep / hurtownik z jednakowymi ofertami) - NIE wyklucza,
   * `offsite`         - namawianie do kontaktu / płatności poza Vinted (WhatsApp, Telegram, „tylko przez OLX”,
@@ -22,9 +24,9 @@ from . import analysis, rawstore
 from .extract import norm
 from .sample import _EMAIL
 
-EXCLUDING = ("blocked", "dup_title_price", "offsite", "too_cheap", "is_suspicious")
-INFO = ("shop_like", "offsite_mention")
-ALL_FLAGS = EXCLUDING[:4] + INFO + EXCLUDING[4:]
+EXCLUDING = ("dup_title_price", "offsite", "too_cheap", "is_suspicious")
+INFO = ("blocked", "shop_like", "offsite_mention")
+ALL_FLAGS = ("blocked", "dup_title_price", "offsite", "too_cheap", "shop_like", "offsite_mention", "is_suspicious")
 
 DUP_MIN, DUP_PRICE_ZL, DUP_DAYS, DUP_BELOW = 3, 1.0, 30, 0.60
 CHEAP_BELOW, CHEAP_MIN_N = 0.40, 8
@@ -120,7 +122,7 @@ def price_flags(rows):
                 out.append((lid, "too_cheap", f"{price:.0f} zł < 40% mediany {med:.0f} zł (n={n})"))
     by_title = {}
     for row in rows:
-        if row[1] and row[2] is not None and row[3] is not None:
+        if row[1] and analysis.specific_title(row[1]) and row[2] is not None and row[3] is not None:
             by_title.setdefault(row[1], []).append(row)
     for group in by_title.values():
         if len(group) < DUP_MIN:

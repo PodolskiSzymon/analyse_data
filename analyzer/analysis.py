@@ -83,6 +83,12 @@ def norm_title(text):
     return re.sub(r"\b(\d+) (gb|tb|mb|mhz|hz|cali|cal|inch)\b", r"\1\2", text)   # „512 GB” = „512GB”
 
 
+def specific_title(title, words=4, chars=20):
+    """Czy znormalizowany tytuł jest konkretny (≥ 4 słowa albo ≥ 20 znaków): „laptop lenovo”, „iphone 15 pro” -
+    nie (tysiące niezależnych ofert o takim tytule), „apple iphone 16 pro 512gb czarny tytan” - tak."""
+    return len(title.split()) >= words or len(title) >= chars
+
+
 def parse_ts(text):
     if not text:
         return None

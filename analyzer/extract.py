@@ -14,7 +14,7 @@ import json
 import re
 import unicodedata
 
-VERSION = 1
+VERSION = 2          # v2 (2026-10-25): zaprzeczenia przy „na części” / pęknięciu („bez defektów”, „not broken”)
 
 # ---------------------------------------------------------------------------------------------- pomocnicze
 
@@ -78,6 +78,23 @@ LOCKED = re.compile(
     r"mdm|zarzadzan\w* przez firm\w*|locked to|simlock(?! ?free)|blokada sim(?!-lock: brak)|banned|ban(?:em)? na)\b")
 NOT_LOCKED = re.compile(r"\b(?:bez blokad\w*|brak blokad\w*|odblokowan\w*|unlocked|sim free|simlock free|"
                         r"no locks?|wylogowan\w* z icloud|bez icloud|icloud (?:wylogowan\w*|czyst\w*|free))\b")
+# Zaprzeczenie tuż PRZED dopasowaniem usterki („bez defektów”, „nie jest uszkodzony”, „no defects”, „not broken”) -
+# u użytkownika 2026-10-25 uszkodzone laptopy wychodziły tylko 17% taniej od sprawnych (fałszywe „na części”).
+NEGATION = re.compile(r"(?:\b(?:bez|brak\w*|nie (?:jest|sa|ma|posiada\w*)|zadn\w*|zero|no|not|without|never|keine?\w*|"
+                      r"ohne|nicht|nincs|nem|fara|niciun\w*|zadn\w*|bez|nera|ingen|inga|uden|ei ole|senza|non e|"
+                      r"sans|aucun\w*|sin|ningun\w*)\W+(?:\w+\W+){0,3})$")
+
+
+def has_fault(pattern, text):
+    """Czy w tekście jest usterka z `pattern`, której nie poprzedza zaprzeczenie (do 3 słów wcześniej, w tym samym
+    fragmencie zdania - „bez ładowarki, uszkodzony” i „Bez rys. Uszkodzona bateria” to usterki)."""
+    for match in pattern.finditer(text):
+        before = re.split(r"[,.;:!?\n()]", text[max(0, match.start() - 40):match.start()])[-1]
+        if not NEGATION.search(before):
+            return True
+    return False
+
+
 BATTERY_WORDS = r"(?:bateri\w*|battery|akku\w*|akum\w*|baterie|baterija|akkumulator\w*|kondycj\w*|health|zdravi\w*|" \
                 r"kapacit\w*|capacit\w*|stan baterii|zdrowie)"
 BATTERY = re.compile(BATTERY_WORDS + r"[^0-9%\n]{0,25}?(\d{2,3})\s*%|(\d{2,3})\s*%[^\n]{0,15}?" + BATTERY_WORDS)
@@ -88,12 +105,12 @@ def common(f, title, desc, attrs, listing):
     grade = CONDITION_GRADE.get(norm(status))
     f.put("condition_grade", grade, "attribute")
     text = norm(f"{title}\n{desc}")
-    if FOR_PARTS.search(norm(title)):
+    if has_fault(FOR_PARTS, norm(title)):
         f.put("for_parts", True, "title")
-    elif FOR_PARTS.search(norm(desc)):
+    elif has_fault(FOR_PARTS, norm(desc)):
         f.put("for_parts", True, "description")
-    if CRACKED.search(text):
-        f.put("cracked", True, "title" if CRACKED.search(norm(title)) else "description")
+    if has_fault(CRACKED, text):
+        f.put("cracked", True, "title" if has_fault(CRACKED, norm(title)) else "description")
     if NOT_LOCKED.search(text):
         f.put("locked", False, "description")
     elif LOCKED.search(text):

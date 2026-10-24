@@ -289,3 +289,30 @@ Jeśli raport ma być do udostępnienia – opublikuj jako stronę (Artifact) i 
   * `relist-report` (stara reguła): 2 480 par, 15,2% deleted to relisty; przykłady z samego tytułu były
     ogólnikowe („Laptop”, „HP laptop”, przerwa +12 d) → **reguła tytułowa zaostrzona** (tytuł ≥ 4 słowa / ≥ 20 znaków,
     cena ±5%, przerwa ≤ 2 dni; opis do porównania ≥ 40 znaków). Mediana przerwy 0,5 d = jedno przejście `watch`.
+* 2026-10-25, C1 (wstępnie, z `suspicious-diag`, `suspicious-report`, pierwszego `report` i `configs.csv`):
+  * Skala: ~174 tys. ofert w stanach rynkowych, aktywnych ~150 tys.; pewne sprzedaże 307 + blocked 148 = **455
+    (0,3%)**, deleted 13 328; grup konfiguracji 21 307, z ≥ 1 sprzedaną 198, z ≥ 3 – tylko 11. ⇒ ceny sprzedaży
+    per konfiguracja tylko dla iPhone'ów i kilku konsol; reszta – ceny ofertowe + widełki.
+  * **Zagranica 62–69% ofert w każdej kategorii** → rynek PL to ~1/3 (liczyć osobno – jest).
+  * Klucz konfiguracji (po wykluczeniach): laptop 66%, phone 90%, tablet 72%, console 63%, gpu 77%, ram 91%,
+    storage 87%. Błędy kluczy laptopów: „? / intel atom / ? / 1 / 128” (RAM 1 GB), „macbook air 2025 / m4 / 128 /
+    512” (RAM = pojemność dysku) – do poprawy ekstrakcji (później).
+  * `is_suspicious`: jest tylko w szczegółach (`sidebar`: photos[], plugins), **zawsze false** (sold 0/302, deleted
+    0/1517, active 0/1353); blocked nie mają zapisanego sidebara → hipoteza nie do potwierdzenia, flaga bez użytku.
+  * **blocked ≈ sold**: cena / mediana konfiguracji – mediana 0,94 vs 0,91, < 40%: 9% vs 7%, ≥ 90%: 56% vs 54%
+    → blocked to w większości zwykłe sprzedane, których stronę Vinted usunął (liczone od teraz jako sold; flaga
+    `blocked` tylko informacyjna). Pośrednio potwierdza zastrzeżenie 1: Vinted usuwa strony sprzedanych ofert.
+  * Pierwsza tabela zwłoki bezużyteczna (recheck ustawił state_at = 10-24 wszystkim: 284 sold / 11 991 deleted,
+    mediana zwłoki 7,4 d) → przebudowana na przedziały zwłoki (services_at − last_seen).
+  * Ekstrakcja: „na części” łapała zaprzeczenia („bez defektów”, „no defects”, „nie jest uszkodzony”) → uszkodzone
+    laptopy wychodziły tylko 17% taniej od sprawnych → **extract v2** (zaprzeczenia w tym samym fragmencie zdania).
+  * Flagi: `shop_like` 25 268 i część `dup_title_price` (386) to ogólnikowe tytuły („Laptop” 700 zł ×8, „Nintendo
+    2DS”) → liczone tylko dla tytułów konkretnych (≥ 4 słowa / ≥ 20 znaków). `too_cheap` (744) wycina też źle
+    sklasyfikowane akcesoria (kierownica Thrustmaster w konsolach) i „na części” po estońsku („varuosadeks”) – OK.
+  * Relisty (zaostrzona reguła): 1 513 par (opis 1 182, tytuł 331) ≈ 11% deleted – nie tłumaczą masy usuniętych.
+  * Pierwsze ceny (PL, sprawne): iPhone 13 128 GB oferty 850 zł (p25 799 – p75 1 000), sprzedane 720 zł (n=5),
+    usuniętych 145; iPhone 15 Pro 128 2 200 / 1 950 (n=3); iPhone 16 Pro Max 256 3 500 / 3 050 (n=4); PS4 550 / 464
+    (n=4); Switch 800 / 649 (n=3) → sprzedane ~10–15% poniżej mediany ofert. ST górna: iPhone'y 16–36%, konsole 6–16%.
+  * Telefony: partycja 1 850–1 914,94 zł – brakuje 210 ofert (oversize 14) – sprawa zbierania (C4).
+  * Decyzja potrzebna (B1/C4): `watch` przenieść do `analyse_data` (extract v2 w cyklu `watch`; stary folder
+    przeliczałby nowe oferty regułami v1).

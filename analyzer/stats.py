@@ -3,6 +3,9 @@
 Grupa = (poziom, kategoria, klucz, rynek PL/zagr, stan sprawne/uszkodzone):
   * poziom `config` - `features.config_key`, `parent` - klucz poziom wyżej (`analysis.parent_key`: laptop
     cpu_line+RAM, telefon model bez pojemności…), `category` - cała kategoria (klucz „*”, także oferty bez klucza).
+`blocked` (sprzedana, a strona oferty 404) liczymy jako SPRZEDANĄ - u użytkownika 2026-10-25 ceny blocked mają
+taki sam rozkład względem mediany jak sold (mediana ilorazu 0,94 vs 0,91), więc to głównie zwykłe sprzedaże, których
+stronę Vinted potem usuwa; oszustwa wycinają flagi cenowe.
 Wykluczone: flagi WYKLUCZAJĄCE z `suspicious` i oferty, które mają relist (A z pary A→B - to nie zniknięcie ani
 sprzedaż; czas na rynku liczony od początku łańcucha).
 
@@ -23,15 +26,15 @@ from .progress import Bar
 
 STATES = ("active", "reserved", "sold", "deleted", "closed", "blocked")
 LOW_DATA = 3
-NEW_LOGIC_FROM = "2026-10-24"            # od tej daty resolver rozróżnia sprzedane przez /services
+DELAY_EDGES = (1, 2, 4, 7, 10)            # przedziały zwłoki sprawdzenia zniknięcia (dni) - eksperyment C4
 
 
 class Group:
-    __slots__ = ("active", "sold", "days", "n_deleted", "n_old", "fav_a", "fav_s", "views_a", "views_s",
+    __slots__ = ("active", "sold", "deleted", "days", "n_deleted", "n_old", "fav_a", "fav_s", "views_a", "views_s",
                  "n_drop_base", "n_drop", "drop_pct", "drop_days", "by_drop")
 
     def __init__(self):
-        self.active, self.sold, self.days = [], [], []
+        self.active, self.sold, self.deleted, self.days = [], [], [], []
         self.n_deleted = self.n_old = self.n_drop_base = self.n_drop = 0
         self.fav_a, self.fav_s, self.views_a, self.views_s = [], [], [], []
         self.drop_pct, self.drop_days = [], []
@@ -51,7 +54,8 @@ class Group:
             "active_p75": pct(self.active, .75),
             "n_sold": len(self.sold), "sold_p25": pct(self.sold, .25), "sold_med": s_med,
             "sold_p75": pct(self.sold, .75),
-            "n_deleted": self.n_deleted, "n_old_active": self.n_old,
+            "n_deleted": self.n_deleted, "deleted_p25": pct(self.deleted, .25), "deleted_med": med(self.deleted),
+            "deleted_p75": pct(self.deleted, .75), "n_old_active": self.n_old,
             "st_low": round(len(self.sold) / denom, 4) if denom else None,
             "st_high": round((len(self.sold) + self.n_deleted) / denom, 4) if denom else None,
             "days_med": med(self.days), "days_n": len(self.days),
@@ -134,11 +138,11 @@ def collect(conn, excluded=None, relists=None, age_days=14, progress=True):
         reliable = created is not None or (first is not None and until is not None and first > until)
         return created or first, reliable
 
-    groups = {}
+    groups, gone = {}, []
     quality = {"states": {}, "keyed": {}, "foreign": {}, "excluded": {}, "relist_old": {}, "delays": {}}
     age = timedelta(days=age_days)
     sql = f"""SELECT l.id, l.state, l.catalog_id, l.price_now, l.sold_price, l.created_at, l.first_seen, l.last_seen,
-                     l.state_at, l.favourite_count, l.view_count,
+                     COALESCE(l.services_at, l.state_at) AS checked_at, l.favourite_count, l.view_count,
                      COALESCE(d.seller_currency, l.seller_currency) AS cur,
                      f.config_key, f.model, f.cpu, f.cpu_line, f.ram_gb, f.gpu,
                      COALESCE(f.for_parts, 0) OR COALESCE(f.locked, 0) OR COALESCE(f.cracked, 0) AS damaged
@@ -154,16 +158,14 @@ def collect(conn, excluded=None, relists=None, age_days=14, progress=True):
         for n, row in enumerate(conn.execute(sql, (category, *STATES)), 1):
             if bar and n % 2000 == 0:
                 bar.update(n)
-            state = "deleted" if row["state"] == "closed" else "active" if row["state"] == "reserved" \
-                else row["state"]
-            _count(quality["states"], category, state)
+            _count(quality["states"], category, "deleted" if row["state"] == "closed" else
+                   "active" if row["state"] == "reserved" else row["state"])
+            state = {"closed": "deleted", "reserved": "active", "blocked": "sold"}.get(row["state"], row["state"])
             if row["id"] in excluded:
                 _count(quality["excluded"], category, state)
                 continue
             if row["id"] in old_ids:
                 _count(quality["relist_old"], category, state)
-                continue
-            if state == "blocked":                      # blocked bez flagi (gdy flag nie liczono) - też poza
                 continue
             price = (row["sold_price"] if row["sold_price"] is not None else row["price_now"]) if state == "sold" \
                 else row["price_now"]
@@ -176,10 +178,13 @@ def collect(conn, excluded=None, relists=None, age_days=14, progress=True):
                 _count(quality["keyed"], category, "yes")
             if mkt == "zagr":
                 _count(quality["foreign"], category, state)
-            if state in ("sold", "deleted") and row["state_at"] and row["last_seen"]:
-                period = "new" if row["state_at"] >= NEW_LOGIC_FROM else "old"
-                delay = analysis.days_between(row["last_seen"], row["state_at"])
-                quality["delays"].setdefault((category, period, state), []).append(delay)
+            if state in ("sold", "deleted") and row["checked_at"] and row["last_seen"]:
+                delay = analysis.days_between(row["last_seen"], row["checked_at"])
+                if delay is not None:
+                    bucket = sum(delay >= e for e in DELAY_EDGES)
+                    quality["delays"].setdefault((category, bucket, state), []).append(delay)
+            if key and state in ("sold", "deleted") and price is not None:
+                gone.append((category, key, mkt, cond, state, price))
             start, reliable = start_of(row)
             drop = drops.get(row["id"])
             last_seen = analysis.parse_ts(row["last_seen"])
@@ -196,8 +201,22 @@ def collect(conn, excluded=None, relists=None, age_days=14, progress=True):
         if bar:
             bar.update(total)
             bar.finish()
-    return {"groups": {k: g.metrics() for k, g in groups.items()}, "quality": quality, "now": now.isoformat(),
-            "age_days": age_days}
+    metrics = {k: g.metrics() for k, g in groups.items()}
+    return {"groups": metrics, "quality": quality, "now": now.isoformat(), "age_days": age_days,
+            "ratios": ratios(metrics, gone)}
+
+
+def ratios(metrics, gone):
+    """Cena sprzedanej / usuniętej względem mediany AKTYWNYCH tej samej konfiguracji (ten sam rynek i stan) →
+    {(kategoria, rynek, stan): {"sold": [mediana, n], "deleted": [mediana, n]}}. Na poziomie kategorii zwykły spread
+    (mediana sprzedanych / mediana aktywnych) myli skład: sprzedają się droższe modele (iPhone'y)."""
+    out = {}
+    for category, key, mkt, cond, state, price in gone:
+        m = metrics.get(("config", category, key, mkt, cond))
+        if not m or not m["active_med"] or m["n_active"] < 5:
+            continue
+        out.setdefault((category, mkt, cond), {"sold": [], "deleted": []})[state].append(price / m["active_med"])
+    return {k: {s: [analysis.median(v), len(v)] for s, v in d.items()} for k, d in out.items()}
 
 
 def _count(d, category, key):
@@ -227,6 +246,8 @@ def _add(g, state, price, row, start, reliable, last_seen, now, age, drop):
             g.views_s.append(row["view_count"])
     elif state == "deleted":
         g.n_deleted += 1
+        if price is not None:
+            g.deleted.append(price)
     g.n_drop_base += 1
     dropped = drop is not None
     if dropped:

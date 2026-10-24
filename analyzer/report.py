@@ -14,13 +14,15 @@ import re
 from . import analysis
 
 COLUMNS = ("level", "category", "key", "market", "cond", "n_active", "active_p25", "active_med", "active_p75",
-           "n_sold", "sold_p25", "sold_med", "sold_p75", "n_deleted", "n_old_active", "st_low", "st_high",
+           "n_sold", "sold_p25", "sold_med", "sold_p75", "n_deleted", "deleted_p25", "deleted_med", "deleted_p75",
+           "n_old_active", "st_low", "st_high",
            "days_med", "days_n", "drop_share", "n_dropped", "drop_pct_med", "drop_days_med", "st_low_dropped",
            "st_low_not_dropped", "fav_active_med", "fav_sold_med", "views_active_med", "views_sold_med", "spread",
            "low_data")
 CAT_PL = {"laptop": "laptopy", "phone": "telefony", "tablet": "tablety", "console": "konsole", "gpu": "karty graf.",
           "ram": "RAM", "storage": "dyski SSD"}
 TOP_CONFIGS, TOP_PARENTS = 6, 3
+HTML_MIN_OFFERS = 10            # report.html: tylko grupy z co najmniej tyloma ofertami (CSV - wszystkie)
 
 
 # ---------------------------------------------------------------------------------------------- formatowanie
@@ -82,39 +84,42 @@ def quality_rows(result, flags_info):
 
 
 def delay_rows(result):
-    """Zwłoka sprawdzenia zniknięcia (state_at - last_seen) i udział sold - eksperyment C4."""
+    """Udział sprzedanych (sold + blocked) wśród zniknięć według zwłoki sprawdzenia (services_at/state_at −
+    last_seen) - eksperyment C4: spadek % sold przy dłuższej zwłoce = sprzedane znikają z Vinted (404)."""
+    from .stats import DELAY_EDGES
+
+    edges = (0,) + DELAY_EDGES
+    labels = [f"{a}–{b} dni" for a, b in zip(edges, edges[1:])] + [f"≥ {edges[-1]} dni"]
     buckets = {}
-    for (cat, period, state), values in result["quality"]["delays"].items():
-        for v in values:
-            if v is None:
-                continue
-            speed = "< 1 dzień" if v < 1 else "≥ 1 dzień"
-            b = buckets.setdefault((period, speed), {"sold": 0, "deleted": 0, "delays": []})
-            b[state] += 1
-            b["delays"].append(v)
+    for (_cat, bucket, state), values in result["quality"]["delays"].items():
+        b = buckets.setdefault(bucket, {"sold": 0, "deleted": 0, "delays": []})
+        b[state] += len(values)
+        b["delays"] += values
     rows = []
-    for period in ("old", "new"):
-        for speed in ("< 1 dzień", "≥ 1 dzień"):
-            b = buckets.get((period, speed))
-            if not b:
-                continue
-            n = b["sold"] + b["deleted"]
-            label = "do 2026-10-23 (stara logika + recheck)" if period == "old" else "od 2026-10-24 (/services)"
-            rows.append([label, speed, b["sold"], b["deleted"], pct(b["sold"] / n if n else None, 1),
-                         num(analysis.median(b["delays"]))])
+    for bucket in sorted(buckets):
+        b = buckets[bucket]
+        n = b["sold"] + b["deleted"]
+        rows.append([labels[bucket], b["sold"], b["deleted"], pct(b["sold"] / n if n else None, 1),
+                     num(analysis.median(b["delays"]))])
     return rows
 
 
-def category_rows(groups, market="PL", cond="ok"):
+def _ratio(result, cat, market, cond, state):
+    r = (result.get("ratios") or {}).get((cat, market, cond), {}).get(state)
+    return f"{r[0]:.2f} (n={r[1]})" if r and r[0] is not None else "-"
+
+
+def category_rows(result, market="PL", cond="ok"):
+    groups = result["groups"]
     rows = []
     for cat in analysis.CATEGORIES:
         m = groups.get(("category", cat, "*", market, cond))
         if not m:
             continue
-        rows.append([CAT_PL[cat], m["n_active"], zl(m["active_med"]), m["n_sold"], zl(m["sold_med"]),
-                     m["n_deleted"], st_range(m), days(m), pct(m["drop_share"]), num(m["drop_pct_med"]) + "%",
-                     f"{pct(m['st_low_dropped'])} / {pct(m['st_low_not_dropped'])}",
-                     f"{num(m['fav_active_med'], 0)} / {num(m['fav_sold_med'], 0)}", num(m["spread"], 2)])
+        rows.append([CAT_PL[cat], m["n_active"], zl(m["active_med"]), m["n_sold"], m["n_deleted"], st_range(m),
+                     days(m), _ratio(result, cat, market, cond, "sold"), _ratio(result, cat, market, cond, "deleted"),
+                     pct(m["drop_share"]), num(m["drop_pct_med"]) + "%",
+                     f"{num(m['fav_active_med'], 0)} / {num(m['fav_sold_med'], 0)}"])
     return rows
 
 
@@ -131,17 +136,20 @@ def damaged_rows(groups):
 
 
 def top_rows(groups, level, per_category, market="PL", cond="ok"):
+    """Konfiguracje z największą liczbą ZNIKNIĘĆ (sold + deleted) - pewnych sprzedaży jest za mało, by po nich
+    sortować; usunięte to górna granica sprzedaży (zastrzeżenie 1). Tylko grupy z ≥ 5 aktywnymi (jest z czym
+    porównać cenę)."""
     rows = []
     for cat in analysis.CATEGORIES:
         mine = [(k[2], m) for k, m in groups.items() if k[0] == level and k[1] == cat and k[3] == market
-                and k[4] == cond and m["n_sold"] > 0]
-        mine.sort(key=lambda km: (-km[1]["n_sold"], -km[1]["n_active"], km[0]))
+                and k[4] == cond and m["n_active"] >= 5 and m["n_sold"] + m["n_deleted"] > 0]
+        mine.sort(key=lambda km: (-(km[1]["n_sold"] + km[1]["n_deleted"]), -km[1]["n_sold"], km[0]))
         for key, m in mine[:per_category]:
-            note = " ⚠ mało danych" if m["low_data"] else ""
-            rows.append([CAT_PL[cat], f"`{show_key(key)}`{note}", m["n_active"],
-                         f"{zl(m['active_p25'])}–{zl(m['active_med'])}–{zl(m['active_p75'])}", m["n_sold"],
-                         f"{zl(m['sold_med'])} ({zl(m['sold_p25'])}–{zl(m['sold_p75'])})", st_range(m), days(m),
-                         num(m["spread"], 2)])
+            spread = m["deleted_med"] / m["active_med"] if m["deleted_med"] and m["active_med"] else None
+            rows.append([CAT_PL[cat], f"`{show_key(key)}`", m["n_active"],
+                         f"{zl(m['active_p25'])}–{zl(m['active_med'])}–{zl(m['active_p75'])}",
+                         m["n_sold"], zl(m["sold_med"]), m["n_deleted"], zl(m["deleted_med"]), num(spread, 2),
+                         st_range(m), days(m)])
     return rows
 
 
@@ -165,7 +173,9 @@ def summary(result, flags_info, relist_info, day):
              "tylko prawdziwe (bez dryfu kursu: PLN każda zmiana, waluty ≥ 1%).",
              f"5. Wykluczone ze statystyk: flagi {excl} oraz oferty, które wystawiono od nowa (relist A→B: "
              f"A nie jest ani sprzedażą, ani zniknięciem). Sklepy (`shop_like`) i wzmianki OLX/Allegro zostają.",
-             "6. `uszk` = na części / blokada / pęknięcie (z ekstrakcji) – osobno od sprawnych.", "",
+             "6. `uszk` = na części / blokada / pęknięcie (z ekstrakcji) – osobno od sprawnych.",
+             "7. `blocked` (sprzedana, strona oferty 404) liczona jako **sprzedana** – ceny blocked rozkładają się jak "
+             "ceny sold (tabela niżej); oszustwa wycinają flagi cenowe.", "",
              "## 1. Jakość danych",
              "„w analizie” = po wykluczeniach; „z kluczem” = ma `config_key` (konfigurację).", ""]
     lines += table(["kategoria", "ofert", "aktywne", "sprzed.", "usunięte", "blocked", "wykl. flagami",
@@ -177,34 +187,36 @@ def summary(result, flags_info, relist_info, day):
               ]
     if flags_info.get("price_check"):
         lines += ["```"] + flags_info["price_check"] + ["```", ""]
-    lines += ["## 2. Jak szybko sprawdzono zniknięcie a udział sprzedanych (eksperyment C4)",
-              "Zwłoka = `state_at − last_seen` (dni). Jeśli przy szybkim sprawdzeniu % sold jest dużo wyższy, "
-              "sprzedane oferty znikają z Vinted po kilku dniach (strona 404).", ""]
-    lines += table(["zniknięcia", "zwłoka", "sold", "deleted", "% sold", "mediana zwłoki"], delay_rows(result))
-    lines += ["", "## 3. Kategorie – rynek PL, sprawne", ""]
-    lines += table(["kategoria", "aktywne", "med. oferty", "sprzed.", "med. sprzedaży*", "usunięte", "ST",
-                    "dni do sprzedaży", "z obniżką", "med. obniżki", "ST dolna: z obniżką / bez", "♥ akt / sprz",
-                    "spread"], category_rows(groups))
-    foreign = category_rows(groups, market="zagr")
+    lines += ["## 2. Zwłoka sprawdzenia zniknięcia a udział sprzedanych (eksperyment C4)",
+              "Zwłoka = chwila sprawdzenia (/services) − ostatnie widzenie w katalogu. Jeśli % sold maleje ze "
+              "zwłoką, sprzedane oferty znikają z Vinted (404) po kilku dniach → część `deleted` to sprzedane.", ""]
+    lines += table(["zwłoka", "sold (+blocked)", "deleted", "% sold", "mediana zwłoki"], delay_rows(result))
+    cat_head = ["kategoria", "aktywne", "med. oferty", "sprzed.", "usunięte", "ST", "dni do sprzedaży",
+                "sprzedana / aktywne*", "usunięta / aktywne", "z obniżką", "med. obniżki", "♥ akt / sprz"]
+    lines += ["", "## 3. Kategorie – rynek PL, sprawne",
+              "„sprzedana / aktywne” = mediana ilorazu ceny sprzedanej do mediany aktywnych TEJ SAMEJ konfiguracji "
+              "(≥ 5 aktywnych); tak samo usunięte – jeśli usunięte są tańsze od aktywnych jak sprzedane, to "
+              "wiele z nich to sprzedaże.", ""]
+    lines += table(cat_head, category_rows(result))
+    foreign = category_rows(result, market="zagr")
     if foreign:
         lines += ["", "## 4. Kategorie – rynek zagraniczny, sprawne", ""]
-        lines += table(["kategoria", "aktywne", "med. oferty", "sprzed.", "med. sprzedaży*", "usunięte", "ST",
-                        "dni do sprzedaży", "z obniżką", "med. obniżki", "ST dolna: z obniżką / bez", "♥ akt / sprz",
-                        "spread"], foreign)
+        lines += table(cat_head, foreign)
     damaged = damaged_rows(groups)
     if damaged:
         lines += ["", "## 5. Uszkodzone vs sprawne (PL)", ""]
         lines += table(["kategoria", "uszk. ofert", "med. oferty sprawne", "med. oferty uszk.", "uszk./sprawne",
                         "med. sprzedaży sprawne*", "med. sprzedaży uszk.*"], damaged)
-    lines += ["", f"## 6. Najczęściej sprzedawane konfiguracje (PL, sprawne; top {TOP_CONFIGS} na kategorię)",
-              "Oferta: p25–mediana–p75; sprzedaż: mediana (p25–p75)*; ⚠ mało danych = mniej niż 3 sprzedane.", ""]
-    lines += table(["kat.", "konfiguracja", "akt.", "oferta", "sprz.", "sprzedaż*", "ST", "dni (n)", "spread"],
-                   top_rows(groups, "config", TOP_CONFIGS))
+    top_head = ["kat.", "konfiguracja", "akt.", "oferta", "sprz.", "sprzedaż*", "usun.", "usunięta", "usun./akt.",
+                "ST", "dni (n)"]
+    lines += ["", f"## 6. Konfiguracje z największą liczbą zniknięć (PL, sprawne, ≥ 5 aktywnych; top {TOP_CONFIGS})",
+              "Oferta aktywnych: p25–mediana–p75; sprzedaż* / usunięta = mediana ostatniej ceny; usun./akt. = "
+              "mediana usuniętych / mediana aktywnych.", ""]
+    lines += table(top_head, top_rows(groups, "config", TOP_CONFIGS))
     lines += ["", f"## 7. Poziom wyżej (laptop: CPU+RAM, telefon/tablet: model, konsola: platforma+wariant…; "
                   f"top {TOP_PARENTS})", ""]
-    lines += table(["kat.", "grupa", "akt.", "oferta", "sprz.", "sprzedaż*", "ST", "dni (n)", "spread"],
-                   top_rows(groups, "parent", TOP_PARENTS))
-    lines += ["", "(*) górna granica ceny transakcji. Spread = mediana sprzedaży / mediana oferty aktywnych."]
+    lines += table(["kat.", "grupa"] + top_head[2:], top_rows(groups, "parent", TOP_PARENTS))
+    lines += ["", "(*) górna granica ceny transakcji (ostatnia cena wystawienia)."]
     return lines
 
 
@@ -293,12 +305,16 @@ def write_html(path, summary_lines, groups):
         elif line.strip():
             out.append(f"<p>{text}</p>")
         i += 1
-    out += ["<h2>Wszystkie grupy</h2>", "<p class=muted>poziom config = konfiguracja, parent = poziom wyżej, "
-            "category = cała kategoria. Kliknij nagłówek, by sortować; filtr: słowa oddzielone spacją "
+    shown = [k for k in groups if k[0] == "category" or
+             groups[k]["n_active"] + groups[k]["n_sold"] + groups[k]["n_deleted"] >= HTML_MIN_OFFERS]
+    out += ["<h2>Grupy</h2>", f"<p class=muted>{len(shown)} z {len(groups)} grup (tu tylko grupy z ≥ "
+            f"{HTML_MIN_OFFERS} ofertami; wszystkie są w configs.csv). Poziom config = konfiguracja, parent = poziom "
+            "wyżej, category = cała kategoria. Kliknij nagłówek, by sortować; filtr: słowa oddzielone spacją "
             "(np. <code>phone PL ok iphone</code>).</p>", '<input id=filter placeholder="filtr…">',
             '<div class=wrap><table class=sort id=configs><thead><tr>'
             + "".join(f"<th>{c}</th>" for c in COLUMNS) + "</tr></thead><tbody>"]
-    for k in sorted(groups, key=lambda k: (k[0] != "config", k[1], -groups[k]["n_sold"], k[2])):
+    for k in sorted(shown, key=lambda k: (k[0] != "config", k[1], -groups[k]["n_sold"] - groups[k]["n_deleted"],
+                                          k[2])):
         m = groups[k]
         cells = [f'<td class="t">{html.escape(str(v))}</td>' for v in k]
         for c in COLUMNS[5:]:

@@ -32,7 +32,7 @@ TITLE_BASIS_WORDS, TITLE_BASIS_CHARS, TITLE_BASIS_PRICE, TITLE_BASIS_DAYS = 4, 2
 
 def specific_title(title):
     """Czy znormalizowany tytuł jest dość konkretny, by sam (bez opisu) potwierdzał relist."""
-    return len(title.split()) >= TITLE_BASIS_WORDS or len(title) >= TITLE_BASIS_CHARS
+    return analysis.specific_title(title, TITLE_BASIS_WORDS, TITLE_BASIS_CHARS)
 
 
 def _ratio(a, b, minimum, matcher=None):

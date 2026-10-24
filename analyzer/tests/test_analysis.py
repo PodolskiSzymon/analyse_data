@@ -76,7 +76,8 @@ def test_suspicious_report_and_exclusions(flagged):
     conn, aconn, truth = flagged
     excluded = suspicious.load(aconn)
     assert truth.ids["shop0"] not in excluded and truth.ids["mention_allegro"] not in excluded   # informacyjne
-    assert excluded[truth.ids["dup_blocked"]] == {"blocked", "dup_title_price", "too_cheap"}
+    assert excluded[truth.ids["dup_blocked"]] == {"dup_title_price", "too_cheap"}     # blocked tylko informacyjnie
+    assert truth.ids["blocked_console"] not in excluded and truth.ids["generic0"] not in excluded
     lines = suspicious.report(conn, aconn)
     row = next(line for line in lines if line.startswith("dup_title_price"))
     assert row.split()[1:9] == ["0", "4", "0", "0", "0", "0", "0", "4"]
@@ -180,7 +181,7 @@ def test_relist_rules_unit():
 def stats_result(relisted, flagged):
     from analyzer import relist, stats, suspicious
     conn, aconn, truth = relisted
-    return stats.collect(conn, suspicious.load(aconn, ("blocked", "dup_title_price", "offsite", "too_cheap")),
+    return stats.collect(conn, suspicious.load(aconn, ("dup_title_price", "offsite", "too_cheap")),
                          relist.load(aconn), age_days=14, progress=False), truth
 
 
@@ -215,8 +216,7 @@ def test_all_config_groups_match_truth(stats_result):
 
     from analyzer import analysis as an
     result, truth = stats_result
-    excluded = {lid for lid, flags in truth.flags.items() if flags & {"blocked", "dup_title_price", "offsite",
-                                                                       "too_cheap"}}
+    excluded = {lid for lid, flags in truth.flags.items() if flags & {"dup_title_price", "offsite", "too_cheap"}}
     old_ids = set(truth.relists.values())
 
     def root(lid):
@@ -227,7 +227,7 @@ def test_all_config_groups_match_truth(stats_result):
     now = fake_market.NOW
     expected = {}
     for r in truth.rows.values():
-        if r["key"] is None or r["state"] not in ("active", "sold", "deleted") or r["id"] in excluded \
+        if r["key"] is None or r["state"] not in ("active", "sold", "deleted", "blocked") or r["id"] in excluded \
                 or r["id"] in old_ids:
             continue
         g = expected.setdefault(("config", r["category"], r["key"], r["market"], "uszk" if r["damaged"] else "ok"),
@@ -238,8 +238,8 @@ def test_all_config_groups_match_truth(stats_result):
         if r["state"] == "active":
             g["a"].append(r["price_now"])
             g["old"] += now - start > timedelta(days=14)
-        elif r["state"] == "sold":
-            g["s"].append(r["sold_price"])
+        elif r["state"] in ("sold", "blocked"):                   # blocked = sprzedana (strona usunięta)
+            g["s"].append(r["sold_price"] if r["sold_price"] is not None else r["price_now"])
             if reliable:
                 g["days"].append((r["last_seen"] - start).total_seconds() / 86400)
         else:
@@ -348,3 +348,30 @@ def test_export_analysis(market, tmp_path, flagged):
     assert result["flags.csv"][0] == sum(len(v) for v in truth.flags.values())
     lines = export.size_lines(result, tmp_path)
     assert lines[-1].strip().startswith("razem")
+
+
+def test_delay_buckets_and_price_ratios(stats_result):
+    """Zwłoka sprawdzenia (atrapa: services_at = last_seen + 1 dzień) → przedział 1–2 dni; ilorazy cen do mediany
+    aktywnych tej samej konfiguracji; ceny usuniętych w grupie."""
+    from analyzer import report
+    result, truth = stats_result
+    rows = report.delay_rows(result)
+    assert [r[0] for r in rows] == ["1–2 dni"]
+    gone = [r for r in truth.rows.values() if r["state"] in ("sold", "deleted", "blocked")]
+    assert rows[0][1] + rows[0][2] <= len(gone)
+    g = result["groups"][("config", "phone", "galaxy s21|128", "PL", "ok")]
+    assert (g["deleted_med"], g["deleted_p25"]) == (1000.0, 1000.0)
+    ratios = result["ratios"][("phone", "PL", "ok")]
+    assert ratios["sold"][1] > 3 and 0.8 < ratios["sold"][0] < 1.2      # tło: sprzedane ~ aktywne
+    assert report.category_rows(result)[1][0] == "telefony"
+
+
+@pytest.mark.parametrize("text, parts", [
+    ("Bez defektów, wszystko działa", False), ("no defects", False), ("Działa, nie jest uszkodzony", False),
+    ("not broken", False), ("Brak jakichkolwiek uszkodzeń i defektów", False), ("keine Defekte", False),
+    ("na części", True), ("uszkodzony ekran", True), ("Bez rys, bez pęknięć. Uszkodzona bateria", True),
+    ("bez ładowarki, uszkodzony", True), ("nie działa tylko jeden klawisz", True),
+])
+def test_for_parts_negation(text, parts):
+    from analyzer.extract import FOR_PARTS, has_fault, norm
+    assert has_fault(FOR_PARTS, norm(text)) is parts
