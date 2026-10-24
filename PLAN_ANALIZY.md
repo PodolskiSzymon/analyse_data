@@ -234,7 +234,7 @@ Jeśli raport ma być do udostępnienia – opublikuj jako stronę (Artifact) i 
 ## Lista kontrolna (odhaczaj `[x]`, commit + push po każdym kroku)
 
 - [x] A1 testy zrzutu zielone (333 passed; test SDK uodporniony na `authorization: Bearer` z anthropic 2.x)
-- [ ] A2 atrapa rynku do testów analizy
+- [x] A2 atrapa rynku do testów analizy (`analyzer/tests/fake_market.py`, ~3 tys. ofert + scenariusze; pomocnicze `analyzer/analysis.py`)
 - [ ] A3 `suspicious.py` + `suspicious-report`
 - [ ] A4 `relist.py` + `relist-report`
 - [ ] A5 `stats.py` + `report.py` + `report`
