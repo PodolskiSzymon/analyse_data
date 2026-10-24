@@ -186,6 +186,27 @@ plik) i ewentualnie `report.html`.
 
 ---
 
+### Gotowe komendy (stan po A1–A6, 2026-10-24)
+Kod jest na gałęzi `claude/hopeful-faraday-n33quh` (sesja Claude pisze na swoją gałąź; `main` = sam zrzut).
+```bat
+cd C:\Users\szymo
+git clone https://github.com/PodolskiSzymon/analyse_data
+cd analyse_data
+git checkout claude/hopeful-faraday-n33quh
+pip install -r sniper\requirements.txt
+copy ..\category_analyzer\sniper\.env sniper\.env
+echo.>> sniper\.env
+echo ANALYZER_DB=C:\Users\szymo\category_analyzer\data\analyzer.db>> sniper\.env
+python -m analyzer status
+python -m analyzer suspicious-diag
+python -m analyzer relist-report
+python -m analyzer report
+```
+(aktualizacja później: `git pull`). Wszystkie cztery komendy analizy czytają bazę tylko do odczytu – `watch` może
+chodzić. Wyniki: `C:\Users\szymo\category_analyzer\data\reports\<data>\` (`suspicious_diag.txt`, `relists.txt`,
+`summary.md`, `configs.csv`, `report.html`), wyniki pośrednie w `...\data\analysis.db`.
+Jeśli `suspicious-diag` potwierdzi hipotezę (blocked ≫ reszta przy `photo.is_suspicious`): `report --photo-flag`.
+
 ## C. Analiza (Ty, na wynikach od użytkownika)
 
 ### C1. Kontrola jakości danych (zanim padną jakiekolwiek wnioski o cenach)
@@ -252,3 +273,5 @@ Jeśli raport ma być do udostępnienia – opublikuj jako stronę (Artifact) i 
 * 2026-10-24: recheck 13 841 → deleted 13 300 / sold 454 / unlisted 53 / active 23 / hidden 2 / błąd 9;
   199/200 losowych `deleted` = strona 404; 3/5 pierwszych sprzedanych = `blocked` (oszustwa iPhone).
   Uwaga użytkownika: część (prawdopodobnie większość) sprzedanych z okresu przebudowy API trafiła do `deleted`.
+* 2026-10-24: A1–A6 gotowe (363 testy). Na atrapie ×90 (~190 tys. ofert) `report` 20 s / 195 MB RAM, eksport
+  z opisami ~14 MB. Czekam na B1–B3 (wyniki `status`, `suspicious-diag`, `relist-report`, `summary.md`).
