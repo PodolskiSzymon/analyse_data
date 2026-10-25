@@ -297,6 +297,20 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
   (zaprzeczenia lt/ro/hu, „Konsola w pełni sprawna”); AI wyłapuje też iCloud „bypass” i brak ekranu, których reguły
   nie widzą.
 
+## E. Archiwum i automat (prośba użytkownika 2026-10-25; serwer ma ~400 GB wolnego)
+
+* E1. **Szczegóły wszystkich ofert**: już zapisywane na stałe (details + raw sidebar z URL-ami zdjęć), ale pokrycie
+  ~70% (tempo 2–5 s, proxy ~10–15 KB/ofertę; zaległość ~40 tys. ≈ 600 MB proxy). Przyspieszenie:
+  `ANALYZER_DETAILS_DELAY_S=1-2` – decyzja użytkownika (budżet Evomi).
+* E2. **Archiwum zdjęć** w `watch`: pobieranie z CDN Vinted BEZPOŚREDNIO (bez proxy, jak ai_classify
+  `SNIPER_AI_PHOTOS=download`), np. 3 pierwsze (albo wszystkie) zdjęcia nowych ofert do `data/photos/<id>/`;
+  ~150 KB/zdjęcie → obecne ~70 GB (3 zdj.) / ~150 GB (wszystkie), nowe ~1–2 GB/dzień. `ai-condition` bierze zdjęcia
+  z dysku, gdy oferta zniknęła (dziś 404). Do potwierdzenia: liczba zdjęć, rozmiar, limit tempa na CDN.
+* E3. **Automat w `watch`** (np. raz na dobę): `ai-condition` tylko dla NOWYCH ofert flagged → flagi + relisty →
+  `sniper-guide` → zapis wytycznych do folderu Snipera (`ANALYZER_SNIPER_GUIDES_DIR`); Sniper wczytuje plik po zmianie
+  bez restartu. Do D5 – tylko laptopy do `SNIPER_AI_GUIDELINES`. Koszt AI: nowe flagged ~kilka zł/dzień.
+* Odpowiedź na pytanie: `watch` zapisuje tylko do lokalnej `analyzer.db`; z `unreachable_sniper` nie jest połączony.
+
 ## Lista kontrolna (odhaczaj `[x]`, commit + push po każdym kroku)
 
 - [x] A1 testy zrzutu zielone (333 passed; test SDK uodporniony na `authorization: Bearer` z anthropic 2.x)
@@ -317,6 +331,9 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
 - [ ] D3 ceny sprzedaży per model (po C4, 2–4 tyg.)
 - [x] D4 `sniper-guide` (wytyczne per kategoria z danych, wersja 1: ceny ofert/zniknięć; v2 po D3)
 - [ ] D5 Sniper: wiele kategorii, karta rynku, zysk w odpowiedzi AI, backtest
+- [ ] E1 szczegóły wszystkich ofert (tempo – decyzja użytkownika)
+- [ ] E2 archiwum zdjęć bez proxy
+- [ ] E3 automat: AI + wytyczne → Sniper
 
 ## Dziennik wyników (dopisuj tu ustalenia z danych użytkownika, z datą)
 
@@ -387,3 +404,8 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
   usuniętych / mediana aktywnych tej samej konfiguracji ≈ cenie sprzedanych (telefony 0,91 vs 0,90, konsole 0,93 vs
   1,00). Uszkodzone (AI) vs sprawne, PL: telefony 64%, laptopy 73%, konsole 88%. `watch` u użytkownika stoi od kilku
   dni – zalecone uruchomienie z `analyse_data` (C4 już w kodzie), ceny sprzedaży 7 dni (D3) po 2–4 tyg.
+
+* 2026-10-25, `sniper-guide` u użytkownika (laptop, phone, tablet, gpu, storage przejrzane): laptopy wg GPU zgodne z
+  flipami (RTX 4060 max zakup ~2 450–2 500), iPhone 13+ sensowne progi (okazji 0–4% ofert), GPU/SSD/RAM przy min.
+  300 zł prawie zawsze nieopłacalne. Poprawki: cena sprzedaży = wyższa z (mediana zniknięć, środek p25–med) – mediana
+  zniknięć zaniżała (RTX 4060 3 358 vs sprzedaż użytkownika 3 650); wiersze nieopłacalne → jedna linia; nazwy GPU.
