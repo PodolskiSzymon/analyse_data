@@ -252,6 +252,27 @@ Jeśli raport ma być do udostępnienia – opublikuj jako stronę (Artifact) i 
 
 ---
 
+## D. Sniper z wytycznymi z analizy (prośba użytkownika 2026-10-25)
+
+Cel użytkownika: Sniper ocenia nowe oferty we WSZYSTKICH kategoriach analizatora i podaje: czy okazja, stan, cenę
+sprzedaży w ≤ 7 dni (sprzedaje z 7-dniową promocją międzynarodową, nie mrozi gotówki) - dla kupujących świadomych
+(porównują ceny) i nieświadomych - oraz szacowany zysk. Laptopy dziś: ~1 000 zł zysku/sztukę (najlepiej: zakup 1 200 zł,
+sprzedaż w 2 dni, +900 zł). Dziś Sniper: jedna kategoria (`SNIPER_CATALOG`), ręczne `sniper/guidelines.md` (laptopy
+wg GPU, „max zakup = sprzedaż − 1 150 zł”).
+
+* D1. Tabele cen per konfiguracja z `report` (C2): p10/p25/mediana ofert, PL/zagr, sprawne/uszk. (AI stan) →
+  progi okazji; weryfikacja progów z `sniper/guidelines.md`. Laptopy: grupy GPU × linia CPU × RAM (nie pełny klucz).
+* D2. „Cena a tempo zniknięcia”: per konfiguracja odsetek ofert znikających w ≤ 7 dni wg pozycji ceny (ćwiartki) →
+  cena szybkiej sprzedaży (zniknięcie = górna granica sprzedaży; zagranica = kupujący z promocji międzynarodowej).
+* D3. (wymaga C4 – szybki resolver /services w `watch`) po 2–4 tyg. ceny SPRZEDAŻY i dni do sprzedaży per model.
+* D4. Komenda `sniper-guide`: wytyczne per kategoria generowane z danych (tabele + stała część strategii
+  użytkownika: zysk docelowy, koszty promocji/wysyłki, horyzont 7 dni), odświeżane co tydzień.
+* D5. Sniper: wiele kategorii (także mieszane przez `classify.py`), ekstrakcja konfiguracji (`extract.py`) i „karta
+  rynku” danej konfiguracji w zapytaniu do AI (zamiast całego pliku), odpowiedź: okazja / stan / cena sprzedaży
+  świadomi–nieświadomi / zysk / pewność. Backtest na historycznych flipach użytkownika.
+* Czekam od użytkownika: koszt promocji międzynarodowej 7 dni, wysyłka, opłaty; zysk docelowy per kategoria; lista
+  dotychczasowych flipów (co, za ile kupione, za ile i w ile dni sprzedane); zgoda na C4; kolejność kategorii.
+
 ## Lista kontrolna (odhaczaj `[x]`, commit + push po każdym kroku)
 
 - [x] A1 testy zrzutu zielone (333 passed; test SDK uodporniony na `authorization: Bearer` z anthropic 2.x)
@@ -267,6 +288,11 @@ Jeśli raport ma być do udostępnienia – opublikuj jako stronę (Artifact) i 
 - [ ] C2/C3 ceny i strategie – wnioski dopisane tutaj
 - [ ] C4 rekomendacje zbierania – decyzje użytkownika dopisane tutaj
 - [ ] C5 raport końcowy
+- [ ] D1 tabele cen + progi okazji, weryfikacja guidelines.md
+- [ ] D2 cena a tempo zniknięcia (7 dni)
+- [ ] D3 ceny sprzedaży per model (po C4, 2–4 tyg.)
+- [ ] D4 `sniper-guide` (wytyczne per kategoria z danych)
+- [ ] D5 Sniper: wiele kategorii, karta rynku, zysk w odpowiedzi AI, backtest
 
 ## Dziennik wyników (dopisuj tu ustalenia z danych użytkownika, z datą)
 
