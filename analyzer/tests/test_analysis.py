@@ -911,3 +911,34 @@ def test_remote_controller(tmp_path):
         assert sent[-1][0] == "Pilot: nie rozumiem"
 
     asyncio.run(scenario())
+
+
+
+def test_remote_ignores_own_messages():
+    import asyncio
+    import json
+
+    import httpx
+
+    from analyzer import remote
+    events = [{"event": "open"}, {"event": "message", "id": "a", "message": "status"},
+              {"event": "message", "id": "b", "title": "Pilot: status", "message": "watch: DZIAŁA"},
+              {"event": "message", "id": "c", "title": "Analyzer: automat", "message": "AI stan"},
+              {"event": "message", "id": "d", "message": "stop sniper"}]
+    body = "\n".join(json.dumps(e) for e in events) + "\n"
+    got = []
+
+    async def on_message(text):
+        got.append(text)
+        if len(got) == 2:
+            raise asyncio.CancelledError
+
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, text=body))
+    real = httpx.AsyncClient
+    httpx.AsyncClient = lambda **kw: real(transport=transport, **{k: v for k, v in kw.items() if k != "trust_env"})
+    try:
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(remote.listen("https://ntfy.example", "pilot-x", "", on_message))
+    finally:
+        httpx.AsyncClient = real
+    assert got == ["status", "stop sniper"]

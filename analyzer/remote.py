@@ -7,7 +7,9 @@ wiadomościami ntfy - bez otwierania portów i bez pulpitu zdalnego.
   * polecenia (wielkość liter i kolejność słów dowolna; z `ANALYZER_CONTROL_PIN` - PIN na początku, np. „1234 status”):
       status · start watch · stop watch · restart watch · start sniper · stop sniper · restart sniper ·
       start all · stop all · log watch · log sniper · pomoc   (także po polsku: „włącz/wyłącz/uruchom/zatrzymaj”),
-  * odpowiedzi i alarmy idą na zwykły temat powiadomień (`ANALYZER_NTFY_TOPIC` / `SNIPER_NTFY_TOPIC`),
+  * odpowiedzi i alarmy idą na `ANALYZER_NTFY_TOPIC` (a bez niego na `SNIPER_NTFY_TOPIC` - okazje Snipera);
+    `ANALYZER_NTFY_TOPIC` = ten sam temat co `ANALYZER_CONTROL_TOPIC` → odpowiedzi w tym samym temacie (jak czat),
+    pilot pomija własne wiadomości (`is_own`),
   * pilnuje programów: jeśli włączony program się wyłączy (błąd, brak sieci) - uruchamia go ponownie po 60 s
     i wysyła powiadomienie (jak pętla w watch.bat),
   * `ANALYZER_CONTROL_AUTOSTART=watch,sniper` - co uruchomić od razu przy starcie strażnika (np. po restarcie Windows).
@@ -257,6 +259,15 @@ class Controller:
                 log.info("[PILOT] %s uruchomiony ponownie (%d. raz).", p.name, p.restarts)
 
 
+OWN_TITLES = ("Pilot", "Analyzer")
+
+
+def is_own(event):
+    """Wiadomość wysłana przez pilota / analizator (ma tytuł „Pilot: …” / „Analyzer: …”) - nie polecenie. Pozwala
+    ustawić ANALYZER_NTFY_TOPIC = ANALYZER_CONTROL_TOPIC (odpowiedzi w tym samym temacie, jak czat) bez pętli."""
+    return str(event.get("title") or "").startswith(OWN_TITLES)
+
+
 async def listen(server, topic, token, on_message, since="now"):
     """Strumień wiadomości z tematu ntfy (/json), ze wznawianiem po zerwaniu połączenia. Bezpośrednio, bez proxy."""
     import httpx
@@ -276,6 +287,8 @@ async def listen(server, topic, token, on_message, since="now"):
                         event = json.loads(line)
                         if event.get("event") == "message":
                             since = event.get("id") or since
+                            if is_own(event):
+                                continue
                             await on_message(event.get("message") or "")
         except asyncio.CancelledError:
             raise
