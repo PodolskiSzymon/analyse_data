@@ -67,6 +67,9 @@ SNIPER_AI_RETRIES=2
 SNIPER_AI_RETRY_DELAY=5
 # Bramka ceny (NOWE): oferta droższa niż „max zakup” z tabeli wytycznych × 1,25 nie idzie do AI (zero kosztów).
 SNIPER_AI_PRICE_GATE=1.25
+# Dzienny limit kosztu AI w USD (NOWE): po przekroczeniu do północy bez AI + jedno powiadomienie. Po pierwszych
+# dniach zobaczysz w logu „dziś ~$X” i dobierzesz. 0 = bez limitu.
+SNIPER_AI_DAILY_LIMIT_USD=10
 SNIPER_AI_KEYWORDS_IN=title+description
 
 # Filtry słów (NOWE: osobno dla każdej kategorii). Ogólne SNIPER_AI_* (bez końcówki) dotyczą tylko laptopów.
