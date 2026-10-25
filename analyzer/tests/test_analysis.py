@@ -836,3 +836,78 @@ def test_ai_condition_uses_archived_photos(market, tmp_path):
     assert sources[0]["media_type"] == "image/jpeg"
     conn.close()
     aconn.close()
+
+
+# ------------------------------------------------------------------ pilot z telefonu (remote)
+
+
+@pytest.mark.parametrize("text, pin, expected", [
+    ("status", "", ("status", None)),
+    ("Stop watch", "", ("stop", "watch")),
+    ("sniper start", "", ("start", "sniper")),
+    ("włącz wszystko", "", ("start", "all")),
+    ("restart watch", "", ("restart", "watch")),
+    ("log sniper", "", ("log", "sniper")),
+    ("1234 stop all", "1234", ("stop", "all")),
+    ("stop all", "1234", (None, "zły albo brak PIN-u")),
+    ("stop", "", (None, "stop czego? watch / sniper / all")),
+    ("hej", "", (None, "nieznane polecenie")),
+])
+def test_remote_parse(text, pin, expected):
+    from analyzer.remote import parse
+    assert parse(text, pin) == expected
+
+
+def test_remote_controller(tmp_path):
+    import asyncio
+
+    from analyzer.remote import RESTART_AFTER_S, Controller, Program
+
+    class Proc:
+        n = 0
+
+        def __init__(self):
+            Proc.n += 1
+            self.pid, self.code = 1000 + Proc.n, None
+
+        def poll(self):
+            return self.code
+
+    now = [0.0]
+    sent, killed = [], []
+    programs = {name: Program(name, ["python"], str(tmp_path), tmp_path / f"{name}.log") for name in ("watch", "sniper")}
+    (tmp_path / "watch.log").write_text("linia 1\nBŁĄD: coś\n", encoding="utf-8")
+
+    async def send(title, lines, **kw):
+        sent.append((title, lines))
+
+    def kill_fn(proc):
+        if proc is not None:
+            proc.code = -9
+            killed.append(proc.pid)
+
+    c = Controller(programs, send, spawn_fn=lambda p: Proc(), kill_fn=kill_fn, clock=lambda: now[0])
+
+    async def scenario():
+        await c.handle("start all")
+        assert programs["watch"].running() and programs["sniper"].running()
+        await c.handle("stop sniper")
+        assert not programs["sniper"].running() and killed == [programs["sniper"].proc.pid if programs["sniper"].proc
+                                                                else 1002]
+        await c.handle("status")
+        assert "watch: DZIAŁA" in sent[-1][1][0] and sent[-1][1][1] == "sniper: zatrzymany"
+        await c.handle("log watch")
+        assert sent[-1][1][-1] == "BŁĄD: coś"
+        # watch pada → powiadomienie, po 60 s ponowne uruchomienie
+        programs["watch"].proc.code = 1
+        await c.watchdog()
+        assert "się wyłączył" in sent[-1][0] and not programs["watch"].running()
+        now[0] += RESTART_AFTER_S
+        await c.watchdog()
+        assert programs["watch"].running() and programs["watch"].restarts == 1
+        await c.watchdog()                                  # sniper zatrzymany ręcznie - strażnik go nie rusza
+        assert not programs["sniper"].running()
+        await c.handle("cokolwiek")
+        assert sent[-1][0] == "Pilot: nie rozumiem"
+
+    asyncio.run(scenario())

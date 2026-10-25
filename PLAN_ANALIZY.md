@@ -414,3 +414,7 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
   zatrzymuje watch. Odpowiedzi: watch sprawdza zniknięcia przez /services + sidebar (resolver.resolve_item); opis
   KAŻDEJ oferty z 7 kategorii (active/reserved/unlisted, bez below_min) pobiera details/sidebar – katalog daje tylko
   tytuł, cenę, markę, stan z formularza i zdjęcie główne.
+* 2026-10-25: Sniper (`unreachable_sniper`) był na komputerze użytkownika, analizator na serwerze → Sniper też na
+  serwer (instrukcja `PILOT.md`) + **pilot z telefonu** przez ntfy (`python -m analyzer remote` / `remote.bat`,
+  moduł `remote.py`): start / stop / restart / status / log dla watch i Snipera, strażnik podnosi program po awarii,
+  plik .pid chroni przed dwoma `watch` naraz. Dopiero potem D5 (ulepszanie Snipera).

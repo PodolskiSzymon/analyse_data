@@ -25,6 +25,7 @@
   sniper-guide [--promo 26] [--ship 20]   wytyczne dla Snipera z danych (ceny, max zakup wg reguły zysku) -> guides/
   auto [--force]                          automat (AI stanu nowych ofert, raport, wytyczne Snipera) - jak w watch
   photos [--limit N]                      archiwum zdjęć ofert (bez proxy) - jak w watch
+  remote                                  pilot z telefonu (ntfy): start/stop watch i Snipera, status, logi (PILOT.md)
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
   status                                  podsumowanie bazy (oferty, stany, partycje, przejścia, transfer)
@@ -517,6 +518,7 @@ def main(argv=None):
     p_auto.add_argument("--force", action="store_true", help="teraz, nawet jeśli nie minęło ANALYZER_AUTO_DAYS")
     p_photos = sub.add_parser("photos", help="archiwum zdjęć ofert z CDN Vinted, bez proxy (watch robi to sam)")
     p_photos.add_argument("--limit", type=int, default=None)
+    sub.add_parser("remote", help="pilot z telefonu przez ntfy: start / stop / status watch i Snipera (PILOT.md)")
     p_sample = sub.add_parser("sample", help="próbka ofert z opisami do projektu ekstrakcji -> data/sample_*.jsonl")
     p_sample.add_argument("--per-category", type=int, default=150)
     sub.add_parser("classify-report", help="klasyfikacja ofert z kategorii mieszanych - bez sieci")
@@ -742,6 +744,9 @@ def main(argv=None):
         asyncio.run(archive(cfg, conn, limit=args.limit))
         conn.close()
         print(status_line(cfg))
+    elif args.command == "remote":
+        from . import remote
+        asyncio.run(remote.main(cfg))
     elif args.command == "sample":
         from .sample import export
         print(f"Otwieram bazę {cfg.db_path} ...", flush=True)
