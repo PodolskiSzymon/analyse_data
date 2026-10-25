@@ -268,9 +268,14 @@ def is_own(event):
     return str(event.get("title") or "").startswith(OWN_TITLES)
 
 
-async def listen(server, topic, token, on_message, since="now"):
-    """Strumień wiadomości z tematu ntfy (/json), ze wznawianiem po zerwaniu połączenia. Bezpośrednio, bez proxy."""
+async def listen(server, topic, token, on_message, since=None):
+    """Strumień wiadomości z tematu ntfy (/json), ze wznawianiem po zerwaniu połączenia. Bezpośrednio, bez proxy.
+
+    since - od kiedy: znacznik czasu uniksowego (domyślnie start pilota) albo ID ostatniej wiadomości (po zerwaniu
+    połączenia - nic nie ginie). ntfy NIE przyjmuje „since=now” (400 Bad Request - u użytkownika 2026-10-25)."""
     import httpx
+
+    since = since or str(int(time.time()))
 
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     wait = 5

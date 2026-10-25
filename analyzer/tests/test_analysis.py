@@ -933,7 +933,12 @@ def test_remote_ignores_own_messages():
         if len(got) == 2:
             raise asyncio.CancelledError
 
-    transport = httpx.MockTransport(lambda request: httpx.Response(200, text=body))
+    def handler(request):
+        since = request.url.params["since"]
+        assert since.isdigit() and int(since) > 1_700_000_000          # znacznik czasu, nie „now” (ntfy: 400)
+        return httpx.Response(200, text=body)
+
+    transport = httpx.MockTransport(handler)
     real = httpx.AsyncClient
     httpx.AsyncClient = lambda **kw: real(transport=transport, **{k: v for k, v in kw.items() if k != "trust_env"})
     try:
