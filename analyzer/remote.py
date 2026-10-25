@@ -6,7 +6,7 @@ wiadomościami ntfy - bez otwierania portów i bez pulpitu zdalnego.
     token `SNIPER_NTFY_TOKEN`); w aplikacji ntfy na telefonie subskrybujesz ten temat i wysyłasz do niego wiadomość,
   * polecenia (wielkość liter i kolejność słów dowolna; z `ANALYZER_CONTROL_PIN` - PIN na początku, np. „1234 status”):
       status · start watch · stop watch · restart watch · start sniper · stop sniper · restart sniper ·
-      start all · stop all · log watch · log sniper · pomoc   (także po polsku: „włącz/wyłącz/uruchom/zatrzymaj”),
+      start all · stop all · log watch · log sniper · wytyczne · oceny · pomoc   (także po polsku: „włącz/wyłącz/uruchom/zatrzymaj”),
   * odpowiedzi pilota (i „program się wyłączył”) idą do TEGO SAMEGO tematu, w którym piszesz polecenia (jak czat);
     pilot pomija własne wiadomości (`is_own`). Alarm „brak sprzedaży” i automat analizatora idą na
     `ANALYZER_NTFY_TOPIC` (bez niego na `SNIPER_NTFY_TOPIC` - temat okazji Snipera),
@@ -39,7 +39,7 @@ RESTART_AFTER_S = 60
 CHECK_EVERY_S = 10
 
 HELP = ["Polecenia: status · start/stop/restart watch · start/stop/restart sniper · start all · stop all · "
-        "log watch · log sniper · wytyczne · pomoc"]
+        "log watch · log sniper · wytyczne · oceny · pomoc"]
 _START = ("start", "włącz", "wlacz", "uruchom", "on")
 _STOP = ("stop", "wyłącz", "wylacz", "zatrzymaj", "off")
 _RESTART = ("restart", "zrestartuj")
@@ -61,6 +61,8 @@ def parse(text, pin=""):
         return "status", target
     if any(w in ("wytyczne", "guidelines", "guide", "guides") for w in words):
         return "guides", None
+    if any(w in ("oceny", "ocena", "raport", "report") for w in words):
+        return "report", None
     if any(w in ("pomoc", "help", "?") for w in words):
         return "help", None
     if any(w == "log" or w == "logi" for w in words):
@@ -179,10 +181,12 @@ def _uptime(seconds):
 class Controller:
     """Stan programów + wykonywanie poleceń. spawn / kill / send / clock - do testów."""
 
-    def __init__(self, programs, send, spawn_fn=spawn, kill_fn=kill, clock=time.monotonic, guides_fn=None):
+    def __init__(self, programs, send, spawn_fn=spawn, kill_fn=kill, clock=time.monotonic, guides_fn=None,
+                 report_fn=None):
         self.programs = programs
         self.send = send
         self.guides_fn = guides_fn
+        self.report_fn = report_fn
         self.spawn_fn, self.kill_fn, self.clock = spawn_fn, kill_fn, clock
 
     def _targets(self, target):
@@ -226,6 +230,10 @@ class Controller:
         if action == "guides":
             lines = await self.guides_fn() if self.guides_fn else ["Wysyłanie wytycznych niedostępne."]
             await self.send("Pilot: wytyczne", lines)
+            return action
+        if action == "report":
+            lines = await self.report_fn() if self.report_fn else ["Wysyłanie oceny.html niedostępne."]
+            await self.send("Pilot: oceny", lines)
             return action
         if action == "help":
             await self.send("Pilot: pomoc", HELP)
@@ -341,6 +349,43 @@ async def export_guides(cfg, send_file, gdrive_dir=None, sniper_dir=None):
     return lines
 
 
+def report_file(sniper_dir=None):
+    """oceny.html Snipera: SNIPER_LOG_DIR albo SNIPER_DIR/sniper/logs."""
+    log_dir = os.getenv("SNIPER_LOG_DIR", "").strip()
+    sniper_dir = sniper_dir if sniper_dir is not None else os.getenv("SNIPER_DIR", "").strip()
+    if not log_dir and sniper_dir:
+        log_dir = str(Path(sniper_dir) / "sniper" / "logs")
+    return Path(log_dir) / "oceny.html" if log_dir else None
+
+
+async def export_report(send_file, gdrive_dir=None, sniper_dir=None):
+    """Polecenie „oceny”: podgląd ocen AI Snipera (oceny.html) jako załącznik ntfy + kopia na Dysk Google."""
+    import re
+    import shutil
+
+    path = report_file(sniper_dir)
+    if path is None or not path.exists():
+        return [f"Brak oceny.html ({path or 'ustaw SNIPER_DIR'}) - Sniper jeszcze nic nie ocenił powyżej "
+                "SNIPER_AI_REPORT_ABOVE."]
+    text = path.read_text(encoding="utf-8", errors="replace")
+    cards = len(re.findall(r'<article class="card', text))
+    deals = len(re.findall(r'<article class="card deal', text))
+    stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(path.stat().st_mtime))
+    lines = [f"oceny.html: {cards} ofert, w tym okazji {deals}; zmieniony {stamp}"]
+    gdrive_dir = gdrive_dir if gdrive_dir is not None else os.getenv("ANALYZER_GDRIVE_DIR", "").strip()
+    if gdrive_dir:
+        try:
+            target = Path(gdrive_dir) / "sniper"
+            target.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target / path.name)
+            lines.append(f"Dysk Google: {target / path.name}")
+        except OSError as exc:
+            lines.append(f"Dysk Google: błąd kopiowania ({exc})")
+    sent = await send_file(path, f"Pilot: {path.name}")
+    lines.append(f"Na telefon: {'wysłany' if sent else 'nie wysłano'} - otwórz załącznik w przeglądarce")
+    return lines
+
+
 async def listen(server, topic, token, on_message, since=None):
     """Strumień wiadomości z tematu ntfy (/json), ze wznawianiem po zerwaniu połączenia. Bezpośrednio, bez proxy.
 
@@ -391,7 +436,8 @@ async def main(cfg):
     async def send_file(path, title):
         return await notify.send_file(path, title, topic_name=topic)
 
-    controller = Controller(default_programs(cfg), reply, guides_fn=lambda: export_guides(cfg, send_file))
+    controller = Controller(default_programs(cfg), reply, guides_fn=lambda: export_guides(cfg, send_file),
+                            report_fn=lambda: export_report(send_file))
     for name in (x.strip() for x in os.getenv("ANALYZER_CONTROL_AUTOSTART", "").split(",") if x.strip()):
         if name in controller.programs:
             controller.start(controller.programs[name])

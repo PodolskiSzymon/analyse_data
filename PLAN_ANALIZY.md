@@ -425,3 +425,9 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
   (`guides/<kategoria>.md`), „karta rynku” (wiersze tabeli dopasowane po tytule) w zapytaniu, bramka ceny ×1,25 przed
   AI; odpowiedź AI z marżą, dniami do sprzedaży i `meets_profit_rule`; filtry słów per kategoria. Pilot „wytyczne”
   wysyła wszystkie kategorie w jednym pliku. Wzór `.env`: `ENV_SERWER.example`, instrukcja: `PILOT.md` 1a.
+* 2026-10-25: `sniper-guide` u użytkownika – 7 kategorii skopiowanych do Snipera, `catalogs.json`: 3580:250-8400*3,
+  3661:100-6500, 3728:100-4000, 3025:100-4900, 3582/3584:100-2900, 3583:100-1600. Ręczne `guidelines.md` (laptopy)
+  łamało regułę zysku (RTX 4060 próg 2 700 przy sprzedaży 3 150 = marża 13%; 4070, 3070, 3080, 5060, 4050; premia za
+  Polskę +50…+500 zł) → progi przeliczone regułą, premia zamieniona na wyższą ocenę; Sniper łączy laptop.md (dane) +
+  guidelines.md (uzupełnienie). Grupy z dużym % ofert ≤ max (PS5 13%, DDR5 16 GB 24%, NVMe 4 TB 12%) = zawyżona cena
+  sprzedaży niejednorodnej grupy – do poprawy w D2/D3. Pilot: polecenie `oceny` (oceny.html na telefon + Dysk).

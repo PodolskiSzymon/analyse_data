@@ -109,6 +109,7 @@ max zakup, zysk, marża, dni do sprzedaży.
 | `start all` / `stop all` | oba naraz |
 | `log watch` / `log sniper` | ostatnie linie logu |
 | `wytyczne` | aktualne wytyczne Snipera (wszystkie kategorie z `sniper\guides` + `guidelines.md`) w jednym pliku jako załącznik na telefon + kopia na Dysk Google, jeśli ustawione `ANALYZER_GDRIVE_DIR=G:\Mój dysk\program` (folder z aplikacji Dysk Google na serwerze) |
+| `oceny` | podgląd ocen AI Snipera (`oceny.html`: oferty z oceną powyżej `SNIPER_AI_REPORT_ABOVE`) jako załącznik na telefon + kopia na Dysk Google (`ANALYZER_GDRIVE_DIR\sniper`). Automatyczna kopia co 2 min: `SNIPER_MIRROR_DIR=G:\Mój dysk\sniper` w `.env` |
 | `pomoc` | lista poleceń |
 
 (Z PIN-em: `1234 stop sniper`. Działa też po polsku: „włącz sniper”, „zatrzymaj watch”.)

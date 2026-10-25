@@ -1020,3 +1020,35 @@ def test_remote_exports_guides(tmp_path):
     assert asyncio.run(put()) is True
     assert seen["method"] == "PUT" and seen["url"].endswith("/pilot-x") and seen["body"] == "# Laptopy".encode()
     assert seen["filename"] == "guidelines.md" and seen["title"] == "Pilot: guidelines.md"
+
+
+def test_remote_sends_oceny_html(tmp_path, monkeypatch):
+    import asyncio
+
+    from analyzer import remote
+    monkeypatch.delenv("SNIPER_LOG_DIR", raising=False)
+    assert remote.parse("oceny") == ("report", None) and remote.parse("1234 raport", "1234") == ("report", None)
+    sniper = tmp_path / "unreachable_sniper"
+    sent = []
+
+    async def send_file(path, title):
+        sent.append(path.name)
+        return True
+
+    lines = asyncio.run(remote.export_report(send_file, "", str(sniper)))
+    assert "Brak oceny.html" in lines[0] and not sent
+    logs = sniper / "sniper" / "logs"
+    logs.mkdir(parents=True)
+    (logs / "oceny.html").write_text('<article class="card deal" x><article class="card" y>', encoding="utf-8")
+    drive = tmp_path / "G"
+    lines = asyncio.run(remote.export_report(send_file, str(drive), str(sniper)))
+    assert "2 ofert, w tym okazji 1" in lines[0] and (drive / "sniper" / "oceny.html").exists()
+    assert sent == ["oceny.html"]
+    replies = []
+
+    async def reply(title, lines, **kw):
+        replies.append((title, lines))
+
+    controller = remote.Controller({}, reply)
+    controller.report_fn = lambda: remote.export_report(send_file, "", str(sniper))
+    assert asyncio.run(controller.handle("oceny")) == "report" and replies[-1][0] == "Pilot: oceny"
