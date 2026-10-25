@@ -273,6 +273,26 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
 * Czekam od użytkownika: koszt promocji międzynarodowej 7 dni, wysyłka, opłaty; zysk docelowy per kategoria; lista
   dotychczasowych flipów (co, za ile kupione, za ile i w ile dni sprzedane); zgoda na C4; kolejność kategorii.
 
+### Ustalenia użytkownika (2026-10-25) – wejście do D1–D5
+
+* **Koszty sprzedaży**: Podbicie międzynarodowe 7 dni – użytkownik płacił **26 zł** za laptopy 1 200–3 700 zł (cena
+  Podbicia zależy od ceny przedmiotu, długości 3/7 dni i zasięgu; można potem obniżyć cenę, nie podnieść). Wysyłka:
+  PL ~15 zł, zza granicy zwykle ~20 zł, z daleka do 50 zł. Opłatę Vinted (zwykle 5% + 2,90 zł) i weryfikację
+  elektroniki (20 zł) płaci KUPUJĄCY – nie zmniejszają przychodu, ale podnoszą cenę dla kupującego (konkurencyjność).
+* **Cel = marża** (zysk / cena sprzedaży) **z dolnym limitem zysku w zł** (żeby nie tracić czasu na drobne):
+  ~40% idealnie, ~30% bardzo dobrze, ~20% „na dopchanie”. Dolny limit w zł – do ustalenia z użytkownikiem.
+* **Flipy (laptopy, koszt bez wysyłki i Podbicia)**: ASUS TUF Gaming F15 1 350 → 2 375 zł (+1 025, marża 43%,
+  sprzedany w 2 dni); MSI RTX 4060 2 500 → 3 650 (+1 150, 32%, 5 dni); ASUS ROG Scar 17 R9 5900HX RTX 3080
+  3 660 → 4 700 (+1 040, 22%, 6 dni). Horyzont sprzedaży ≤ 7 dni (Podbicie 7 dni, bez mrożenia gotówki).
+* **C4 – zgoda**: szybkie sprawdzanie zniknięć → `ANALYZER_GONE_AFTER_RUNS` domyślnie 1 (było 2). Odstęp przejść
+  `watch` bez zmian (10–14 h; skrócenie = więcej transferu proxy – osobna decyzja).
+* **Sniper**: docelowo WSZYSTKIE kategorie analizatora dodać do Snipera w repo `unreachable_sniper` (później – na
+  razie tylko zapis w planie).
+* `ai-condition` (pełny, 2026-10-25, flagged 8 739 ofert): working 4 165, minor_issues 3 832, for_parts 688,
+  unknown 54. Reguły (v1) uznały 8 562 za uszkodzone, AI 1 697 → zgodność 21%; przykłady przyznają rację AI
+  (zaprzeczenia lt/ro/hu, „Konsola w pełni sprawna”); AI wyłapuje też iCloud „bypass” i brak ekranu, których reguły
+  nie widzą.
+
 ## Lista kontrolna (odhaczaj `[x]`, commit + push po każdym kroku)
 
 - [x] A1 testy zrzutu zielone (333 passed; test SDK uodporniony na `authorization: Bearer` z anthropic 2.x)

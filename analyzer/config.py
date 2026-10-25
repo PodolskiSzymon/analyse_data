@@ -110,7 +110,11 @@ class AnalyzerConfig:
     order: str = _env("ANALYZER_ORDER", "newest_first")   # jedyne sprawdzone na żywo sortowanie
     # Aktywna oferta niewidoczna w katalogu (unlisted) / zarezerwowana / ukryta - ponowne sprawdzenie co tyle dni.
     recheck_days: float = _env_float("ANALYZER_RECHECK_DAYS", 3.0)
-    gone_after_runs: int = _env_int("ANALYZER_GONE_AFTER_RUNS", 2)
+    # Ile pełnych przejść z rzędu oferty nie ma w katalogu, zanim resolver ją sprawdzi (/services ~1,3 KB).
+    # 2026-10-25 (C4, zgoda użytkownika): 1 zamiast 2 - Vinted usuwa stronę sprzedanej oferty po kilku dniach, a przy
+    # 2 przejściach co 10-14 h zwłoka sięgała 1-2 dób. Fałszywe zniknięcie (oferta wraca) resolver rozpozna jako
+    # aktywną / unlisted - koszt: jedno tanie zapytanie.
+    gone_after_runs: int = _env_int("ANALYZER_GONE_AFTER_RUNS", 1)
     # Sól do hasha sprzedawcy (RODO). Pusta = hash sprzedawcy nie jest zapisywany wcale.
     seller_salt: str = _env("ANALYZER_SELLER_SALT")
     # Kategorie, w których szczegóły pobieramy dla KAŻDEJ śledzonej oferty (details w watch). W pozostałych tylko
