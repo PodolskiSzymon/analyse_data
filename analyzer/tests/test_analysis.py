@@ -1066,3 +1066,28 @@ def test_remote_sends_oceny_html(tmp_path, monkeypatch):
     controller = remote.Controller({}, reply)
     controller.report_fn = lambda: remote.export_report(send_file, "", str(sniper))
     assert asyncio.run(controller.handle("oceny")) == "report" and replies[-1][0] == "Pilot: oceny"
+
+
+def test_find_ram_form_and_type():
+    from analyzer.find import ram_form, ram_type
+    assert ram_form("RAM 8GB", "naklejka PC4-2400T-UA2-11") == "dimm"
+    assert ram_form("Samsung DDR4 8 GB", "M471A1K43DB1 PC4-3200AA-SA1") == "so-dimm"
+    assert ram_form("DDR4 16GB do laptopa") == "so-dimm" and ram_form("DDR4 2x8GB DIMM") == "dimm"
+    assert ram_form("Pamięć 8GB") is None
+    assert ram_type("Pamięć ram DDR4", "8GB 2Rx8 PC3L-12800U-11-13-B1") == "ddr3"   # naklejka wygrywa
+
+
+def test_find_search(market):
+    from analyzer import analysis, find
+    path, truth = market
+    conn, aconn = analysis.open_ro(path), analysis.open_analysis(path)
+    found, med, total = find.search(conn, aconn, "phone", ["iphone", "13", "128"], limit=5)
+    assert found and total >= len(found) and med
+    assert [x["price"] for x in found] == sorted(x["price"] for x in found)
+    assert all("iphone 13" in x["key"] and x["url"].startswith("https://www.vinted.pl/items/") for x in found)
+    capped, _, _ = find.search(conn, aconn, "phone", ["iphone"], max_price=found[0]["price"])
+    assert capped and all(x["price"] <= found[0]["price"] for x in capped)
+    text = "\n".join(find.lines(found, med, total, "phone"))
+    assert "mediana" in text and "seller" not in text.lower()
+    conn.close()
+    aconn.close()

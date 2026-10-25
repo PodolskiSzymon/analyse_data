@@ -23,6 +23,7 @@
   ai-condition [--scope flagged] [--photos 3] [--limit N] [--estimate] [--yes]
                                           stan techniczny przez AI (opis + zdjęcia) -> analysis.db; najpierw koszt
   sniper-guide [--promo 26] [--ship 20]   wytyczne dla Snipera z danych (ceny, max zakup wg reguły zysku) -> guides/
+  szukaj <kategoria> [słowa...] [--max N]  najtańsze aktywne oferty z bazy, np. „szukaj ram ddr4 dimm 16 --max 200”
   auto [--force]                          automat (AI stanu nowych ofert, raport, wytyczne Snipera) - jak w watch
   photos [--limit N]                      archiwum zdjęć ofert (bez proxy) - jak w watch
   remote                                  pilot z telefonu (ntfy): start/stop watch i Snipera, status, logi (PILOT.md)
@@ -513,6 +514,13 @@ def main(argv=None):
     p_guide.add_argument("--promo", type=float, default=26.0, help="koszt Podbicia (zł, domyślnie 26)")
     p_guide.add_argument("--ship", type=float, default=20.0, help="koszt wysyłki (zł, domyślnie 20)")
     p_guide.add_argument("--min-offers", type=int, default=8, help="grupa w tabeli od tylu aktywnych ofert")
+    p_find = sub.add_parser("szukaj", help="najtańsze aktywne oferty z bazy (bez sieci), np. "
+                                           "szukaj ram ddr4 dimm 16 --max 200")
+    p_find.add_argument("kategoria", choices=("laptop", "phone", "tablet", "console", "gpu", "ram", "storage"))
+    p_find.add_argument("slowa", nargs="*", help="słowa z klucza konfiguracji albo tytułu (ram: dimm = do PC, "
+                                                 "sodimm = do laptopa)")
+    p_find.add_argument("--max", type=float, default=None, help="cena najwyżej (zł)")
+    p_find.add_argument("--limit", type=int, default=25)
     p_auto = sub.add_parser("auto", help="automat: flagi, relisty, AI stanu nowych ofert, raport, wytyczne Snipera "
                                           "(watch robi to sam co ANALYZER_AUTO_DAYS)")
     p_auto.add_argument("--force", action="store_true", help="teraz, nawet jeśli nie minęło ANALYZER_AUTO_DAYS")
@@ -743,6 +751,14 @@ def main(argv=None):
         elif result:
             say("Do Snipera: ustaw ANALYZER_SNIPER_GUIDES_DIR=C:\\Users\\szymo\\unreachable_sniper\\sniper\\guides"
                 " w sniper\\.env - wtedy wytyczne i catalogs.json kopiują się same.")
+    elif args.command == "szukaj":
+        from . import analysis, find
+        print(f"Szukam w {cfg.db_path} (tylko do odczytu) ...", flush=True)
+        conn, aconn = analysis.open_ro(cfg.db_path), analysis.open_analysis(cfg.db_path)
+        found, med, total = find.search(conn, aconn, args.kategoria, args.slowa, args.max, args.limit)
+        conn.close()
+        aconn.close()
+        print("\n".join(find.lines(found, med, total, args.kategoria)))
     elif args.command == "auto":
         from . import auto
         result = asyncio.run(auto.run(cfg, force=args.force, progress=lambda t: print(t, flush=True)))
