@@ -481,3 +481,33 @@ def test_backend_sends_several_photos_anthropic():
     content = seen["messages"][0]["content"]
     assert [c["type"] for c in content] == ["image", "image", "text"] and seen["system"] == "S"
     assert seen["max_tokens"] == 300 and usage == (10, 2)
+
+
+def test_ai_condition_stops_after_error_streak(market, tmp_path):
+    """Skończone środki na koncie API (przedpłata): seria błędów → przerwanie, wyniki sprzed błędów zapisane."""
+    import asyncio
+    import shutil
+
+    from analyzer import ai_condition
+    path, _truth = market
+    copy = tmp_path / "analyzer.db"
+    shutil.copy(path, copy)
+    conn, aconn = analysis.open_ro(copy), analysis.open_analysis(copy)
+    items = ai_condition.candidates(conn, aconn, ("sold",), photos=0)
+    assert len(items) > 30
+
+    class Broke(FakeConditionBackend):
+        async def ask(self, *a, **kw):
+            if len(self.calls) >= 5:
+                self.calls.append(None)
+                raise RuntimeError("429 RESOURCE_EXHAUSTED: prepayment credits depleted")
+            return await super().ask(*a, **kw)
+
+    backend = Broke()
+    stats = asyncio.run(ai_condition.run(aconn, items, backend, concurrency=1, progress=False, stop_after=10))
+    assert stats["done"] == 5 and stats["failed"] == 10 and "RESOURCE_EXHAUSTED" in stats["stopped"]
+    assert len(backend.calls) < len(items)                       # reszty już nie wysłał
+    assert aconn.execute("SELECT COUNT(*) FROM ai_condition").fetchone()[0] == 5
+    assert len(ai_condition.candidates(conn, aconn, ("sold",), photos=0)) == len(items) - 5   # wznowienie
+    conn.close()
+    aconn.close()

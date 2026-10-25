@@ -201,12 +201,17 @@ def estimate(items, provider, price):
     return lines
 
 
-async def run(aconn, items, backend, concurrency=4, progress=True, flush_every=25):
+STOP_AFTER_ERRORS = 10        # tyle błędów z rzędu = koniec środków / limit / brak sieci → przerwij przebieg
+
+
+async def run(aconn, items, backend, concurrency=4, progress=True, flush_every=25, stop_after=STOP_AFTER_ERRORS):
     """Wywołania AI dla kandydatów, zapis do analysis.db co `flush_every` (przerwanie nie traci wyników).
-    → {"done", "failed", "tokens_in", "tokens_out"}."""
+    Po `stop_after` błędach z rzędu (np. skończyły się środki na koncie API - przedpłata) przerywa resztę zamiast
+    wysyłać tysiące nieudanych zapytań; następne uruchomienie zaczyna od ofert bez wyniku.
+    → {"done", "failed", "tokens_in", "tokens_out", "stopped": ostatni błąd albo None}."""
     from .progress import Bar
 
-    stats = {"done": 0, "failed": 0, "tokens_in": 0, "tokens_out": 0}
+    stats = {"done": 0, "failed": 0, "tokens_in": 0, "tokens_out": 0, "stopped": None}
     bar = Bar("AI stan", len(items)) if progress else None
     semaphore = asyncio.Semaphore(max(1, concurrency))
     pending = []
@@ -219,23 +224,38 @@ async def run(aconn, items, backend, concurrency=4, progress=True, flush_every=2
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))", pending)
         pending.clear()
 
+    streak = [0]
+
     async def one(item):
         row, desc, urls, key = item
         async with semaphore:
+            if stats["stopped"]:                # przerwane - nie wysyłamy już nic
+                return item, None, 0, 0
             try:
                 text, (t_in, t_out) = await backend.ask(prompt_text(row, desc), urls, system=INSTRUCTION,
                                                         schema=SCHEMA, max_tokens=300)
-                return item, parse_result(text), t_in, t_out
+                result = parse_result(text)
+                streak[0] = 0
+                return item, result, t_in, t_out
             except Exception as exc:          # błąd jednej oferty nie zatrzymuje reszty (ponowi następne uruchomienie)
-                log.warning("[AI] Oferta %s: %s", row["id"], (str(exc).splitlines() or [""])[0][:200])
-                return item, None, 0, 0
+                message = (str(exc).splitlines() or [""])[0][:200] or type(exc).__name__
+                log.warning("[AI] Oferta %s: %s", row["id"], message)
+                streak[0] += 1
+                if streak[0] >= stop_after and not stats["stopped"]:
+                    stats["stopped"] = message
+                    log.warning("[AI] %d błędów z rzędu - przerywam (ostatni: %s). Sprawdź środki / limit na koncie "
+                                "API i uruchom ponownie - zrobione oferty są zapisane.", streak[0], message)
+                return item, message, 0, 0
 
+    tasks = [asyncio.ensure_future(one(i)) for i in items]
     try:
-        for n, task in enumerate(asyncio.as_completed([one(i) for i in items]), 1):
+        for n, task in enumerate(asyncio.as_completed(tasks), 1):
             (row, _d, urls, key), result, t_in, t_out = await task
             stats["tokens_in"] += t_in
             stats["tokens_out"] += t_out
-            if result is None:
+            if result is None:                  # pominięta po przerwaniu
+                pass
+            elif not isinstance(result, dict):
                 stats["failed"] += 1
             else:
                 stats["done"] += 1
@@ -246,6 +266,9 @@ async def run(aconn, items, backend, concurrency=4, progress=True, flush_every=2
             if bar:
                 bar.update(n)
     finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         if pending:
             flush()
         if bar:

@@ -657,6 +657,9 @@ def main(argv=None):
                     say(f"Ocenione {st['done']}, błędy {st['failed']}; tokeny {st['tokens_in']}/{st['tokens_out']} "
                         f"(śr. {st['tokens_in'] / max(st['done'], 1):.0f}/{st['tokens_out'] / max(st['done'], 1):.0f} "
                         f"na ofertę){cost}")
+                    if st["stopped"]:
+                        say(f"PRZERWANE po serii błędów (ostatni: {st['stopped']}). Pewnie skończyły się środki na "
+                            "koncie API albo limit zapytań - doładuj / odczekaj i uruchom tę samą komendę ponownie.")
             lines = ai_condition.report(conn, aconn)
         finally:
             conn.close()
