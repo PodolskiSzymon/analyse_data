@@ -110,10 +110,11 @@ def price_drops(conn, progress=True):
     return out
 
 
-def collect(conn, excluded=None, relists=None, age_days=14, progress=True):
+def collect(conn, excluded=None, relists=None, age_days=14, progress=True, ai_damaged=None):
     """→ {"groups": {(poziom, kat, klucz, rynek, stan): metryki}, "quality": {...}, "now": ...}.
 
-    excluded - {id: flagi} (wykluczające), relists - {new_id: old_id}."""
+    excluded - {id: flagi} (wykluczające), relists - {new_id: old_id}, ai_damaged - {id: uszkodzona?} z AI
+    (ai_condition) - ma pierwszeństwo przed regułami ekstrakcji."""
     from .relist import roots as chain_roots
 
     excluded, relists = excluded or {}, relists or {}
@@ -170,7 +171,8 @@ def collect(conn, excluded=None, relists=None, age_days=14, progress=True):
             price = (row["sold_price"] if row["sold_price"] is not None else row["price_now"]) if state == "sold" \
                 else row["price_now"]
             mkt = analysis.market(row["cur"], row["price_now"])
-            cond = "uszk" if row["damaged"] else "ok"
+            is_damaged = ai_damaged.get(row["id"], bool(row["damaged"])) if ai_damaged else row["damaged"]
+            cond = "uszk" if is_damaged else "ok"
             key = row["config_key"]
             parent = analysis.parent_key(category, key, row["cpu"], row["cpu_line"], row["ram_gb"], row["model"],
                                          row["gpu"])

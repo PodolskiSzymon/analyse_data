@@ -31,6 +31,16 @@ CREATE TABLE IF NOT EXISTS relists (
   basis    TEXT,                       -- 'description' (ten sam / podobny opis) albo 'title' (bez opisu do porównania)
   gap_days REAL                        -- dni od ostatniego widzenia starej do pierwszego widzenia nowej
 );
+CREATE TABLE IF NOT EXISTS ai_condition (    -- stan techniczny z AI (ai_condition.py)
+  listing_id   INTEGER PRIMARY KEY,
+  content_key  TEXT NOT NULL,              -- tytuł + opis + zdjęcia: ta sama treść nie idzie drugi raz
+  model        TEXT,
+  condition    TEXT NOT NULL,              -- working / minor_issues / for_parts / unknown
+  cracked      TEXT, locked TEXT, photo_damage TEXT,      -- yes / no / unknown
+  evidence     TEXT,
+  photos       INTEGER, tokens_in INTEGER, tokens_out INTEGER,
+  created_at   TEXT
+);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 """
 

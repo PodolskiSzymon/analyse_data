@@ -375,3 +375,107 @@ def test_delay_buckets_and_price_ratios(stats_result):
 def test_for_parts_negation(text, parts):
     from analyzer.extract import FOR_PARTS, has_fault, norm
     assert has_fault(FOR_PARTS, norm(text)) is parts
+
+
+# ------------------------------------------------------------------ stan techniczny przez AI (ai_condition)
+
+
+class FakeConditionBackend:
+    """Atrapa dostawcy AI: „na części” / „nie włącza” → for_parts, reszta → working; zapisuje zapytania."""
+    model = "fake-model"
+
+    def __init__(self):
+        self.calls = []
+
+    async def ask(self, text, photos, system=None, schema=None, max_tokens=None):
+        import json
+        self.calls.append((text, photos, system, schema))
+        parts = "na części" in text or "nie włącza" in text
+        return json.dumps({"condition": "for_parts" if parts else "working", "cracked_screen": "no",
+                           "locked": "unknown", "photo_damage": "unknown",
+                           "evidence": "na części" if parts else "bez defektów"}), (1000, 50)
+
+    async def close(self):
+        pass
+
+
+def test_ai_condition_candidates_run_cache_and_report(market, tmp_path):
+    import asyncio
+    import shutil
+
+    from analyzer import ai_condition
+    path, truth = market
+    copy = tmp_path / "analyzer.db"                       # własna analysis.db obok kopii bazy
+    shutil.copy(path, copy)
+    conn, aconn = analysis.open_ro(copy), analysis.open_analysis(copy)
+    items = ai_condition.candidates(conn, aconn, ("flagged",), photos=1)
+    ids = {row["id"] for row, *_ in items}
+    assert {truth.ids["cond_negated"], truth.ids["cond_parts"]} <= ids      # wzmianka o usterce (też zaprzeczona)
+    assert truth.ids["off_whatsapp"] not in ids                             # opis bez wzmianki o usterce
+    assert all(len(urls) == 1 for _r, _d, urls, _k in items)                # główne zdjęcie
+    backend = FakeConditionBackend()
+    stats = asyncio.run(ai_condition.run(aconn, items, backend, progress=False, flush_every=7))
+    assert stats["done"] == len(items) and stats["failed"] == 0 and stats["tokens_in"] == 1000 * len(items)
+    assert backend.calls[0][2] == ai_condition.INSTRUCTION and backend.calls[0][3] == ai_condition.SCHEMA
+    dmg = ai_condition.load_damaged(aconn)
+    assert dmg[truth.ids["cond_parts"]] is True and dmg[truth.ids["cond_negated"]] is False
+    assert ai_condition.candidates(conn, aconn, ("flagged",), photos=1) == []      # ta sama treść - z pamięci
+    assert len(ai_condition.candidates(conn, aconn, ("flagged",), photos=1, again=True)) == len(items)
+    lines = ai_condition.report(conn, aconn)
+    assert lines[0] == f"Stan z AI: {len(items)} ofert" and any("zgodność" in line for line in lines)
+    sold = ai_condition.candidates(conn, aconn, ("sold",), photos=0, again=True)
+    assert sold and all(row["state"] in ai_condition.SOLD_STATES for row, *_ in sold)
+    assert all(urls == [] for _r, _d, urls, _k in sold)
+    conn.close()
+    aconn.close()
+
+
+def test_ai_condition_overrides_rules_in_stats(stats_result, relisted):
+    from analyzer import relist, stats, suspicious
+    conn, aconn, truth = relisted
+    base, _ = stats_result
+    ai = {truth.ids["g_a1"]: True, truth.ids["g_parts"]: False}           # AI: a1 uszkodzona, „zbity ekran” sprawny
+    result = stats.collect(conn, suspicious.load(aconn, ("dup_title_price", "offsite", "too_cheap")),
+                           relist.load(aconn), progress=False, ai_damaged=ai)
+    before = base["groups"][("config", "phone", "galaxy s21|128", "PL", "ok")]
+    after = result["groups"][("config", "phone", "galaxy s21|128", "PL", "ok")]
+    assert (before["n_active"], after["n_active"]) == (5, 5)              # -a1 (800), +g_parts (300)
+    assert after["active_p25"] == 900 and after["active_med"] == 1000
+    assert result["groups"][("config", "phone", "galaxy s21|128", "PL", "uszk")]["active_med"] == 800
+
+
+def test_ai_condition_estimate_and_parse():
+    from analyzer import ai_condition
+    row = {"category": "laptop", "title": "x" * 35, "status_label": "Dobry", "attributes_json": "{}"}
+    items = [(row, "y" * 315, [], "k")] * 1000
+    lines = ai_condition.estimate(items, "gemini", (0.75, 3.75), (0, 1))
+    assert lines[0].startswith("Do oceny: 1000 ofert")
+    assert "--photos 1" in lines[2] and "$" in lines[2]
+    assert "cena nieznana" in ai_condition.estimate(items, "gemini", None, (1,))[1]
+    r = ai_condition.parse_result('{"condition": "minor_issues", "cracked_screen": "maybe", "locked": "no", '
+                                  '"photo_damage": "yes", "evidence": "martwy piksel"}')
+    assert r["cracked_screen"] == "unknown" and not ai_condition.damaged(r)
+    with pytest.raises(ValueError):
+        ai_condition.parse_result('{"condition": "broken"}')
+
+
+def test_backend_sends_several_photos_anthropic():
+    import asyncio
+    from types import SimpleNamespace
+
+    from analyzer.ai_classify import Backend
+    seen = {}
+
+    class Messages:
+        async def create(self, **kw):
+            seen.update(kw)
+            return SimpleNamespace(content=[SimpleNamespace(type="text", text="{}")],
+                                   usage=SimpleNamespace(input_tokens=10, output_tokens=2))
+
+    client = SimpleNamespace(beta=SimpleNamespace(messages=Messages()))
+    backend = Backend(SimpleNamespace(provider="anthropic", photos="url"), "claude-haiku-5-5", client=client)
+    text, usage = asyncio.run(backend.ask("opis", ["https://a/1.jpg", "https://a/2.jpg"], system="S",
+                                          schema={"type": "object"}, max_tokens=300))
+    content = seen["messages"][0]["content"]
+    assert [c["type"] for c in content] == ["image", "image", "text"] and seen["system"] == "S"
+    assert seen["max_tokens"] == 300 and usage == (10, 2)

@@ -284,6 +284,12 @@ class Builder:
         # ogólnikowy tytuł po tej samej (niskiej) cenie u 3 ofert - tysiące niezależnych „iPhone 15” → bez flagi
         for i in range(3):
             self.add("phone", "iPhone 15", 300.0, first_seen=d(14 + i), brand="Apple", name=f"generic{i}")
+        # stan techniczny z opisu (ai_condition): zaprzeczenie kilka słów dalej vs naprawdę na części
+        self.add("laptop", "Dell XPS 13 9310 i7 16GB 512GB", 2600.0, first_seen=d(15), brand="Dell",
+                 description="Laptop sprawny, nie ma na nim żadnych rys ani defektów, bateria trzyma 6h.",
+                 name="cond_negated")
+        self.add("laptop", "Dell XPS 13 9300 uszkodzona płyta", 600.0, first_seen=d(15), brand="Dell",
+                 description="Laptop na części, nie włącza się po zalaniu.", name="cond_parts")
         # oszust wystawia tę samą ofertę od nowa → to też relisty (blocked nie jest „zniknięciem” do relistu)
         self.truth.relists[self.truth.ids["dup_deleted"]] = self.truth.ids["dup_sold"]
         self.truth.relists[self.truth.ids["dup_active"]] = self.truth.ids["dup_deleted"]

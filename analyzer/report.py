@@ -173,7 +173,8 @@ def summary(result, flags_info, relist_info, day):
              "tylko prawdziwe (bez dryfu kursu: PLN każda zmiana, waluty ≥ 1%).",
              f"5. Wykluczone ze statystyk: flagi {excl} oraz oferty, które wystawiono od nowa (relist A→B: "
              f"A nie jest ani sprzedażą, ani zniknięciem). Sklepy (`shop_like`) i wzmianki OLX/Allegro zostają.",
-             "6. `uszk` = na części / blokada / pęknięcie (z ekstrakcji) – osobno od sprawnych.",
+             f"6. `uszk` = na części / blokada / pęknięcie (z ekstrakcji; stan z AI dla "
+             f"{result.get('ai_condition', 0)} ofert) – osobno od sprawnych.",
              "7. `blocked` (sprzedana, strona oferty 404) liczona jako **sprzedana** – ceny blocked rozkładają się jak "
              "ceny sold (tabela niżej); oszustwa wycinają flagi cenowe.", "",
              "## 1. Jakość danych",
@@ -347,7 +348,12 @@ def build(conn, aconn, out, age_days=14, photo_flag=False, recompute=True, progr
                                                                if f != "is_suspicious")
     excluded = suspicious.load(aconn, excluding)
     relists = relist.load(aconn)
-    result = stats.collect(conn, excluded, relists, age_days, progress=bar)
+    from .ai_condition import load_damaged
+    ai_damaged = load_damaged(aconn)
+    if ai_damaged:
+        say(f"  stan techniczny z AI dla {len(ai_damaged)} ofert (zamiast reguł)")
+    result = stats.collect(conn, excluded, relists, age_days, progress=bar, ai_damaged=ai_damaged)
+    result["ai_condition"] = len(ai_damaged)
     counts = dict(aconn.execute("SELECT flag, COUNT(*) FROM flags GROUP BY flag").fetchall())
     flags_info = {"excluding": excluding, "counts": counts, "all": suspicious.ALL_FLAGS,
                   "price_check": suspicious.price_check(conn)}

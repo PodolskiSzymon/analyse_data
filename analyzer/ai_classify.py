@@ -98,28 +98,31 @@ class Backend:
             self.client = genai.Client(api_key=ai_cfg.api_key,
                                        http_options=types.HttpOptions(timeout=int(ai_cfg.timeout * 1000)))
 
-    async def ask(self, text, photo_url):
+    async def ask(self, text, photo_url, system=INSTRUCTION, schema=SCHEMA, max_tokens=400):
+        """photo_url: jeden URL, lista URL-i albo None. system / schema - instrukcja i schemat odpowiedzi (domyślnie
+        kategoria ze zdjęcia; ai_condition.py podaje własne)."""
+        photos = [photo_url] if isinstance(photo_url, str) else [u for u in (photo_url or []) if u]
         if self.provider == "anthropic":
-            content = [{"type": "image", "source": {"type": "url", "url": photo_url}}] if photo_url else []
+            content = [{"type": "image", "source": {"type": "url", "url": u}} for u in photos]
             content.append({"type": "text", "text": text})
             # Jak w Sniperze (sniper/evaluator.py): beta.messages + output_config (odpowiedź zgodna ze schematem).
             response = await self.client.beta.messages.create(
-                model=self.model, max_tokens=400, system=INSTRUCTION,
+                model=self.model, max_tokens=max_tokens, system=system,
                 messages=[{"role": "user", "content": content}],
-                output_config={"format": {"type": "json_schema", "schema": SCHEMA}})
+                output_config={"format": {"type": "json_schema", "schema": schema}})
             usage = (getattr(response.usage, "input_tokens", 0) or 0, getattr(response.usage, "output_tokens", 0) or 0)
             return "".join(b.text for b in response.content if getattr(b, "type", None) == "text"), usage
 
         from google.genai import types
         from sniper.evaluator import image_mime
         parts = []
-        if photo_url:
-            data = await self._download(photo_url) if self.photos == "download" else None
-            parts.append(types.Part.from_bytes(data=data, mime_type=image_mime(photo_url)) if data is not None
-                         else types.Part.from_uri(file_uri=photo_url, mime_type=image_mime(photo_url)))
+        for url in photos:
+            data = await self._download(url) if self.photos == "download" else None
+            parts.append(types.Part.from_bytes(data=data, mime_type=image_mime(url)) if data is not None
+                         else types.Part.from_uri(file_uri=url, mime_type=image_mime(url)))
         parts.append(types.Part.from_text(text=text))
         config = types.GenerateContentConfig(
-            system_instruction=INSTRUCTION, response_mime_type="application/json", response_json_schema=SCHEMA,
+            system_instruction=system, response_mime_type="application/json", response_json_schema=schema,
             max_output_tokens=2000, thinking_config=types.ThinkingConfig(thinking_level="LOW"),
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True))
         response = await self.client.aio.models.generate_content(
