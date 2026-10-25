@@ -6,6 +6,9 @@ Bez sieci, główna baza tylko do odczytu; flagi, relisty i stan z AI z `analysi
 Reguła zysku użytkownika (2026-10-25): zysk = cena sprzedaży − cena zakupu − koszty (Podbicie międzynarodowe 7 dni
 ~26 zł + wysyłka ~20 zł), marża = zysk / cena sprzedaży; minimalny zysk rośnie, gdy marża spada:
 ≥ 40% → 300 zł, 35% → 500, 30% → 700, 25% → 900, 20% → 1 100 (+40 zł na punkt), < 20% → nie kupujemy.
+Tańsze przedmioty (użytkownik 2026-10-25: „poobniżaj progi jak uważasz”): wystarczy też zysk ≥ 30% ceny sprzedaży,
+min. 150 zł - przy samej regule wyżej telefon / konsola za ~700 zł wymagała zakupu za ~50% ceny. Działa płynnie do
+sprzedaży ~2 300 zł (tam oba warunki się spotykają), wyżej rządzi reguła marży.
 
 Grupy (tylko sprawne - stan z AI, inaczej z reguł; bez flag wykluczających i ofert z relistem):
 laptopy - karta graficzna (gamingowe), MacBooki - linia + chip + RAM, reszta - linia CPU + RAM; telefony / tablety -
@@ -31,6 +34,7 @@ MIN_GONE_FOR_S = 10
 PROMO, SHIP = 26.0, 20.0
 CAT_TITLE = {"laptop": "Laptopy", "phone": "Telefony", "tablet": "Tablety", "console": "Konsole",
              "gpu": "Karty graficzne", "ram": "Pamięci RAM", "storage": "Dyski SSD"}
+CHEAP_SHARE, CHEAP_MIN = 0.30, 150.0        # alternatywny warunek dla tańszych przedmiotów (wyżej)
 TOP_ROWS = 80                      # wierszy tabeli na kategorię (koszt tokenów w zapytaniu Snipera)
 # Katalogi Vinted Snipera → nasze kategorie (jak sniper/categories.py; mieszane - kategoria z tytułu).
 SNIPER_CATALOGS = {3580: ("laptop",), 3661: ("phone",), 3728: ("tablet",), 3025: ("console",),
@@ -61,6 +65,7 @@ def max_buy(sale, costs=PROMO + SHIP):
     p2 = max(0.2 * sale, 1900.0 * sale / (sale + 4000.0))
     if p2 < 0.4 * sale:
         candidates.append(p2)
+    candidates.append(max(CHEAP_MIN, CHEAP_SHARE * sale))        # rozstrzyga tylko do ~2 300 zł
     profit = min(candidates)
     buy = sale - costs - profit
     if buy <= 0:
@@ -211,6 +216,9 @@ def header(category, costs, day, ai_count):
         f"**{costs:.0f} zł**. Opłatę Vinted (5% + 2,90 zł) i weryfikację elektroniki płaci kupujący.",
         "- **Zysk** = cena sprzedaży − cena zakupu − koszty; **marża** = zysk / cena sprzedaży.",
         f"- Minimalny zysk zależy od marży: {profit_table}; marża < 20% – nie kupuję.",
+        f"- Tańsze przedmioty: wystarczy też zysk ≥ {CHEAP_SHARE * 100:.0f}% ceny sprzedaży (min. {_zl(CHEAP_MIN)} zł) – "
+        "rozstrzyga do sprzedaży ~2 300 zł, wyżej reguła marży.",
+        "- Nie kupuję uszkodzonych (na części, blokada, zbity ekran, nie działa) – wtedy nigdy okazja.",
         "- Przykłady (laptopy): ASUS TUF F15 1 350 → 2 375 zł w 2 dni (43%); MSI RTX 4060 2 500 → 3 650 zł w 5 dni "
         "(32%); ASUS ROG Scar 17 RTX 3080 3 660 → 4 700 zł w 6 dni (22%).", "",
         "## Jak oceniać ofertę",

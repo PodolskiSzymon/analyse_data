@@ -632,7 +632,13 @@ def test_profit_rule_matches_user_examples():
     assert 3600 < max_buy(4700)[0] < 3660
     buy, profit, margin = max_buy(3650)                                # MSI RTX 4060
     assert round(buy) == 2697 and round(margin * 100) == 25
-    assert max_buy(300) is None                                         # 300 zł zysku z 300 zł sprzedaży - nigdy
+    assert max_buy(150) is None                                         # 150 zł zysku ze 150 zł sprzedaży - nigdy
+    # tanie (< 1 500 zł): zysk ≥ 30% sprzedaży, min. 150 zł (Switch ~741: było 395, iPhone 13 ~850: było 471)
+    assert round(max_buy(741)[0]) == round(741 - 46 - 0.3 * 741) and round(max_buy(850)[1]) == 255
+    assert max_buy(400)[1] == 150
+    buys = [max_buy(x)[0] for x in range(300, 6000, 10)]                # bez skoków: droższa sprzedaż = wyższy próg
+    assert all(b2 > b1 for b1, b2 in zip(buys, buys[1:]))
+    assert max_buy(3000)[1] == pytest.approx(1900 * 3000 / 7000)         # powyżej ~2 300 zł zwykła reguła marży
 
 
 def test_group_names():
