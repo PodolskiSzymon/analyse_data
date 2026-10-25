@@ -39,7 +39,7 @@ RESTART_AFTER_S = 60
 CHECK_EVERY_S = 10
 
 HELP = ["Polecenia: status · start/stop/restart watch · start/stop/restart sniper · start all · stop all · "
-        "log watch · log sniper · pomoc"]
+        "log watch · log sniper · wytyczne · pomoc"]
 _START = ("start", "włącz", "wlacz", "uruchom", "on")
 _STOP = ("stop", "wyłącz", "wylacz", "zatrzymaj", "off")
 _RESTART = ("restart", "zrestartuj")
@@ -59,6 +59,8 @@ def parse(text, pin=""):
     target = "all" if target == "wszystko" else target
     if any(w in ("status", "stan") for w in words):
         return "status", target
+    if any(w in ("wytyczne", "guidelines", "guide", "guides") for w in words):
+        return "guides", None
     if any(w in ("pomoc", "help", "?") for w in words):
         return "help", None
     if any(w == "log" or w == "logi" for w in words):
@@ -177,9 +179,10 @@ def _uptime(seconds):
 class Controller:
     """Stan programów + wykonywanie poleceń. spawn / kill / send / clock - do testów."""
 
-    def __init__(self, programs, send, spawn_fn=spawn, kill_fn=kill, clock=time.monotonic):
+    def __init__(self, programs, send, spawn_fn=spawn, kill_fn=kill, clock=time.monotonic, guides_fn=None):
         self.programs = programs
         self.send = send
+        self.guides_fn = guides_fn
         self.spawn_fn, self.kill_fn, self.clock = spawn_fn, kill_fn, clock
 
     def _targets(self, target):
@@ -220,6 +223,10 @@ class Controller:
         if action is None:
             await self.send("Pilot: nie rozumiem", [f"„{(text or '')[:60]}”: {target}"] + HELP, priority=2)
             return None
+        if action == "guides":
+            lines = await self.guides_fn() if self.guides_fn else ["Wysyłanie wytycznych niedostępne."]
+            await self.send("Pilot: wytyczne", lines)
+            return action
         if action == "help":
             await self.send("Pilot: pomoc", HELP)
             return action
@@ -266,6 +273,50 @@ def is_own(event):
     """Wiadomość wysłana przez pilota / analizator (ma tytuł „Pilot: …” / „Analyzer: …”) - nie polecenie. Pozwala
     ustawić ANALYZER_NTFY_TOPIC = ANALYZER_CONTROL_TOPIC (odpowiedzi w tym samym temacie, jak czat) bez pętli."""
     return str(event.get("title") or "").startswith(OWN_TITLES)
+
+
+def guide_files(cfg, sniper_dir=None):
+    """Aktualne wytyczne: plik, którego używa Sniper (`SNIPER_DIR/sniper/guidelines.md`), i najnowsze wygenerowane
+    z danych (`reports/<data>/guides/*.md`)."""
+    files = []
+    sniper_dir = sniper_dir if sniper_dir is not None else os.getenv("SNIPER_DIR", "").strip()
+    if sniper_dir and (Path(sniper_dir) / "sniper" / "guidelines.md").exists():
+        files.append(Path(sniper_dir) / "sniper" / "guidelines.md")
+    reports = Path(cfg.db_path).parent / "reports"
+    latest = sorted(p for p in reports.glob("*/guides") if p.is_dir()) if reports.exists() else []
+    if latest:
+        files += sorted(latest[-1].glob("*.md"))
+    return files
+
+
+async def export_guides(cfg, send_file, gdrive_dir=None, sniper_dir=None):
+    """Polecenie „wytyczne”: kopia na Dysk Google (`ANALYZER_GDRIVE_DIR`, np. G:\\Mój dysk\\program - folder
+    synchronizowany przez aplikację Dysk Google na serwerze) + plik Snipera jako załącznik ntfy na telefon."""
+    import shutil
+
+    files = guide_files(cfg, sniper_dir)
+    if not files:
+        return ["Brak plików wytycznych (SNIPER_DIR / python -m analyzer sniper-guide)."]
+    lines = []
+    gdrive_dir = gdrive_dir if gdrive_dir is not None else os.getenv("ANALYZER_GDRIVE_DIR", "").strip()
+    if gdrive_dir:
+        target = Path(gdrive_dir) / "wytyczne"
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+            for f in files:
+                name = "sniper_guidelines.md" if f.name == "guidelines.md" else f.name
+                shutil.copy2(f, target / name)
+            lines.append(f"Dysk Google: {len(files)} plików → {target}")
+        except OSError as exc:
+            lines.append(f"Dysk Google: błąd kopiowania ({exc})")
+    else:
+        lines.append("Dysk Google: ustaw ANALYZER_GDRIVE_DIR w sniper/.env (np. G:\\Mój dysk\\program)")
+    first = files[0]
+    sent = await send_file(first, f"Pilot: {first.name}")
+    lines.append(f"Na telefon: {first.name} ({'wysłany' if sent else 'nie wysłano'}) - kliknij załącznik powyżej")
+    stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(first.stat().st_mtime))
+    lines.append(f"{first.name}: zmieniony {stamp}")
+    return lines
 
 
 async def listen(server, topic, token, on_message, since=None):
@@ -315,7 +366,10 @@ async def main(cfg):
     async def reply(title, lines, **kw):          # odpowiedzi pilota - w tym samym temacie, w którym piszesz polecenia
         return await notify.send(title, lines, topic_name=topic, **kw)
 
-    controller = Controller(default_programs(cfg), reply)
+    async def send_file(path, title):
+        return await notify.send_file(path, title, topic_name=topic)
+
+    controller = Controller(default_programs(cfg), reply, guides_fn=lambda: export_guides(cfg, send_file))
     for name in (x.strip() for x in os.getenv("ANALYZER_CONTROL_AUTOSTART", "").split(",") if x.strip()):
         if name in controller.programs:
             controller.start(controller.programs[name])

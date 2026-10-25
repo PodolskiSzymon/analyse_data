@@ -16,6 +16,34 @@ def topic():
     return (os.getenv("ANALYZER_NTFY_TOPIC") or os.getenv("SNIPER_NTFY_TOPIC") or "").strip()
 
 
+async def send_file(path, title, topic_name=None, client=None):
+    """Plik jako załącznik ntfy (ntfy.sh: do 15 MB, link ważny kilka godzin) - otworzysz go z powiadomienia."""
+    from pathlib import Path
+
+    name = topic_name or topic()
+    if not name:
+        return False
+    server = (os.getenv("SNIPER_NTFY_SERVER") or "https://ntfy.sh").strip().rstrip("/")
+    token = (os.getenv("SNIPER_NTFY_TOKEN") or "").strip()
+    path = Path(path)
+    headers = {"Filename": path.name, "Title": title.encode("ascii", "ignore").decode()}   # nagłówki HTTP: ASCII
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    own = client is None
+    client = client or httpx.AsyncClient(timeout=60, trust_env=False)
+    try:
+        r = await client.put(f"{server}/{name}", content=path.read_bytes(), headers=headers)
+        r.raise_for_status()
+        log.info("[NTFY] Wysłano plik %s", path.name)
+        return True
+    except Exception as exc:
+        log.error("[NTFY] Nie wysłałem pliku %s: %r", path.name, exc)
+        return False
+    finally:
+        if own:
+            await client.aclose()
+
+
 def build_message(title, lines, topic_name, priority=3, tags=("white_check_mark",)):
     return {"topic": topic_name, "title": title[:120], "message": "\n".join(lines)[:3000],
             "priority": int(priority), "tags": list(tags)}

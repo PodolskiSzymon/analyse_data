@@ -73,6 +73,7 @@ podwójnego zakupu. Gdy na serwerze działa, wyłącz go na komputerze.
 | `start sniper` / `stop sniper` / `restart sniper` | Sniper |
 | `start all` / `stop all` | oba naraz |
 | `log watch` / `log sniper` | ostatnie linie logu |
+| `wytyczne` | aktualne wytyczne: plik Snipera jako załącznik na telefon + kopia (z wygenerowanymi `guides`) na Dysk Google, jeśli ustawione `ANALYZER_GDRIVE_DIR=G:\Mój dysk\program` (folder z aplikacji Dysk Google na serwerze) |
 | `pomoc` | lista poleceń |
 
 (Z PIN-em: `1234 stop sniper`. Działa też po polsku: „włącz sniper”, „zatrzymaj watch”.)

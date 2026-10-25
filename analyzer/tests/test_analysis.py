@@ -852,6 +852,7 @@ def test_ai_condition_uses_archived_photos(market, tmp_path):
     ("stop all", "1234", (None, "zły albo brak PIN-u")),
     ("stop", "", (None, "stop czego? watch / sniper / all")),
     ("hej", "", (None, "nieznane polecenie")),
+    ("wytyczne", "", ("guides", None)),
 ])
 def test_remote_parse(text, pin, expected):
     from analyzer.remote import parse
@@ -947,3 +948,51 @@ def test_remote_ignores_own_messages():
     finally:
         httpx.AsyncClient = real
     assert got == ["status", "stop sniper"]
+
+
+
+def test_remote_exports_guides(tmp_path):
+    import asyncio
+    from types import SimpleNamespace
+
+    import httpx
+
+    from analyzer import notify, remote
+    sniper = tmp_path / "unreachable_sniper"
+    (sniper / "sniper").mkdir(parents=True)
+    (sniper / "sniper" / "guidelines.md").write_text("# Laptopy", encoding="utf-8")
+    data = tmp_path / "data"
+    for day in ("2026-10-24", "2026-10-25"):
+        (data / "reports" / day / "guides").mkdir(parents=True)
+        (data / "reports" / day / "guides" / "phone.md").write_text(day, encoding="utf-8")
+    cfg = SimpleNamespace(db_path=str(data / "analyzer.db"))
+    files = remote.guide_files(cfg, str(sniper))
+    assert [f.name for f in files] == ["guidelines.md", "phone.md"] and "2026-10-25" in str(files[1])
+    sent = []
+
+    async def send_file(path, title):
+        sent.append((path.name, title))
+        return True
+
+    drive = tmp_path / "G" / "program"
+    lines = asyncio.run(remote.export_guides(cfg, send_file, str(drive), str(sniper)))
+    assert (drive / "wytyczne" / "sniper_guidelines.md").read_text(encoding="utf-8") == "# Laptopy"
+    assert (drive / "wytyczne" / "phone.md").exists() and "2 plików" in lines[0]
+    assert sent == [("guidelines.md", "Pilot: guidelines.md")]
+    lines = asyncio.run(remote.export_guides(cfg, send_file, "", str(sniper)))
+    assert "ANALYZER_GDRIVE_DIR" in lines[0]
+    # załącznik ntfy: PUT z nazwą pliku, tytuł „Pilot:” (pilot go pominie jako własny)
+    seen = {}
+
+    def handler(request):
+        seen.update(method=request.method, url=str(request.url), filename=request.headers["Filename"],
+                    title=request.headers["Title"], body=request.content)
+        return httpx.Response(200, json={})
+
+    async def put():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await notify.send_file(files[0], "Pilot: guidelines.md", topic_name="pilot-x", client=client)
+
+    assert asyncio.run(put()) is True
+    assert seen["method"] == "PUT" and seen["url"].endswith("/pilot-x") and seen["body"] == "# Laptopy".encode()
+    assert seen["filename"] == "guidelines.md" and seen["title"] == "Pilot: guidelines.md"
