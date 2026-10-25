@@ -23,6 +23,8 @@
   ai-condition [--scope flagged] [--photos 3] [--limit N] [--estimate] [--yes]
                                           stan techniczny przez AI (opis + zdjęcia) -> analysis.db; najpierw koszt
   sniper-guide [--promo 26] [--ship 20]   wytyczne dla Snipera z danych (ceny, max zakup wg reguły zysku) -> guides/
+  auto [--force]                          automat (AI stanu nowych ofert, raport, wytyczne Snipera) - jak w watch
+  photos [--limit N]                      archiwum zdjęć ofert (bez proxy) - jak w watch
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
   status                                  podsumowanie bazy (oferty, stany, partycje, przejścia, transfer)
@@ -91,17 +93,22 @@ async def cmd_watch(cfg, catalogs, resolve_limit, with_details=True):
                 await crawler.run(catalog_id)
             await run_ai_classify(cfg, conn)
             await resolve(cfg, session, conn, resolve_limit)
-            try:
-                from . import extract
-                log.info("[EXTRACT] Nowe / zmienione oferty: %d.", extract.run(conn))
-            except Exception:
-                log.exception("[EXTRACT] Błąd ekstrakcji - spróbuję w następnym cyklu.")
+            await watch_extras(cfg, conn)
             for line in status_lines(conn):
                 log.info("[STATUS] %s", line)
-            if with_details:
-                log.info("[WATCH] Do następnego przejścia (%s UTC) pobieram szczegóły ofert.",
-                         next_start.strftime("%H:%M"))
-                await fetch_details(cfg, session, conn, deadline=next_start)
+            if with_details or cfg.photos:
+                log.info("[WATCH] Do następnego przejścia (%s UTC): %s.", next_start.strftime("%H:%M"),
+                         " + ".join(x for x in ("szczegóły ofert (proxy)" if with_details else "",
+                                                "archiwum zdjęć (bez proxy)" if cfg.photos else "") if x))
+                jobs = []
+                if with_details:
+                    jobs.append(fetch_details(cfg, session, conn, deadline=next_start))
+                if cfg.photos:
+                    from .photos import archive
+                    jobs.append(archive(cfg, conn, deadline=next_start))
+                for result in await asyncio.gather(*jobs, return_exceptions=True):
+                    if isinstance(result, Exception):
+                        log.error("[WATCH] Szczegóły / zdjęcia przerwane błędem: %r", result)
             log.info("[TRANSFER] %s", session.traffic.window_report()[0])
         except Exception:
             log.exception("[WATCH] Cykl przerwany błędem - spróbuję przy następnym.")
@@ -113,6 +120,30 @@ async def cmd_watch(cfg, catalogs, resolve_limit, with_details=True):
                  max(wait, 0) / 3600)
         if wait > 0:
             await asyncio.sleep(wait)
+
+
+async def watch_extras(cfg, conn):
+    """Po resolve w każdym cyklu watch: ekstrakcja, alarm „brak sprzedaży”, automat (2× w tygodniu: AI stanu nowych
+    ofert, raport, wytyczne Snipera). Błąd żadnego z nich nie przerywa watch."""
+    from . import analysis, auto
+
+    try:
+        from . import extract
+        log.info("[EXTRACT] Nowe / zmienione oferty: %d.", extract.run(conn))
+    except Exception:
+        log.exception("[EXTRACT] Błąd ekstrakcji - spróbuję w następnym cyklu.")
+    try:
+        aconn = analysis.open_analysis(cfg.db_path)
+        try:
+            await auto.sold_alarm(cfg, conn, aconn)
+        finally:
+            aconn.close()
+    except Exception:
+        log.exception("[ALARM] Błąd sprawdzania sprzedaży.")
+    try:
+        await auto.run(cfg)
+    except Exception:
+        log.exception("[AUTO] Automat przerwany błędem - spróbuję w następnym cyklu.")
 
 
 async def run_ai_classify(cfg, conn, limit=None, retry_failed=False):
@@ -481,6 +512,11 @@ def main(argv=None):
     p_guide.add_argument("--promo", type=float, default=26.0, help="koszt Podbicia (zł, domyślnie 26)")
     p_guide.add_argument("--ship", type=float, default=20.0, help="koszt wysyłki (zł, domyślnie 20)")
     p_guide.add_argument("--min-offers", type=int, default=8, help="grupa w tabeli od tylu aktywnych ofert")
+    p_auto = sub.add_parser("auto", help="automat: flagi, relisty, AI stanu nowych ofert, raport, wytyczne Snipera "
+                                          "(watch robi to sam co ANALYZER_AUTO_DAYS)")
+    p_auto.add_argument("--force", action="store_true", help="teraz, nawet jeśli nie minęło ANALYZER_AUTO_DAYS")
+    p_photos = sub.add_parser("photos", help="archiwum zdjęć ofert z CDN Vinted, bez proxy (watch robi to sam)")
+    p_photos.add_argument("--limit", type=int, default=None)
     p_sample = sub.add_parser("sample", help="próbka ofert z opisami do projektu ekstrakcji -> data/sample_*.jsonl")
     p_sample.add_argument("--per-category", type=int, default=150)
     sub.add_parser("classify-report", help="klasyfikacja ofert z kategorii mieszanych - bez sieci")
@@ -696,6 +732,16 @@ def main(argv=None):
         aconn.close()
         print("\n".join(guide.summary_lines(result)))
         say(f"\nWytyczne: {out}  (po jednym pliku na kategorię - przyślij je albo wklej podgląd)")
+    elif args.command == "auto":
+        from . import auto
+        result = asyncio.run(auto.run(cfg, force=args.force, progress=lambda t: print(t, flush=True)))
+        print("Nie minęło jeszcze ANALYZER_AUTO_DAYS - użyj --force." if result is None else "Gotowe.")
+    elif args.command == "photos":
+        from .photos import archive, status_line
+        conn = db.connect(cfg.db_path)
+        asyncio.run(archive(cfg, conn, limit=args.limit))
+        conn.close()
+        print(status_line(cfg))
     elif args.command == "sample":
         from .sample import export
         print(f"Otwieram bazę {cfg.db_path} ...", flush=True)
@@ -720,6 +766,8 @@ def main(argv=None):
         print("\n".join(lines))
         say("")
         say(data_size_line(cfg.db_path))
+        from .photos import status_line as photos_line
+        say(photos_line(cfg))
 
 
 if __name__ == "__main__":

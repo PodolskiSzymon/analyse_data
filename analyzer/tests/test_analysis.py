@@ -679,3 +679,160 @@ def test_sale_price_takes_higher_estimate():
     assert r["src"] == "oferty p25–med" and r["sale"] == pytest.approx((r["p25"] + r["med"]) / 2)
     g["x"]["gone"] = [3900.0] * 12
     assert rows(g)[0]["sale"] == 3900.0 and rows(g)[0]["src"].startswith("zniknięte")
+
+
+# ------------------------------------------------------------------ E2: archiwum zdjęć, E3: automat, alarm
+
+
+def _copy_market(market, tmp_path):
+    import shutil
+    path, truth = market
+    copy = tmp_path / "analyzer.db"
+    shutil.copy(path, copy)
+    return copy, truth
+
+
+def _photo_cfg(db_path, **kw):
+    from types import SimpleNamespace
+    base = dict(db_path=str(db_path), photos_dir="", photos_concurrency=4, sold_alarm_hours=72.0,
+                sold_alarm_min=300, auto_days=3.5, auto_ai_limit=3000, sniper_guides_dir="",
+                sniper_guidelines_file="", ai_model="")
+    base.update(kw)
+    return SimpleNamespace(**base)
+
+
+def test_photo_archive_downloads_all_photos_without_proxy(market, tmp_path):
+    import asyncio
+
+    import httpx
+
+    from analyzer import db, photos
+    path, truth = _copy_market(market, tmp_path)
+    cfg = _photo_cfg(path)
+    seen = []
+
+    def handler(request):
+        seen.append(str(request.url))
+        if "-2.jpg" in str(request.url) and len(seen) % 50 == 0:
+            return httpx.Response(404)                       # pojedyncze usunięte zdjęcie
+        return httpx.Response(200, content=b"JPEG" + str(request.url).encode())
+
+    async def scenario(limit):
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            conn = db.connect(path)
+            try:
+                return await photos.archive(cfg, conn, limit=limit, client=client)
+            finally:
+                conn.close()
+
+    stats = asyncio.run(scenario(40))
+    assert stats["offers"] == 40 and stats["photos"] > 40
+    lid = truth.ids["cond_parts"]                            # ma szczegóły → oba zdjęcia z sidebara
+    asyncio.run(scenario(None))
+    files = photos.local_photos(photos.photos_dir(cfg), lid)
+    assert [p.name for p in files] == ["01.jpg", "02.jpg"] and files[0].read_bytes().startswith(b"JPEG")
+    assert str(lid // 1_000_000) in str(files[0].parent.parent)
+    before = len(seen)
+    assert asyncio.run(scenario(None))["offers"] == 0          # wszystko już jest - nic do pobrania
+    assert len(seen) == before
+    assert "Archiwum zdjęć:" in photos.status_line(cfg)
+
+
+def test_sold_alarm(market, tmp_path):
+    import asyncio
+    from datetime import timedelta
+
+    from analyzer import auto
+    path, truth = _copy_market(market, tmp_path)
+    conn, aconn = analysis.open_ro(path), analysis.open_analysis(path)
+    now = fake_market.NOW + timedelta(days=1)
+    alarm, sold, deleted = auto.sold_check(conn, hours=24 * 30, minimum=100, now=now)
+    assert not alarm and sold > 0                            # w atrapie sprzedaże są
+    sent = []
+
+    async def send(title, lines, **kw):
+        sent.append(title)
+        return True
+
+    cfg = _photo_cfg(path, sold_alarm_hours=24 * 30, sold_alarm_min=100)
+    assert asyncio.run(auto.sold_alarm(cfg, conn, aconn, now=now, send=send)) is False and sent == []
+    conn.close()
+    import sqlite3
+    rw = sqlite3.connect(path)                               # symulacja zmiany API: wszystkie sprzedane → deleted
+    rw.execute("UPDATE listings SET state='deleted' WHERE state IN ('sold', 'blocked')")
+    rw.commit()
+    rw.close()
+    conn = analysis.open_ro(path)
+    assert asyncio.run(auto.sold_alarm(cfg, conn, aconn, now=now, send=send)) is True
+    assert asyncio.run(auto.sold_alarm(cfg, conn, aconn, now=now + timedelta(hours=2), send=send)) is True
+    assert len(sent) == 1 and "zmiana API" in sent[0]          # najwyżej raz na dobę
+    assert asyncio.run(auto.sold_alarm(cfg, conn, aconn, now=now + timedelta(hours=25), send=send))
+    assert len(sent) == 2
+    conn.close()
+    aconn.close()
+
+
+def test_auto_pipeline_publishes_guides(market, tmp_path):
+    import asyncio
+    from datetime import timedelta
+
+    from analyzer import auto
+    path, truth = _copy_market(market, tmp_path)
+    sniper = tmp_path / "sniper"
+    sniper.mkdir()
+    old = sniper / "guidelines.md"
+    old.write_text("ręczne wytyczne", encoding="utf-8")
+    cfg = _photo_cfg(path, sniper_guides_dir=str(sniper / "guides"), sniper_guidelines_file=str(old),
+                     auto_ai_limit=20)
+    sent = []
+
+    async def send(title, lines, **kw):
+        sent.append((title, lines))
+        return True
+
+    backend = FakeConditionBackend()
+    now = fake_market.NOW
+    summary = asyncio.run(auto.run(cfg, backend=backend, now=now, send=send))
+    assert summary["ai"]["done"] == 20 and len(backend.calls) == 20
+    assert (sniper / "guides" / "laptop.md").exists() and (sniper / "guides" / "phone.md").exists()
+    assert old.read_text(encoding="utf-8").startswith("# Laptopy")             # laptop.md → plik Snipera
+    assert (sniper / "guidelines.md.bak").read_text(encoding="utf-8") == "ręczne wytyczne"
+    assert sent and "wytyczne Snipera" in sent[0][0]
+    assert asyncio.run(auto.run(cfg, backend=backend, now=now + timedelta(days=1), send=send)) is None   # za wcześnie
+    again = asyncio.run(auto.run(cfg, backend=backend, now=now + timedelta(days=4), send=send))
+    assert again is not None and again["ai"]["done"] == 20                    # następne 20 nowych ofert
+
+
+def test_ai_condition_uses_archived_photos(market, tmp_path):
+    import asyncio
+    from types import SimpleNamespace
+
+    from analyzer import ai_condition, photos
+    from analyzer.ai_classify import Backend
+    path, truth = _copy_market(market, tmp_path)
+    root = tmp_path / "photos"
+    lid = truth.ids["cond_parts"]
+    folder = photos.listing_dir(root, lid)
+    folder.mkdir(parents=True)
+    for i in (1, 2, 3, 4):
+        (folder / f"0{i}.jpg").write_bytes(b"\xff\xd8 zdjecie")
+    conn, aconn = analysis.open_ro(path), analysis.open_analysis(path)
+    items = {row["id"]: urls for row, _d, urls, _k in
+             ai_condition.candidates(conn, aconn, ("flagged",), photos=3, photos_root=root)}
+    assert items[lid] == [str(folder / f"0{i}.jpg") for i in (1, 2, 3)]
+    seen = {}
+
+    class Messages:
+        async def create(self, **kw):
+            seen.update(kw)
+            return SimpleNamespace(content=[SimpleNamespace(type="text", text="{}")],
+                                   usage=SimpleNamespace(input_tokens=1, output_tokens=1))
+
+    backend = Backend(SimpleNamespace(provider="anthropic", photos="url"), "m",
+                      client=SimpleNamespace(beta=SimpleNamespace(messages=Messages())))
+    asyncio.run(backend.ask("t", items[lid] + ["https://x/1.jpg"]))
+    sources = [c["source"] for c in seen["messages"][0]["content"] if c["type"] == "image"]
+    assert [s["type"] for s in sources] == ["base64", "base64", "base64", "url"]
+    assert sources[0]["media_type"] == "image/jpeg"
+    conn.close()
+    aconn.close()

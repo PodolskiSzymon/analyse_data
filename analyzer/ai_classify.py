@@ -14,6 +14,7 @@ import asyncio
 import hashlib
 import json
 import logging
+from pathlib import Path
 
 from . import db
 from .classify import state_for
@@ -79,6 +80,22 @@ def parse_result(text):
     return {"item": item, "photo_seen": bool(data.get("photo_seen")), "note": str(data.get("note") or "")[:200]}
 
 
+def is_url(photo):
+    return str(photo).startswith(("http://", "https://"))
+
+
+def _anthropic_image(photo):
+    """URL → źródło url; ścieżka pliku (archiwum zdjęć) → base64."""
+    if is_url(photo):
+        return {"type": "image", "source": {"type": "url", "url": photo}}
+    import base64
+    import mimetypes
+
+    mime = mimetypes.guess_type(str(photo))[0] or "image/jpeg"
+    data = base64.standard_b64encode(Path(photo).read_bytes()).decode()
+    return {"type": "image", "source": {"type": "base64", "media_type": mime, "data": data}}
+
+
 class Backend:
     """Jedno zapytanie: (instrukcja + tekst + URL zdjęcia) → tekst JSON. Gemini albo Anthropic (jak w Sniperze)."""
 
@@ -103,7 +120,7 @@ class Backend:
         kategoria ze zdjęcia; ai_condition.py podaje własne)."""
         photos = [photo_url] if isinstance(photo_url, str) else [u for u in (photo_url or []) if u]
         if self.provider == "anthropic":
-            content = [{"type": "image", "source": {"type": "url", "url": u}} for u in photos]
+            content = [_anthropic_image(u) for u in photos]
             content.append({"type": "text", "text": text})
             # Jak w Sniperze (sniper/evaluator.py): beta.messages + output_config (odpowiedź zgodna ze schematem).
             response = await self.client.beta.messages.create(
@@ -117,6 +134,9 @@ class Backend:
         from sniper.evaluator import image_mime
         parts = []
         for url in photos:
+            if not is_url(url):                 # plik z archiwum zdjęć (photos.py)
+                parts.append(types.Part.from_bytes(data=Path(url).read_bytes(), mime_type=image_mime(url)))
+                continue
             data = await self._download(url) if self.photos == "download" else None
             parts.append(types.Part.from_bytes(data=data, mime_type=image_mime(url)) if data is not None
                          else types.Part.from_uri(file_uri=url, mime_type=image_mime(url)))

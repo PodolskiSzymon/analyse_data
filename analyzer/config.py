@@ -122,7 +122,21 @@ class AnalyzerConfig:
     # proxy (decyzja użytkownika 2026-10-13). „all” = wszystkie kategorie.
     details_catalogs: tuple = field(default_factory=lambda: _details_catalogs())
     # Szczegóły ofert (details): losowa przerwa między zapytaniami (s).
-    details_delay: tuple = field(default_factory=lambda: parse_range(_env("ANALYZER_DETAILS_DELAY_S"), (2.0, 5.0)))
+    # 2026-10-25: 1-2 s zamiast 2-5 s (decyzja użytkownika: 17 GB w Evomi; zaległość ~40 tys. ofert × ~15 KB ≈ 600 MB).
+    details_delay: tuple = field(default_factory=lambda: parse_range(_env("ANALYZER_DETAILS_DELAY_S"), (1.0, 2.0)))
+    # Archiwum zdjęć (photos.py): WSZYSTKIE zdjęcia ofert z CDN Vinted, bezpośrednio (bez proxy), do folderu obok bazy.
+    photos: bool = _env_bool("ANALYZER_PHOTOS", True)
+    photos_dir: str = _env("ANALYZER_PHOTOS_DIR")                       # puste = <folder bazy>/photos
+    photos_concurrency: int = _env_int("ANALYZER_PHOTOS_CONCURRENCY", 4)
+    # Automat w watch (auto.py): co tyle dni AI stanu dla nowych ofert + raport + wytyczne Snipera (2× w tygodniu).
+    auto_days: float = _env_float("ANALYZER_AUTO_DAYS", 3.5)
+    auto_ai_limit: int = _env_int("ANALYZER_AUTO_AI_LIMIT", 3000)      # najwyżej tyle ofert do AI w jednym automacie
+    sniper_guides_dir: str = _env("ANALYZER_SNIPER_GUIDES_DIR")         # tu kopiować guides/*.md (np. folder Snipera)
+    sniper_guidelines_file: str = _env("ANALYZER_SNIPER_GUIDELINES_FILE")  # do D5: laptop.md → ten plik (z kopią .bak)
+    # Alarm „brak sprzedaży”: wśród co najmniej tylu sprawdzonych zniknięć z ostatnich `sold_alarm_hours` godzin ani
+    # jednej sprzedanej → pewnie Vinted zmienił API (jak 2026-10-20) → powiadomienie ntfy (najwyżej raz na dobę).
+    sold_alarm_min: int = _env_int("ANALYZER_SOLD_ALARM_MIN", 300)
+    sold_alarm_hours: float = _env_float("ANALYZER_SOLD_ALARM_HOURS", 72.0)
     # Tryb `watch`: odstęp między startami pełnych przejść (godziny, zakres „od-do” - losowo).
     watch_hours: tuple = field(default_factory=lambda: parse_range(_env("ANALYZER_WATCH_HOURS"), (10.0, 14.0)))
     # Niedokończone przejście młodsze niż tyle godzin jest wznawiane zamiast zaczynane od nowa.

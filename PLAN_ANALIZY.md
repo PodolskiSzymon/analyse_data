@@ -331,9 +331,9 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
 - [ ] D3 ceny sprzedaży per model (po C4, 2–4 tyg.)
 - [x] D4 `sniper-guide` (wytyczne per kategoria z danych, wersja 1: ceny ofert/zniknięć; v2 po D3)
 - [ ] D5 Sniper: wiele kategorii, karta rynku, zysk w odpowiedzi AI, backtest
-- [ ] E1 szczegóły wszystkich ofert (tempo – decyzja użytkownika)
-- [ ] E2 archiwum zdjęć bez proxy
-- [ ] E3 automat: AI + wytyczne → Sniper
+- [x] E1 szczegóły wszystkich ofert: `ANALYZER_DETAILS_DELAY_S` domyślnie 1–2 s (było 2–5; użytkownik ma 17 GB w Evomi)
+- [x] E2 archiwum WSZYSTKICH zdjęć bez proxy (`photos.py`, w `watch` równolegle ze szczegółami; `ai-condition` bierze zdjęcia z dysku)
+- [x] E3 automat co 3,5 dnia (`auto.py`): flagi, relisty, AI stanu nowych ofert (≤ 3 000), raport, wytyczne → `ANALYZER_SNIPER_GUIDES_DIR` / `ANALYZER_SNIPER_GUIDELINES_FILE`; + alarm ntfy „brak sprzedaży” (0 sold wśród ≥ 300 zniknięć w 72 h)
 
 ## Dziennik wyników (dopisuj tu ustalenia z danych użytkownika, z datą)
 
@@ -409,3 +409,8 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
   flipami (RTX 4060 max zakup ~2 450–2 500), iPhone 13+ sensowne progi (okazji 0–4% ofert), GPU/SSD/RAM przy min.
   300 zł prawie zawsze nieopłacalne. Poprawki: cena sprzedaży = wyższa z (mediana zniknięć, środek p25–med) – mediana
   zniknięć zaniżała (RTX 4060 3 358 vs sprzedaż użytkownika 3 650); wiersze nieopłacalne → jedna linia; nazwy GPU.
+* 2026-10-25, decyzje użytkownika: wszystkie zdjęcia do archiwum, szybsze szczegóły (17 GB Evomi), automat 2× w
+  tygodniu, najpierw E2+E3 (D5 – Sniper – potem). Alarm: brak sprzedaży przez dłuższy czas = zmiana API → ntfy, użytkownik
+  zatrzymuje watch. Odpowiedzi: watch sprawdza zniknięcia przez /services + sidebar (resolver.resolve_item); opis
+  KAŻDEJ oferty z 7 kategorii (active/reserved/unlisted, bez below_min) pobiera details/sidebar – katalog daje tylko
+  tytuł, cenę, markę, stan z formularza i zdjęcie główne.

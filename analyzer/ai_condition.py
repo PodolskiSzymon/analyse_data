@@ -104,11 +104,17 @@ def content_key(title, description, photos=()):
     return hashlib.sha256("\x1f".join([title or "", description or ""]).encode()).hexdigest()
 
 
-def photo_urls(conn, row, n=None):
-    """Zdjęcia oferty: wszystkie z zapisanych szczegółów (sidebar), a bez nich główne z katalogu. n - najwyżej tyle
-    (None = bez limitu, 0 = żadne)."""
+def photo_urls(conn, row, n=None, root=None):
+    """Zdjęcia oferty: z archiwum na dysku (photos.py - nie znikają z ofertą), inaczej wszystkie z zapisanych
+    szczegółów (sidebar), a bez nich główne z katalogu. n - najwyżej tyle (None = bez limitu, 0 = żadne)."""
     if n is not None and n <= 0:
         return []
+    if root is not None:
+        from .photos import local_photos
+
+        local = [str(p) for p in local_photos(root, row["id"])]
+        if local:
+            return local if n is None else local[:n]
     urls = [row["photo_url"]] if row["photo_url"] else []
     if n is None or n > len(urls):
         from sniper.extractor import extract_photo_urls, unwrap_sidebar
@@ -140,7 +146,8 @@ def prompt_text(row, description):
     return "\n".join(lines)
 
 
-def candidates(conn, aconn, scopes=("flagged",), limit=None, photos=None, again=False, progress=None):
+def candidates(conn, aconn, scopes=("flagged",), limit=None, photos=None, again=False, progress=None,
+               photos_root=None):
     """Oferty do oceny (bez tych, które już mają wynik dla tej samej treści, chyba że again) →
     [(row, opis, zdjęcia, klucz)]. Kolejność: sprzedane / blocked, usunięte, reszta; nowsze najpierw."""
     say = progress or (lambda _t: None)
@@ -167,7 +174,7 @@ def candidates(conn, aconn, scopes=("flagged",), limit=None, photos=None, again=
     picked.sort(key=lambda r: (order.get(r["state"], 2), -r["id"]))
     out = []
     for row in picked:
-        urls = photo_urls(conn, row, photos)
+        urls = photo_urls(conn, row, photos, photos_root)
         key = content_key(row["title"], row["description"], urls)
         if done.get(row["id"]) == key:
             continue
