@@ -330,7 +330,7 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
 - [ ] D2 cena a tempo zniknięcia (7 dni)
 - [ ] D3 ceny sprzedaży per model (po C4, 2–4 tyg.)
 - [x] D4 `sniper-guide` (wytyczne per kategoria z danych, wersja 1: ceny ofert/zniknięć; v2 po D3)
-- [ ] D5 Sniper: wiele kategorii, karta rynku, zysk w odpowiedzi AI, backtest
+- [x] D5 Sniper: wiele kategorii, karta rynku, zysk w odpowiedzi AI (repo `unreachable_sniper`, gałąź `claude/hopeful-faraday-n33quh`; backtest – gdy będzie historia ocen z nowych wytycznych)
 - [x] E1 szczegóły wszystkich ofert: `ANALYZER_DETAILS_DELAY_S` domyślnie 1–2 s (było 2–5; użytkownik ma 17 GB w Evomi)
 - [x] E2 archiwum WSZYSTKICH zdjęć bez proxy (`photos.py`, w `watch` równolegle ze szczegółami; `ai-condition` bierze zdjęcia z dysku)
 - [x] E3 automat co 3,5 dnia (`auto.py`): flagi, relisty, AI stanu nowych ofert (≤ 3 000), raport, wytyczne → `ANALYZER_SNIPER_GUIDES_DIR` / `ANALYZER_SNIPER_GUIDELINES_FILE`; + alarm ntfy „brak sprzedaży” (0 sold wśród ≥ 300 zniknięć w 72 h)
@@ -418,3 +418,10 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
   serwer (instrukcja `PILOT.md`) + **pilot z telefonu** przez ntfy (`python -m analyzer remote` / `remote.bat`,
   moduł `remote.py`): start / stop / restart / status / log dla watch i Snipera, strażnik podnosi program po awarii,
   plik .pid chroni przed dwoma `watch` naraz. Dopiero potem D5 (ulepszanie Snipera).
+* 2026-10-25, D5 (Sniper na wszystkie kategorie, `unreachable_sniper` gałąź `claude/hopeful-faraday-n33quh`):
+  `SNIPER_CATALOGS=auto` → katalogi i zakresy cen z `guides/catalogs.json` (analizator: od = 60% najniższego „max
+  zakup” wśród opłacalnych grup, do = najwyższy × 1,15; katalog bez opłacalnych grup pomijany), skanowane po kolei
+  (laptopy waga 3); mieszane katalogi – karta / RAM / dysk z tytułu, reszta bez szczegółów; wytyczne per kategoria
+  (`guides/<kategoria>.md`), „karta rynku” (wiersze tabeli dopasowane po tytule) w zapytaniu, bramka ceny ×1,25 przed
+  AI; odpowiedź AI z marżą, dniami do sprzedaży i `meets_profit_rule`; filtry słów per kategoria. Pilot „wytyczne”
+  wysyła wszystkie kategorie w jednym pliku. Wzór `.env`: `ENV_SERWER.example`, instrukcja: `PILOT.md` 1a.

@@ -276,46 +276,68 @@ def is_own(event):
 
 
 def guide_files(cfg, sniper_dir=None):
-    """Aktualne wytyczne: plik, którego używa Sniper (`SNIPER_DIR/sniper/guidelines.md`), i najnowsze wygenerowane
+    """Aktualne wytyczne: te, których używa Sniper (`SNIPER_DIR/sniper/guides/*.md` - od D5 per kategoria - i
+    `sniper/guidelines.md`, zapas dla laptopów), a gdy Sniper nie ma jeszcze `guides/` - najnowsze wygenerowane
     z danych (`reports/<data>/guides/*.md`)."""
     files = []
     sniper_dir = sniper_dir if sniper_dir is not None else os.getenv("SNIPER_DIR", "").strip()
-    if sniper_dir and (Path(sniper_dir) / "sniper" / "guidelines.md").exists():
-        files.append(Path(sniper_dir) / "sniper" / "guidelines.md")
-    reports = Path(cfg.db_path).parent / "reports"
-    latest = sorted(p for p in reports.glob("*/guides") if p.is_dir()) if reports.exists() else []
-    if latest:
-        files += sorted(latest[-1].glob("*.md"))
+    used = []
+    if sniper_dir:
+        own = Path(sniper_dir) / "sniper"
+        used = sorted((own / "guides").glob("*.md")) if (own / "guides").is_dir() else []
+        files += used
+        if (own / "guidelines.md").exists():
+            files.append(own / "guidelines.md")
+    if not used:
+        reports = Path(cfg.db_path).parent / "reports"
+        latest = sorted(p for p in reports.glob("*/guides") if p.is_dir()) if reports.exists() else []
+        if latest:
+            files += sorted(latest[-1].glob("*.md"))
     return files
+
+
+def _drive_name(f):
+    return "sniper_guidelines.md" if f.name == "guidelines.md" else f.name
+
+
+def combined_file(cfg, files):
+    """Wszystkie wytyczne w jednym pliku (ntfy: jeden załącznik na wiadomość) → <data>/remote/wytyczne_sniper.md."""
+    if len(files) == 1:
+        return files[0]
+    path = Path(cfg.db_path).parent / "remote" / "wytyczne_sniper.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    parts = [f"<!-- ===== {_drive_name(f)} ===== -->\n" + f.read_text(encoding="utf-8").strip() for f in files]
+    path.write_text("\n\n---\n\n".join(parts) + "\n", encoding="utf-8")
+    return path
 
 
 async def export_guides(cfg, send_file, gdrive_dir=None, sniper_dir=None):
     """Polecenie „wytyczne”: kopia na Dysk Google (`ANALYZER_GDRIVE_DIR`, np. G:\\Mój dysk\\program - folder
-    synchronizowany przez aplikację Dysk Google na serwerze) + plik Snipera jako załącznik ntfy na telefon."""
+    synchronizowany przez aplikację Dysk Google na serwerze) + wszystkie wytyczne w jednym pliku jako załącznik ntfy."""
     import shutil
 
     files = guide_files(cfg, sniper_dir)
     if not files:
         return ["Brak plików wytycznych (SNIPER_DIR / python -m analyzer sniper-guide)."]
     lines = []
+    newest = max(files, key=lambda f: f.stat().st_mtime)
+    stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(newest.stat().st_mtime))
+    one = combined_file(cfg, files)
     gdrive_dir = gdrive_dir if gdrive_dir is not None else os.getenv("ANALYZER_GDRIVE_DIR", "").strip()
     if gdrive_dir:
         target = Path(gdrive_dir) / "wytyczne"
         try:
             target.mkdir(parents=True, exist_ok=True)
-            for f in files:
-                name = "sniper_guidelines.md" if f.name == "guidelines.md" else f.name
-                shutil.copy2(f, target / name)
+            for f in files + ([one] if one not in files else []):
+                shutil.copy2(f, target / _drive_name(f))
             lines.append(f"Dysk Google: {len(files)} plików → {target}")
         except OSError as exc:
             lines.append(f"Dysk Google: błąd kopiowania ({exc})")
     else:
         lines.append("Dysk Google: ustaw ANALYZER_GDRIVE_DIR w sniper/.env (np. G:\\Mój dysk\\program)")
-    first = files[0]
-    sent = await send_file(first, f"Pilot: {first.name}")
-    lines.append(f"Na telefon: {first.name} ({'wysłany' if sent else 'nie wysłano'}) - kliknij załącznik powyżej")
-    stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(first.stat().st_mtime))
-    lines.append(f"{first.name}: zmieniony {stamp}")
+    sent = await send_file(one, f"Pilot: {one.name}")
+    lines.append(f"Na telefon: {one.name} ({'wysłany' if sent else 'nie wysłano'}) - kliknij załącznik powyżej")
+    lines.append("W pliku: " + ", ".join(_drive_name(f) for f in files) + f" (najnowszy zmieniony {stamp})")
     return lines
 
 

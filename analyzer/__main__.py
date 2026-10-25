@@ -734,6 +734,15 @@ def main(argv=None):
         aconn.close()
         print("\n".join(guide.summary_lines(result)))
         say(f"\nWytyczne: {out}  (po jednym pliku na kategorię - przyślij je albo wklej podgląd)")
+        if result:
+            say(f"Katalogi Snipera (catalogs.json, SNIPER_CATALOGS=auto): {guide.catalogs_line(result)}")
+        if result and cfg.sniper_guides_dir:
+            from .auto import publish
+            copied = publish(cfg, result)
+            say(f"Skopiowano do Snipera ({cfg.sniper_guides_dir}): " + ", ".join(Path(c).name for c in copied))
+        elif result:
+            say("Do Snipera: ustaw ANALYZER_SNIPER_GUIDES_DIR=C:\\Users\\szymo\\unreachable_sniper\\sniper\\guides"
+                " w sniper\\.env - wtedy wytyczne i catalogs.json kopiują się same.")
     elif args.command == "auto":
         from . import auto
         result = asyncio.run(auto.run(cfg, force=args.force, progress=lambda t: print(t, flush=True)))

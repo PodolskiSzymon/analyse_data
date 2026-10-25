@@ -5,9 +5,9 @@ Automat - co `ANALYZER_AUTO_DAYS` (domyślnie 3,5 dnia = 2× w tygodniu, prośba
   2. stan techniczny przez AI tylko dla NOWYCH ofert ze wzmianką o usterce (najwyżej `ANALYZER_AUTO_AI_LIMIT`,
      3 zdjęcia - z archiwum na dysku, jeśli są), bez pytania o zgodę - koszt w powiadomieniu,
   3. `report` + `sniper-guide` → reports/<data>/,
-  4. kopia wytycznych do `ANALYZER_SNIPER_GUIDES_DIR` (folder Snipera) i - do czasu D5 (Sniper z wieloma
-     kategoriami) - laptop.md do `ANALYZER_SNIPER_GUIDELINES_FILE` (z kopią poprzedniej wersji `.bak`; Sniper wczytuje
-     plik od nowa po zmianie),
+  4. kopia wytycznych + catalogs.json (zakresy cen katalogów) do `ANALYZER_SNIPER_GUIDES_DIR` (Sniper od D5 czyta
+     `sniper/guides/<kategoria>.md` i `SNIPER_CATALOGS=auto`; wczytuje pliki od nowa po zmianie) i opcjonalnie
+     laptop.md do `ANALYZER_SNIPER_GUIDELINES_FILE` (stary Sniper bez D5; kopia poprzedniej wersji `.bak`),
   5. powiadomienie ntfy z podsumowaniem.
 Główna baza tylko do odczytu (osobne połączenie mode=ro), wyniki w analysis.db i plikach.
 
@@ -93,6 +93,11 @@ def publish(cfg, guides):
         for path, _rows in guides.values():
             shutil.copy2(path, target / path.name)
             copied.append(str(target / path.name))
+        # Zakresy cen katalogów (Sniper: SNIPER_CATALOGS=auto) - z tego samego folderu co wytyczne.
+        extra = next(iter(guides.values()))[0].with_name("catalogs.json") if guides else None
+        if extra is not None and extra.exists():
+            shutil.copy2(extra, target / extra.name)
+            copied.append(str(target / extra.name))
     if cfg.sniper_guidelines_file and "laptop" in guides:
         target = Path(cfg.sniper_guidelines_file)
         if target.exists():

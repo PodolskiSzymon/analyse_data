@@ -1,0 +1,128 @@
+# =====================================================================================================
+# Wzór .env dla SERWERA (D5, 2026-10-25) - JEDEN plik, wklej go w DWA miejsca:
+#   C:\Users\szymo\unreachable_sniper\sniper\.env   (Sniper)
+#   C:\Users\szymo\analyse_data\sniper\.env         (analizator + pilot)
+# Każdy program czyta tylko swoje zmienne (SNIPER_* / ANALYZER_*), reszta mu nie przeszkadza.
+# W miejsca <...> wpisz swoje dane (skopiuj z obecnego .env). Tego pliku z danymi NIE wrzucaj na GitHub.
+# =====================================================================================================
+
+# ---------------------------------------------------------------- proxy (Sniper skanuje Vinted przez proxy)
+SNIPER_PROXY_HOST=<host:port proxy>
+SNIPER_PROXY_AUTH=<login:hasło proxy>
+SNIPER_REQUIRE_PROXY=true
+
+# ---------------------------------------------------------------- mail (opcjonalnie)
+SNIPER_SMTP_HOST=<smtp>
+SNIPER_SMTP_PORT=465
+SNIPER_SMTP_USER=<login>
+SNIPER_SMTP_PASSWORD=<hasło>
+SNIPER_EMAIL_TO=
+
+# ---------------------------------------------------------------- CO SKANUJE SNIPER (NOWE - D5)
+# auto = 7 kategorii (laptopy, telefony, tablety, konsole, podzespoły / nośniki / akcesoria = karty, RAM, dyski)
+# z zakresami cen z analizy rynku - plik sniper\guides\catalogs.json, który analizator odświeża 2x w tygodniu.
+SNIPER_CATALOGS=auto
+SNIPER_GUIDES_DIR=C:\Users\szymo\unreachable_sniper\sniper\guides
+# Katalogi skanowane PO KOLEI: co 10 s jeden skan; laptopy co ~30 s, reszta co ~90 s. Transfer proxy jak dotąd.
+SNIPER_POLL_INTERVAL=10
+SNIPER_POLL_JITTER=1
+# Ofert na skan: 10 (było 3 - przy 7 katalogach każdy jest skanowany rzadziej, 3 to za mało na telefony).
+SNIPER_PER_PAGE=10
+SNIPER_DEDUP_SIZE=100
+# Używane tylko, gdy SNIPER_CATALOGS jest puste (stary tryb: jeden katalog)
+SNIPER_CATALOG=3580
+SNIPER_SEARCH_TEXT=
+SNIPER_PRICE_FROM=800
+SNIPER_PRICE_TO=
+
+SNIPER_HEARTBEAT=60
+SNIPER_MAX_CONCURRENT_DETAILS=5
+SNIPER_MIRROR_INTERVAL_MIN=2
+SNIPER_REFRESH_ATTEMPTS=6
+SNIPER_REFRESH_RETRY_DELAY=5
+SNIPER_REFRESH_TIMEOUT=90
+SNIPER_REFRESH_BACKOFF=30
+SNIPER_BROWSER_LIGHT=true
+SNIPER_SESSION_MAX_AGE=360
+
+# ---------------------------------------------------------------- AI (Sniper + analizator: ai-condition)
+SNIPER_AI_ENABLED=true
+SNIPER_AI_PROVIDER=gemini
+SNIPER_AI_API_KEY=<klucz Gemini>
+SNIPER_AI_MODEL=
+SNIPER_AI_EFFORT=medium
+SNIPER_AI_FALLBACK=true
+# Limit odpowiedzi (było 800000 - Gemini i tak przyjmuje najwyżej ~65 tys.; 8000 wystarcza z zapasem)
+SNIPER_AI_MAX_TOKENS=8000
+# Jak dotąd 12. Przy 7 kategoriach ocen będzie więcej - 6 zdjęć obniży koszt ~o połowę, jeśli zechcesz.
+SNIPER_AI_MAX_PHOTOS=12
+SNIPER_AI_PHOTOS=url
+SNIPER_AI_MIN_SCORE=5
+SNIPER_AI_NOTIFY_ALL=false
+SNIPER_MAIL_ONLY_PURCHASES=true
+SNIPER_AI_REPORT_ABOVE=2
+SNIPER_AI_MAX_CONCURRENT=3
+SNIPER_AI_TIMEOUT=120
+SNIPER_AI_RETRIES=2
+SNIPER_AI_RETRY_DELAY=5
+# Bramka ceny (NOWE): oferta droższa niż „max zakup” z tabeli wytycznych × 1,25 nie idzie do AI (zero kosztów).
+SNIPER_AI_PRICE_GATE=1.25
+SNIPER_AI_KEYWORDS_IN=title+description
+
+# Filtry słów (NOWE: osobno dla każdej kategorii). Ogólne SNIPER_AI_* (bez końcówki) dotyczą tylko laptopów.
+SNIPER_AI_PRICE_MIN=
+SNIPER_AI_PRICE_MAX=9000
+SNIPER_AI_KEYWORDS=
+# Twoja dotychczasowa lista wykluczeń laptopów (usuń „macbook, mac, apple”, jeśli chcesz oceniać MacBooki -
+# wytyczne z analizy je mają):
+SNIPER_AI_EXCLUDE_KEYWORDS_LAPTOP=macbook, mac, apple, prestige, dell, surface, thinkpad, vivobook, elitebook, yoga, zbook, panasonic, consola, IBM, compaq, matebook, x360, na części, nie włącza się
+SNIPER_AI_EXCLUDE_KEYWORDS_PHONE=na części, icloud, blokada, nie włącza się, pęknięta płyta
+SNIPER_AI_EXCLUDE_KEYWORDS_TABLET=na części, icloud, blokada, nie włącza się
+SNIPER_AI_EXCLUDE_KEYWORDS_CONSOLE=na części, nie włącza się, zbanowana
+SNIPER_AI_EXCLUDE_KEYWORDS_GPU=na części, artefakty
+# SNIPER_AI_EXCLUDE_KEYWORDS_RAM=
+# SNIPER_AI_EXCLUDE_KEYWORDS_STORAGE=
+
+# ---------------------------------------------------------------- powiadomienia o OKAZJACH (stary temat)
+SNIPER_NTFY_TOPIC=<stary temat okazji>
+SNIPER_NTFY_MIN_SCORE=5
+SNIPER_NTFY_PRIORITY=5
+SNIPER_NTFY_PHOTO=true
+
+# ---------------------------------------------------------------- konto / auto-zakup (bez zmian)
+SNIPER_ACCOUNT_ENABLED=false
+SCRAPER_PROFILE_DIR=./profiles/scraper
+SCRAPER_LOGIN_URL=https://www.vinted.pl/
+SCRAPER_CHROME_SANDBOX=true
+SCRAPER_KEEPALIVE_MIN=15-25
+SCRAPER_LONG_PAUSE_EVERY=12-18
+SCRAPER_LONG_PAUSE_MIN=40-60
+SCRAPER_REFRESH_AHEAD_MIN=2-4
+SCRAPER_SESSION_FAIL_CHECKS=3
+SCRAPER_SESSION_RETRY_S=30-60
+SCRAPER_KEEPALIVE_NAVIGATE=true
+SCRAPER_SESSION_WATCH_S=60-120
+SCRAPER_LOGIN_CHECK_S=5-10
+SCRAPER_CLICK_DELAY_S=0.8-2.0
+SCRAPER_RETRY_DELAY_S=1.5-3.0
+SNIPER_BUY_ENABLED=false
+SNIPER_BUY_MAX_TOTAL=4500
+SNIPER_BUY_MAX_PER_DAY=1
+SNIPER_BUY_PL_ONLY=false
+SNIPER_BUY_MIN_SCORE=7
+
+# ---------------------------------------------------------------- analizator (watch, automat)
+ANALYZER_DB=C:\Users\szymo\category_analyzer\data\analyzer.db
+ANALYZER_DETAILS_CATALOGS=all
+# Automat 2x w tygodniu kopiuje wytyczne per kategoria + catalogs.json prosto do Snipera (NOWE):
+ANALYZER_SNIPER_GUIDES_DIR=C:\Users\szymo\unreachable_sniper\sniper\guides
+# PUSTE: Twój ręczny sniper\guidelines.md zostaje nietknięty (Sniper bierze laptop.md z guides).
+ANALYZER_SNIPER_GUIDELINES_FILE=
+
+# ---------------------------------------------------------------- pilot z telefonu
+ANALYZER_CONTROL_TOPIC=<pilot-...>
+# ANALYZER_CONTROL_PIN=
+SNIPER_DIR=C:\Users\szymo\unreachable_sniper
+ANALYZER_CONTROL_AUTOSTART=watch,sniper
+# Polecenie „wytyczne”: kopia na Dysk Google
+ANALYZER_GDRIVE_DIR=G:\Mój dysk\program

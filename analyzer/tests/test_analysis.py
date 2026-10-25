@@ -669,6 +669,19 @@ def test_sniper_guide_files(relisted, flagged, tmp_path):
     ram_text = result["ram"][0].read_text(encoding="utf-8")
     assert "Praktycznie nieopłacalne" in ram_text and "| DDR4" not in ram_text     # bez wiersza w tabeli
     assert len(guide.summary_lines(result)) > 10
+    # D5: zakresy cen katalogów dla Snipera (SNIPER_CATALOGS=auto)
+    import json
+    data = json.loads((path.parent / "catalogs.json").read_text(encoding="utf-8"))
+    by_id = {c["catalog_id"]: c for c in data["catalogs"]}
+    assert data["generated"] == "2026-10-25" and 3661 in by_id and by_id[3661]["categories"] == ["phone"]
+    phone_buys = [r["buy"] for r in rows if guide.practical(r)]
+    assert by_id[3661]["price_from"] <= 0.6 * min(phone_buys) and by_id[3661]["price_from"] % 50 == 0
+    assert by_id[3661]["price_to"] >= max(phone_buys) * 1.15 and by_id[3661]["price_to"] % 100 == 0
+    assert all(any(guide.practical(r) for cat in c["categories"] for r in result[cat][1]) for c in data["catalogs"])
+    line = guide.catalogs_line(result)
+    assert f"3661:{by_id[3661]['price_from']}-{by_id[3661]['price_to']}" in line
+    if 3580 in by_id:
+        assert by_id[3580]["weight"] == 3 and "*3" in line
 
 
 def test_sale_price_takes_higher_estimate():
@@ -795,6 +808,7 @@ def test_auto_pipeline_publishes_guides(market, tmp_path):
     summary = asyncio.run(auto.run(cfg, backend=backend, now=now, send=send))
     assert summary["ai"]["done"] == 20 and len(backend.calls) == 20
     assert (sniper / "guides" / "laptop.md").exists() and (sniper / "guides" / "phone.md").exists()
+    assert (sniper / "guides" / "catalogs.json").exists()                     # SNIPER_CATALOGS=auto
     assert old.read_text(encoding="utf-8").startswith("# Laptopy")             # laptop.md → plik Snipera
     assert (sniper / "guidelines.md.bak").read_text(encoding="utf-8") == "ręczne wytyczne"
     assert sent and "wytyczne Snipera" in sent[0][0]
@@ -978,7 +992,17 @@ def test_remote_exports_guides(tmp_path):
     lines = asyncio.run(remote.export_guides(cfg, send_file, str(drive), str(sniper)))
     assert (drive / "wytyczne" / "sniper_guidelines.md").read_text(encoding="utf-8") == "# Laptopy"
     assert (drive / "wytyczne" / "phone.md").exists() and "2 plików" in lines[0]
-    assert sent == [("guidelines.md", "Pilot: guidelines.md")]
+    assert sent == [("wytyczne_sniper.md", "Pilot: wytyczne_sniper.md")]          # jeden plik ze wszystkimi
+    both = (data / "remote" / "wytyczne_sniper.md").read_text(encoding="utf-8")
+    assert "# Laptopy" in both and "2026-10-25" in both and "sniper_guidelines.md" in both
+    # D5: Sniper ma własne guides/ → to one (+ guidelines.md), bez kopii z reports/
+    (sniper / "sniper" / "guides").mkdir()
+    (sniper / "sniper" / "guides" / "laptop.md").write_text("# L", encoding="utf-8")
+    (sniper / "sniper" / "guides" / "phone.md").write_text("# P", encoding="utf-8")
+    assert [f.relative_to(sniper).as_posix() for f in remote.guide_files(cfg, str(sniper))] == [
+        "sniper/guides/laptop.md", "sniper/guides/phone.md", "sniper/guidelines.md"]
+    (sniper / "sniper" / "guides" / "laptop.md").unlink()
+    (sniper / "sniper" / "guides" / "phone.md").unlink()
     lines = asyncio.run(remote.export_guides(cfg, send_file, "", str(sniper)))
     assert "ANALYZER_GDRIVE_DIR" in lines[0]
     # załącznik ntfy: PUT z nazwą pliku, tytuł „Pilot:” (pilot go pominie jako własny)

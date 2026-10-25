@@ -19,6 +19,8 @@ cen aktywnych - WYŻSZA z tych dwóch wartości (2026-10-25: sama mediana znikni
 oferty; sprzedaże użytkownika: MSI RTX 4060 3 650 zł w 5 dni przy medianie zniknięć 3 358 i środku p25–med ~3 600,
 Scar RTX 3080 4 700 zł przy 4 496). Kupujący „nieświadomy” - p75 aktywnych (górna granica).
 """
+import json
+import math
 import re
 
 from . import analysis
@@ -30,6 +32,11 @@ PROMO, SHIP = 26.0, 20.0
 CAT_TITLE = {"laptop": "Laptopy", "phone": "Telefony", "tablet": "Tablety", "console": "Konsole",
              "gpu": "Karty graficzne", "ram": "Pamięci RAM", "storage": "Dyski SSD"}
 TOP_ROWS = 80                      # wierszy tabeli na kategorię (koszt tokenów w zapytaniu Snipera)
+# Katalogi Vinted Snipera → nasze kategorie (jak sniper/categories.py; mieszane - kategoria z tytułu).
+SNIPER_CATALOGS = {3580: ("laptop",), 3661: ("phone",), 3728: ("tablet",), 3025: ("console",),
+                   3582: ("gpu", "storage", "ram"), 3583: ("storage",), 3584: ("ram", "storage", "gpu")}
+SNIPER_WEIGHTS = {3580: 3}         # laptopy skanowane 3× częściej (największe zyski, najszybciej znikają)
+PRICE_TO_HEADROOM = 1.15           # do „Zaproponuj cenę”: oferta trochę powyżej max zakupu też warta oceny
 
 
 # ---------------------------------------------------------------------------------------------- reguła zysku
@@ -274,7 +281,41 @@ def build(conn, aconn, out, promo=PROMO, ship=SHIP, min_offers=8, progress=None)
         path = out / f"{category}.md"
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         result[category] = (path, rows_)
+    write_catalogs(result, out)
     return result
+
+
+def catalogs(result):
+    """Zakresy cen katalogów dla Snipera (SNIPER_CATALOGS=auto): od = 60% najniższego „max zakup” wśród grup
+    z realną okazją (zaokrąglone w dół do 50), do = najwyższy „max zakup” × 1,15 (w górę do 100). Katalog bez
+    opłacalnych grup jest pomijany (Sniper go nie skanuje)."""
+    out = []
+    for catalog_id, cats in SNIPER_CATALOGS.items():
+        buys = [r["buy"] for c in cats if c in result for r in result[c][1] if practical(r)]
+        if not buys:
+            continue
+        out.append({"catalog_id": catalog_id, "categories": [c for c in cats if c in result],
+                    "price_from": max(50, int(math.floor(0.6 * min(buys) / 50) * 50)),
+                    "price_to": int(math.ceil(max(buys) * PRICE_TO_HEADROOM / 100) * 100),
+                    "weight": SNIPER_WEIGHTS.get(catalog_id, 1)})
+    return out
+
+
+def write_catalogs(result, out):
+    """<out>/catalogs.json → ścieżka (None, gdy żaden katalog nie ma opłacalnych grup)."""
+    rows_ = catalogs(result)
+    if not rows_:
+        return None
+    path = out / "catalogs.json"
+    path.write_text(json.dumps({"generated": out.parent.name, "catalogs": rows_}, ensure_ascii=False, indent=1),
+                    encoding="utf-8")
+    return path
+
+
+def catalogs_line(result):
+    """Ta sama lista w formacie SNIPER_CATALOGS (do ręcznego wpisania w sniper/.env)."""
+    return ",".join(f"{c['catalog_id']}:{c['price_from']}-{c['price_to']}" + (f"*{c['weight']}" if c["weight"] > 1
+                                                                              else "") for c in catalogs(result))
 
 
 def summary_lines(result, per_category=8):

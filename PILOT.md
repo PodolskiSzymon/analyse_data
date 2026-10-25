@@ -37,6 +37,41 @@ Próba: `start.bat` w folderze `unreachable_sniper` → Sniper ma ruszyć; zamkn
 ⚠ **Nie uruchamiaj Snipera jednocześnie na komputerze i na serwerze** – dwa razy więcej ruchu przez proxy i ryzyko
 podwójnego zakupu. Gdy na serwerze działa, wyłącz go na komputerze.
 
+## 1a. Sniper na wszystkie kategorie (D5, 2026-10-25)
+
+Nowa wersja Snipera jest na gałęzi `claude/hopeful-faraday-n33quh` (na `main` jest stara, bez `push.py` i `start.bat`).
+Na serwerze, w `cmd`:
+
+```bat
+cd C:\Users\szymo\unreachable_sniper
+git fetch origin
+git checkout claude/hopeful-faraday-n33quh
+git pull
+.venv\Scripts\python -m pip install -r sniper\requirements.txt
+```
+
+Jeśli `git checkout` odmówi („Your local changes … guidelines.md”): `git checkout -- sniper\guidelines.md` i ponów
+(Twoja wersja wytycznych jest już na tej gałęzi).
+
+Potem:
+1. `.env` – wzór `ENV_SERWER.example` w tym repo: jeden plik, wklejony w **oba** miejsca
+   (`unreachable_sniper\sniper\.env` i `analyse_data\sniper\.env`), z Twoimi danymi w miejscach `<...>`.
+2. Wytyczne i zakresy cen do Snipera (od razu, nie czekając na automat):
+   ```bat
+   cd C:\Users\szymo\analyse_data
+   python -m analyzer sniper-guide
+   ```
+   Kopiuje `laptop.md`, `phone.md`, … i `catalogs.json` do `unreachable_sniper\sniper\guides` (z
+   `ANALYZER_SNIPER_GUIDES_DIR`). Potem automat robi to sam 2× w tygodniu; Sniper łapie zmiany bez restartu.
+3. Telefon: `restart sniper`. W `log sniper` na starcie: `ZWIADOWCA START | 3580 (laptopy) … ×3; 3661 (telefony) …`
+   i `[AI] Wytyczne per kategoria (...): laptop, phone, …`.
+
+Co robi teraz Sniper: skanuje 7 katalogów po kolei (laptopy co ~30 s, reszta co ~90 s przy skanie co 10 s – transfer
+proxy jak dotąd), w podzespołach / nośnikach / akcesoriach bierze tylko karty, RAM i dyski (reszta bez pobierania
+szczegółów), odrzuca bez AI oferty wyraźnie droższe niż „max zakup” z tabeli (bramka ×1,25), a pozostałe ocenia AI
+według wytycznych **tej kategorii** (reguła zysku: 40% → 300 zł … 20% → 1 100 zł). Powiadomienie: kategoria, cena,
+max zakup, zysk, marża, dni do sprzedaży.
+
 ## 2. Ustawienia pilota
 
 1. Wylosuj nazwę tematu sterowania (działa jak hasło):
@@ -73,7 +108,7 @@ podwójnego zakupu. Gdy na serwerze działa, wyłącz go na komputerze.
 | `start sniper` / `stop sniper` / `restart sniper` | Sniper |
 | `start all` / `stop all` | oba naraz |
 | `log watch` / `log sniper` | ostatnie linie logu |
-| `wytyczne` | aktualne wytyczne: plik Snipera jako załącznik na telefon + kopia (z wygenerowanymi `guides`) na Dysk Google, jeśli ustawione `ANALYZER_GDRIVE_DIR=G:\Mój dysk\program` (folder z aplikacji Dysk Google na serwerze) |
+| `wytyczne` | aktualne wytyczne Snipera (wszystkie kategorie z `sniper\guides` + `guidelines.md`) w jednym pliku jako załącznik na telefon + kopia na Dysk Google, jeśli ustawione `ANALYZER_GDRIVE_DIR=G:\Mój dysk\program` (folder z aplikacji Dysk Google na serwerze) |
 | `pomoc` | lista poleceń |
 
 (Z PIN-em: `1234 stop sniper`. Działa też po polsku: „włącz sniper”, „zatrzymaj watch”.)
