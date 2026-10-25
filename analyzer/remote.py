@@ -7,9 +7,9 @@ wiadomościami ntfy - bez otwierania portów i bez pulpitu zdalnego.
   * polecenia (wielkość liter i kolejność słów dowolna; z `ANALYZER_CONTROL_PIN` - PIN na początku, np. „1234 status”):
       status · start watch · stop watch · restart watch · start sniper · stop sniper · restart sniper ·
       start all · stop all · log watch · log sniper · pomoc   (także po polsku: „włącz/wyłącz/uruchom/zatrzymaj”),
-  * odpowiedzi i alarmy idą na `ANALYZER_NTFY_TOPIC` (a bez niego na `SNIPER_NTFY_TOPIC` - okazje Snipera);
-    `ANALYZER_NTFY_TOPIC` = ten sam temat co `ANALYZER_CONTROL_TOPIC` → odpowiedzi w tym samym temacie (jak czat),
-    pilot pomija własne wiadomości (`is_own`),
+  * odpowiedzi pilota (i „program się wyłączył”) idą do TEGO SAMEGO tematu, w którym piszesz polecenia (jak czat);
+    pilot pomija własne wiadomości (`is_own`). Alarm „brak sprzedaży” i automat analizatora idą na
+    `ANALYZER_NTFY_TOPIC` (bez niego na `SNIPER_NTFY_TOPIC` - temat okazji Snipera),
   * pilnuje programów: jeśli włączony program się wyłączy (błąd, brak sieci) - uruchamia go ponownie po 60 s
     i wysyła powiadomienie (jak pętla w watch.bat),
   * `ANALYZER_CONTROL_AUTOSTART=watch,sniper` - co uruchomić od razu przy starcie strażnika (np. po restarcie Windows).
@@ -304,16 +304,17 @@ async def main(cfg):
     topic = os.getenv("ANALYZER_CONTROL_TOPIC", "").strip()
     if not topic:
         raise SystemExit("Ustaw ANALYZER_CONTROL_TOPIC (długi, losowy) w sniper/.env - patrz PILOT.md")
-    if not notify.topic():
-        log.warning("[PILOT] Brak SNIPER_NTFY_TOPIC - odpowiedzi nie dotrą na telefon.")
     server = (os.getenv("SNIPER_NTFY_SERVER") or "https://ntfy.sh").strip().rstrip("/")
     token = (os.getenv("SNIPER_NTFY_TOKEN") or "").strip()
     pin = os.getenv("ANALYZER_CONTROL_PIN", "").strip()
-    controller = Controller(default_programs(cfg), notify.send)
+    async def reply(title, lines, **kw):          # odpowiedzi pilota - w tym samym temacie, w którym piszesz polecenia
+        return await notify.send(title, lines, topic_name=topic, **kw)
+
+    controller = Controller(default_programs(cfg), reply)
     for name in (x.strip() for x in os.getenv("ANALYZER_CONTROL_AUTOSTART", "").split(",") if x.strip()):
         if name in controller.programs:
             controller.start(controller.programs[name])
-    await notify.send("Pilot: uruchomiony", controller.status_lines() + HELP)
+    await reply("Pilot: uruchomiony", controller.status_lines() + HELP)
     log.info("[PILOT] Nasłuchuję poleceń na temacie ntfy (z PIN-em: %s).", "tak" if pin else "nie")
 
     async def on_message(text):

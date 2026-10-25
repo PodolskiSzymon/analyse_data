@@ -53,9 +53,9 @@ podwójnego zakupu. Gdy na serwerze działa, wyłącz go na komputerze.
    * `ANALYZER_CONTROL_PIN` – opcjonalny; wtedy każde polecenie zaczynasz od PIN-u: `1234 status`.
    * `ANALYZER_CONTROL_AUTOSTART` – co ma się włączyć samo po starcie pilota (np. po restarcie Windows); puste = nic.
    * `SNIPER_NTFY_TOPIC` **zostaw stary** – na niego idą okazje ze Snipera.
-   * Żeby rozdzielić: dopisz też `ANALYZER_NTFY_TOPIC=pilot-<to samo co wyżej>` – odpowiedzi pilota, alarmy
-     i automat analizatora przyjdą wtedy do tematu pilota (jak czat), a okazje Snipera zostaną osobno.
-     Bez tej linii odpowiedzi pilota idą na stary temat `SNIPER_NTFY_TOPIC`.
+   * Pilot odpowiada zawsze w swoim temacie `pilot-...` (tam, gdzie piszesz polecenia – jak czat).
+   * Opcjonalnie `ANALYZER_NTFY_TOPIC=pilot-<to samo co wyżej>` – wtedy także alarm „brak sprzedaży” i automat
+     analizatora przyjdą do tematu pilota (bez tej linii idą na stary temat razem z okazjami).
 3. Uruchom pilota: dwuklik `C:\Users\szymo\analyse_data\remote.bat`. Na telefon przyjdzie „Pilot: uruchomiony”.
 4. Autostart: Win+R → `shell:startup` → wklej tam **skrót** do `remote.bat`.
    ⚠ Jeśli masz w autostarcie skrót do `watch.bat` – **usuń go**: `watch` uruchamia teraz pilot (inaczej działałyby

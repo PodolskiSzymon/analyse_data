@@ -21,9 +21,10 @@ def build_message(title, lines, topic_name, priority=3, tags=("white_check_mark"
             "priority": int(priority), "tags": list(tags)}
 
 
-async def send(title, lines, priority=3, tags=("white_check_mark",), client=None):
-    """True = wysłano; False = brak tematu albo błąd (tylko w logu)."""
-    name = topic()
+async def send(title, lines, priority=3, tags=("white_check_mark",), client=None, topic_name=None):
+    """True = wysłano; False = brak tematu albo błąd (tylko w logu). topic_name - inny temat niż domyślny (pilot
+    odpowiada w swoim temacie sterowania)."""
+    name = topic_name or topic()
     if not name:
         log.info("[NTFY] Brak ANALYZER_NTFY_TOPIC / SNIPER_NTFY_TOPIC w sniper/.env - bez powiadomienia.")
         return False
