@@ -22,6 +22,7 @@
   export-analysis [--with-descriptions]   eksport do analizy w czacie (csv.gz, bez danych sprzedawców) -> export/<data>/
   ai-condition [--scope flagged] [--photos 3] [--limit N] [--estimate] [--yes]
                                           stan techniczny przez AI (opis + zdjęcia) -> analysis.db; najpierw koszt
+  sniper-guide [--promo 26] [--ship 20]   wytyczne dla Snipera z danych (ceny, max zakup wg reguły zysku) -> guides/
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
   status                                  podsumowanie bazy (oferty, stany, partycje, przejścia, transfer)
@@ -475,6 +476,11 @@ def main(argv=None):
     p_aic.add_argument("--yes", action="store_true", help="bez pytania o zgodę na koszt")
     p_aic.add_argument("--again", action="store_true", help="także oferty już ocenione")
     p_aic.add_argument("--show", action="store_true", help="tylko raport z dotychczasowych wyników")
+    p_guide = sub.add_parser("sniper-guide", help="wytyczne oceny okazji dla Snipera per kategoria (ceny z rynku, "
+                                                  "max cena zakupu wg reguły zysku) -> reports/<data>/guides/*.md")
+    p_guide.add_argument("--promo", type=float, default=26.0, help="koszt Podbicia (zł, domyślnie 26)")
+    p_guide.add_argument("--ship", type=float, default=20.0, help="koszt wysyłki (zł, domyślnie 20)")
+    p_guide.add_argument("--min-offers", type=int, default=8, help="grupa w tabeli od tylu aktywnych ofert")
     p_sample = sub.add_parser("sample", help="próbka ofert z opisami do projektu ekstrakcji -> data/sample_*.jsonl")
     p_sample.add_argument("--per-category", type=int, default=150)
     sub.add_parser("classify-report", help="klasyfikacja ofert z kategorii mieszanych - bez sieci")
@@ -677,6 +683,19 @@ def main(argv=None):
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print("\n" + "\n".join(lines))
         say(f"\nZapisano też do {path}")
+    elif args.command == "sniper-guide":
+        from . import analysis, guide
+        say = lambda text: print(text, flush=True)  # noqa: E731
+        say(f"Otwieram bazę {cfg.db_path} (tylko do odczytu) ...")
+        conn, aconn = analysis.open_ro(cfg.db_path), analysis.open_analysis(cfg.db_path)
+        if not aconn.execute("SELECT COUNT(*) FROM flags").fetchone()[0]:
+            say("UWAGA: brak flag w analysis.db - najpierw: python -m analyzer report (inaczej oszustwa zostaną w cenach)")
+        out = analysis.out_dir(cfg.db_path) / "guides"
+        result = guide.build(conn, aconn, out, args.promo, args.ship, args.min_offers, progress=say)
+        conn.close()
+        aconn.close()
+        print("\n".join(guide.summary_lines(result)))
+        say(f"\nWytyczne: {out}  (po jednym pliku na kategorię - przyślij je albo wklej podgląd)")
     elif args.command == "sample":
         from .sample import export
         print(f"Otwieram bazę {cfg.db_path} ...", flush=True)

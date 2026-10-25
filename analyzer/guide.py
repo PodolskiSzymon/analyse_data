@@ -1,0 +1,270 @@
+"""Wytyczne dla Snipera generowane z danych rynku (PLAN_ANALIZY.md, D1 + D4):
+`python -m analyzer sniper-guide [--promo 26] [--ship 20] [--min-offers 8]` → `reports/<data>/guides/<kategoria>.md`.
+
+Bez sieci, główna baza tylko do odczytu; flagi, relisty i stan z AI z `analysis.db` (najpierw `report`).
+
+Reguła zysku użytkownika (2026-10-25): zysk = cena sprzedaży − cena zakupu − koszty (Podbicie międzynarodowe 7 dni
+~26 zł + wysyłka ~20 zł), marża = zysk / cena sprzedaży; minimalny zysk rośnie, gdy marża spada:
+≥ 40% → 300 zł, 35% → 500, 30% → 700, 25% → 900, 20% → 1 100 (+40 zł na punkt), < 20% → nie kupujemy.
+
+Grupy (tylko sprawne - stan z AI, inaczej z reguł; bez flag wykluczających i ofert z relistem):
+laptopy - karta graficzna (gamingowe), MacBooki - linia + chip + RAM, reszta - linia CPU + RAM; telefony / tablety -
+model + pamięć; konsole - platforma + wariant; karty graficzne - układ + VRAM; RAM - typ + rodzaj + pojemność;
+dyski - typ + pojemność.
+
+Cena szybkiej sprzedaży S (≤ 7 dni, kupujący porównujący ceny) - wersja 1, dopóki `watch` z szybkim resolverem nie
+zbierze cen sprzedaży: mediana OSTATNIEJ ceny ofert, które zniknęły (sprzedane + blocked + usunięte; ≥ 10 sztuk -
+usunięte w części to sprzedaże, ich cena ≈ cenie sprzedanych), a przy mniejszej liczbie - środek między p25 a medianą
+cen aktywnych. Kupujący „nieświadomy” - p75 aktywnych (górna granica). Flipy użytkownika (MSI RTX 4060 3 650 zł w 5 dni:
+p25 3 525, mediana 3 875) leżą w tym przedziale.
+"""
+import re
+
+from . import analysis
+
+STATES = ("active", "reserved", "sold", "blocked", "deleted", "closed")
+GONE = ("sold", "blocked", "deleted", "closed")
+MIN_GONE_FOR_S = 10
+PROMO, SHIP = 26.0, 20.0
+CAT_TITLE = {"laptop": "Laptopy", "phone": "Telefony", "tablet": "Tablety", "console": "Konsole",
+             "gpu": "Karty graficzne", "ram": "Pamięci RAM", "storage": "Dyski SSD"}
+TOP_ROWS = 80                      # wierszy tabeli na kategorię (koszt tokenów w zapytaniu Snipera)
+
+
+# ---------------------------------------------------------------------------------------------- reguła zysku
+
+
+def min_profit(margin):
+    """Minimalny zysk (zł) przy danej marży; None = za niska marża (< 20%)."""
+    if margin < 0.20 - 1e-9:
+        return None
+    return 300.0 if margin >= 0.40 else 300.0 + 4000.0 * (0.40 - margin)
+
+
+def max_buy(sale, costs=PROMO + SHIP):
+    """Najwyższa cena zakupu, przy której flip spełnia regułę (zysk ≥ min_profit(marża)) → (cena, zysk, marża) albo
+    None, gdy przy tej cenie sprzedaży żaden zakup się nie opłaca.
+
+    Najmniejszy dopuszczalny zysk P*: w przedziale marży 20–40% warunek P ≥ 300 + 4000·(0,4 − P/S) daje
+    P ≥ 1900·S / (S + 4000); przy marży ≥ 40% wystarcza P ≥ max(0,4·S, 300)."""
+    if not sale or sale <= 0:
+        return None
+    candidates = [max(0.4 * sale, 300.0)]
+    p2 = max(0.2 * sale, 1900.0 * sale / (sale + 4000.0))
+    if p2 < 0.4 * sale:
+        candidates.append(p2)
+    profit = min(candidates)
+    buy = sale - costs - profit
+    if buy <= 0:
+        return None
+    return buy, profit, profit / sale
+
+
+# ---------------------------------------------------------------------------------------------- grupy
+
+
+def _gb(value):
+    return f"{value} GB" if value not in (None, "", "?") else None
+
+
+def group_key(category, r):
+    """Nazwa grupy cenowej oferty (czytelna dla człowieka i modelu AI) albo None."""
+    key = r["config_key"]
+    parts = key.split("|") if key else []
+    if category == "laptop":
+        model = (r["model"] or "").lower()
+        cpu = (r["cpu"] or "").lower()
+        if "macbook" in model or cpu.startswith("apple"):
+            line = "MacBook Pro" if "pro" in model else "MacBook Air" if "air" in model else "MacBook"
+            chip = re.search(r"apple (m\d(?: (?:pro|max|ultra))?)", cpu)
+            if not chip:
+                return None
+            return " ".join(x for x in (line, chip.group(1).upper().replace(" PRO", " Pro").replace(" MAX", " Max"),
+                                         _gb(r["ram_gb"]) and f"{r['ram_gb']} GB RAM") if x)
+        gpu = (r["gpu"] or "").lower()
+        if re.match(r"(rtx|gtx|rx|arc|quadro)\b", gpu):
+            return gpu.upper().replace(" TI", " Ti").replace(" SUPER", " Super")
+        line = analysis.cpu_line_of(r["cpu"], r["cpu_line"])
+        if line and r["ram_gb"]:
+            return f"{line} · {r['ram_gb']} GB RAM (zintegrowana grafika)"
+        return None
+    if category in ("phone", "tablet"):
+        if not parts:
+            return None
+        return f"{parts[0]} {parts[1]} GB" if len(parts) > 1 and parts[1] != "?" else None
+    if category == "console":
+        if len(parts) < 2:
+            return None
+        return parts[0] if parts[1] == "?" else f"{parts[0]} {parts[1]}"
+    if category == "gpu":
+        return (f"{parts[0].upper()} {parts[1]} GB" if len(parts) > 1 and parts[1] != "?" else None) if parts else None
+    if category == "ram":
+        if len(parts) < 3 or parts[0] == "?":
+            return None
+        form = {"so-dimm": "SO-DIMM (laptop)", "dimm": "DIMM (PC)"}.get(parts[1], "")
+        return " ".join(x for x in (parts[0].upper(), form, f"{parts[2]} GB") if x)
+    if category == "storage":
+        if len(parts) < 2 or parts[0] == "?":
+            return None
+        kind = {"nvme": "NVMe", "sata_ssd": "SATA SSD"}.get(parts[0], parts[0])
+        size = int(parts[1]) if parts[1].isdigit() else None
+        return f"{kind} {size // 1000} TB" if size and size >= 1000 else f"{kind} {parts[1]} GB"
+    return None
+
+
+def collect(conn, excluded=None, relists=None, ai_damaged=None, progress=None):
+    """{kategoria: {grupa: {"active": [ceny], "active_pl": [...], "active_zagr": [...], "gone": [...],
+    "sold": [...]}}} - tylko sprawne, bez wykluczonych i ofert z relistem."""
+    say = progress or (lambda _t: None)
+    excluded, relists, ai_damaged = excluded or {}, relists or {}, ai_damaged or {}
+    old_ids = set(relists.values())
+    sql = f"""SELECT l.id, l.state, l.price_now, l.sold_price, COALESCE(d.seller_currency, l.seller_currency) AS cur,
+                     f.config_key, f.model, f.cpu, f.cpu_line, f.ram_gb, f.gpu,
+                     COALESCE(f.for_parts, 0) OR COALESCE(f.locked, 0) OR COALESCE(f.cracked, 0) AS damaged
+              FROM listings l LEFT JOIN features f ON f.listing_id = l.id LEFT JOIN details d ON d.listing_id = l.id
+              WHERE l.category = ? AND l.state IN ({",".join("?" * len(STATES))})"""
+    out = {}
+    for category in analysis.CATEGORIES:
+        say(f"  {category}...")
+        groups = out.setdefault(category, {})
+        for r in conn.execute(sql, (category, *STATES)):
+            if r["id"] in excluded or r["id"] in old_ids:
+                continue
+            if ai_damaged.get(r["id"], bool(r["damaged"])):
+                continue
+            name = group_key(category, r)
+            if not name:
+                continue
+            g = groups.setdefault(name, {"active": [], "active_pl": [], "active_zagr": [], "gone": [], "sold": []})
+            if r["state"] in ("active", "reserved"):
+                if r["price_now"] is None:
+                    continue
+                g["active"].append(r["price_now"])
+                g["active_pl" if analysis.market(r["cur"], r["price_now"]) == "PL" else "active_zagr"].append(
+                    r["price_now"])
+            else:
+                price = r["sold_price"] if r["sold_price"] is not None else r["price_now"]
+                if price is None:
+                    continue
+                g["gone"].append(price)
+                if r["state"] in ("sold", "blocked"):
+                    g["sold"].append(price)
+    return out
+
+
+def rows(groups, min_offers=8, costs=PROMO + SHIP):
+    """Wiersze tabeli: [grupa, n aktywnych, p25, mediana, p75, PL med, zagr med, zniknęło, sprzedanych, S, źródło S,
+    max zakup, zysk, marża, % aktywnych poniżej max zakupu] - grupy z ≥ min_offers aktywnymi, od najliczniejszych."""
+    pct = analysis.percentile
+    out = []
+    for name, g in groups.items():
+        a = sorted(g["active"])
+        if len(a) < min_offers:
+            continue
+        p25, med, p75 = pct(a, .25), pct(a, .5), pct(a, .75)
+        if len(g["gone"]) >= MIN_GONE_FOR_S:
+            sale, src = analysis.median(g["gone"]), f"zniknięte (n={len(g['gone'])})"
+        else:
+            sale, src = (p25 + med) / 2, "oferty p25–med"
+        deal = max_buy(sale, costs)
+        below = sum(1 for x in a if deal and x <= deal[0]) / len(a) if deal else 0.0
+        out.append({"name": name, "n": len(a), "p25": p25, "med": med, "p75": p75,
+                    "pl": analysis.median(g["active_pl"]), "zagr": analysis.median(g["active_zagr"]),
+                    "gone": len(g["gone"]), "sold": len(g["sold"]), "sale": sale, "src": src,
+                    "buy": deal[0] if deal else None, "profit": deal[1] if deal else None,
+                    "margin": deal[2] if deal else None, "below": below})
+    out.sort(key=lambda x: (-x["n"], x["name"]))
+    return out
+
+
+# ---------------------------------------------------------------------------------------------- pliki
+
+
+def _zl(v):
+    return "-" if v is None else f"{v:,.0f}".replace(",", " ")
+
+
+def header(category, costs, day, ai_count):
+    profit_table = " · ".join(f"{m}% → {_zl(min_profit(m / 100))} zł" for m in (40, 35, 30, 25, 20))
+    return [
+        f"# {CAT_TITLE[category]} – wytyczne oceny okazji (z danych rynku, {day})", "",
+        "## Strategia kupującego",
+        "- Kupuję pod odsprzedaż na Vinted; sprzedaż w **≤ 7 dni** z Podbiciem międzynarodowym 7 dni (nie mrożę "
+        "gotówki). Kupujący z całej UE (Vinted pokazuje ceny w zł).",
+        f"- Koszty jednej transakcji: Podbicie ~{PROMO:.0f} zł + wysyłka ~{SHIP:.0f} zł (PL ~15, z daleka do 50) = "
+        f"**{costs:.0f} zł**. Opłatę Vinted (5% + 2,90 zł) i weryfikację elektroniki płaci kupujący.",
+        "- **Zysk** = cena sprzedaży − cena zakupu − koszty; **marża** = zysk / cena sprzedaży.",
+        f"- Minimalny zysk zależy od marży: {profit_table}; marża < 20% – nie kupuję.",
+        "- Przykłady (laptopy): ASUS TUF F15 1 350 → 2 375 zł w 2 dni (43%); MSI RTX 4060 2 500 → 3 650 zł w 5 dni "
+        "(32%); ASUS ROG Scar 17 RTX 3080 3 660 → 4 700 zł w 6 dni (22%).", "",
+        "## Jak oceniać ofertę",
+        "1. Dopasuj ofertę do wiersza tabeli (model / karta graficzna / pamięć). Brak pasującego wiersza → oceniaj "
+        "ostrożnie, uzasadnij cenę sprzedaży.",
+        "2. Stan: tabela dotyczy sprawnych. Na części / blokada iCloud / zbity ekran → zwykle nie okazja (uszkodzone "
+        "schodzą ~25–35% taniej i wolniej). Drobna usterka obniża cenę sprzedaży – uwzględnij ją.",
+        "3. **Cena sprzedaży** = kolumna „sprzedam za ~” (szybko, ≤ 7 dni, kupujący porównujący ceny). "
+        "Mocniejsza konfiguracja w grupie (więcej RAM / dysku, lepszy CPU, gwarancja, komplet) → bliżej p75; słabsza "
+        "→ bliżej p25. p75 = górna granica (kupujący nieświadomy).",
+        "4. Okazja, gdy cena oferty (z wysyłką) ≤ „max zakup” – albo gdy własne wyliczenie zysku i marży spełnia "
+        "regułę wyżej. Podaj: szacowaną cenę sprzedaży, zysk, marżę i dni do sprzedaży.",
+        "5. Uwaga na oszustwa: cena ≪ p25, „tylko OLX / WhatsApp / przelew”, nowe konto, ten sam tytuł i cena w wielu "
+        "ofertach.", "",
+        "## Skąd liczby",
+        f"Oferty z Vinted (PL + zagranica) zebrane przez analizator; tylko sprawne (stan z AI dla {ai_count} ofert, "
+        "reszta z reguł), bez podejrzanych i ponownych wystawień. „Sprzedam za ~” = mediana ostatniej ceny ofert, które "
+        f"zniknęły (≥ {MIN_GONE_FOR_S}; część to usunięcia, nie sprzedaże), a przy mniejszej liczbie środek p25–mediana "
+        "ofert. To ceny WYSTAWIENIA (z „Zaproponuj cenę” kupujący płaci czasem mniej). „% ofert ≤ max” = jak często "
+        "trafia się okazja.", ""]
+
+
+def table(rows_):
+    lines = ["| grupa | ofert | p25 | mediana | p75 | PL / zagr. mediana | zniknęło (sprzed.) | sprzedam za ~ | "
+             "max zakup | zysk / marża | % ofert ≤ max |",
+             "|---|---|---|---|---|---|---|---|---|---|---|"]
+    for r in rows_[:TOP_ROWS]:
+        deal = f"{_zl(r['profit'])} / {r['margin'] * 100:.0f}%" if r["buy"] else "nie opłaca się"
+        lines.append(f"| {r['name']} | {r['n']} | {_zl(r['p25'])} | {_zl(r['med'])} | {_zl(r['p75'])} | "
+                     f"{_zl(r['pl'])} / {_zl(r['zagr'])} | {r['gone']} ({r['sold']}) | {_zl(r['sale'])} | "
+                     f"{_zl(r['buy'])} | {deal} | {r['below'] * 100:.0f}% |")
+    return lines
+
+
+def build(conn, aconn, out, promo=PROMO, ship=SHIP, min_offers=8, progress=None):
+    """Pliki wytycznych → {kategoria: (ścieżka, liczba wierszy)}."""
+    from .ai_condition import load_damaged
+    from .relist import load as load_relists
+    from .suspicious import EXCLUDING, load as load_flags
+
+    excluded = load_flags(aconn, tuple(f for f in EXCLUDING if f != "is_suspicious"))
+    ai = load_damaged(aconn)
+    data = collect(conn, excluded, load_relists(aconn), ai, progress)
+    costs = promo + ship
+    out.mkdir(parents=True, exist_ok=True)
+    day = out.parent.name
+    result = {}
+    for category, groups in data.items():
+        rows_ = rows(groups, min_offers, costs)
+        if not rows_:
+            continue
+        lines = header(category, costs, day, len(ai)) + [f"## Ceny ({len(rows_)} grup z ≥ {min_offers} ofertami; "
+                                                         f"pokazane {min(len(rows_), TOP_ROWS)} najliczniejszych)", ""]
+        lines += table(rows_)
+        path = out / f"{category}.md"
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        result[category] = (path, rows_)
+    return result
+
+
+def summary_lines(result, per_category=8):
+    """Krótki podgląd do terminala: najliczniejsze grupy z ceną sprzedaży i max zakupu."""
+    lines = []
+    for category, (path, rows_) in result.items():
+        deals = [r for r in rows_ if r["buy"]]
+        lines += ["", f"{CAT_TITLE[category]}: {len(rows_)} grup, opłacalnych wg reguły {len(deals)} → {path.name}",
+                  f"  {'grupa':<44} {'ofert':>6} {'sprzedam':>9} {'max zakup':>10} {'zysk':>6} {'marża':>6} "
+                  f"{'%≤max':>6}"]
+        for r in (deals or rows_)[:per_category]:
+            margin = f"{r['margin'] * 100:.0f}%" if r["margin"] else "-"
+            lines.append(f"  {r['name'][:44]:<44} {r['n']:>6} {_zl(r['sale']):>9} {_zl(r['buy']):>10} "
+                         f"{_zl(r['profit']):>6} {margin:>6} {r['below'] * 100:>5.0f}%")
+    return lines

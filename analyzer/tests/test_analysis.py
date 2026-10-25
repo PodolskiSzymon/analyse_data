@@ -614,3 +614,54 @@ def test_ai_condition_retries_rate_limit_and_runs_in_parallel(market, tmp_path):
     assert not ai_condition.transient(ValueError("nieznany stan: 'broken'"))
     conn.close()
     aconn.close()
+
+
+# ------------------------------------------------------------------ D1 + D4: wytyczne dla Snipera
+
+
+def test_profit_rule_matches_user_examples():
+    from analyzer.guide import max_buy, min_profit
+    assert [min_profit(m) for m in (0.45, 0.40, 0.35, 0.30, 0.25, 0.20)] == pytest.approx(
+        [300, 300, 500, 700, 900, 1100])
+    assert min_profit(0.19) is None
+    for buy, sale in ((1350, 2375), (2500, 3650)):                     # flipy użytkownika (koszty 46 zł)
+        limit, profit, margin = max_buy(sale)
+        assert buy <= limit, (buy, sale, limit)
+        assert profit >= min_profit(margin) - 0.01
+    # Scar 17: 4 700 − 3 660 − 46 = 994 zł przy marży 21% - reguła wymaga ~1 056 zł → po kosztach o włos za drogo
+    assert 3600 < max_buy(4700)[0] < 3660
+    buy, profit, margin = max_buy(3650)                                # MSI RTX 4060
+    assert round(buy) == 2697 and round(margin * 100) == 25
+    assert max_buy(300) is None                                         # 300 zł zysku z 300 zł sprzedaży - nigdy
+
+
+def test_group_names():
+    from analyzer.guide import group_key
+    row = dict(config_key=None, model=None, cpu=None, cpu_line=None, ram_gb=None, gpu=None)
+    assert group_key("laptop", {**row, "gpu": "rtx 4060", "cpu": "i7-13620h", "ram_gb": 16}) == "RTX 4060"
+    assert group_key("laptop", {**row, "model": "macbook air 13 2020", "cpu": "apple m1", "ram_gb": 8}) == \
+        "MacBook Air M1 8 GB RAM"
+    assert group_key("laptop", {**row, "cpu": "i5-8350u", "ram_gb": 16, "gpu": "integrated"}) == \
+        "intel core i5 · 16 GB RAM (zintegrowana grafika)"
+    assert group_key("phone", {**row, "config_key": "iphone 13|128"}) == "iphone 13 128 GB"
+    assert group_key("phone", {**row, "config_key": "iphone 13|?"}) is None
+    assert group_key("console", {**row, "config_key": "PlayStation 5|slim|?"}) == "PlayStation 5 slim"
+    assert group_key("storage", {**row, "config_key": "nvme|2000"}) == "NVMe 2 TB"
+    assert group_key("ram", {**row, "config_key": "ddr4|so-dimm|16"}) == "DDR4 SO-DIMM (laptop) 16 GB"
+
+
+def test_sniper_guide_files(relisted, flagged, tmp_path):
+    from analyzer import guide
+    conn, aconn, truth = relisted
+    result = guide.build(conn, aconn, tmp_path / "2026-10-25" / "guides")
+    assert set(result) == set(analysis.CATEGORIES)
+    path, rows = result["phone"]
+    text = path.read_text(encoding="utf-8")
+    assert "≤ 7 dni" in text and "40% → 300 zł" in text and "20% → 1 100 zł" in text
+    iphone = next(r for r in rows if r["name"] == "iphone 13 128 GB")
+    assert iphone["src"].startswith("zniknięte") and iphone["buy"] < iphone["sale"]
+    # oszustwa (519 zł, flagi) nie zaniżają cen iPhone 16 Pro
+    pro = next(r for r in rows if r["name"] == "iphone 16 pro 512 GB")
+    assert pro["p25"] > 3000
+    assert result["ram"][1][0]["buy"] is None                      # tani RAM nie spełnia minimalnego zysku
+    assert len(guide.summary_lines(result)) > 10

@@ -281,9 +281,10 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
   elektroniki (20 zł) płaci KUPUJĄCY – nie zmniejszają przychodu, ale podnoszą cenę dla kupującego (konkurencyjność).
 * **Cel = marża** (zysk / cena sprzedaży) **z dolnym limitem zysku w zł** (żeby nie tracić czasu na drobne):
   ~40% idealnie, ~30% bardzo dobrze, ~20% „na dopchanie”. Dolny limit (użytkownik 2026-10-25): 300 zł przy 40%,
-  500 zł przy 35% → propozycja (DO POTWIERDZENIA): +40 zł minimalnego zysku na każdy punkt marży mniej: ≥ 40% → 300,
-  35% → 500, 30% → 700, 25% → 900, 20% → 1 100, < 20% → nie. Flipy użytkownika ją spełniają (Scar 22%: 1 040 ≥ 1 020).
-  Zysk liczony PO kosztach (Podbicie ~26 zł + wysyłka 15–50 zł).
+  500 zł przy 35% → reguła (POTWIERDZONA 2026-10-25): +40 zł minimalnego zysku na każdy punkt marży mniej: ≥ 40% →
+  300, 35% → 500, 30% → 700, 25% → 900, 20% → 1 100, < 20% → nie. Zysk liczony PO kosztach (Podbicie ~26 zł + wysyłka
+  ~20 zł = 46 zł): TUF i MSI spełniają; Scar (4 700 − 3 660 − 46 = 994 zł, marża 21%, wymagane ~1 056) – o włos nie
+  (max zakup 3 628 zł). Do decyzji użytkownika, czy tak ma zostać.
 * **Flipy (laptopy, koszt bez wysyłki i Podbicia)**: ASUS TUF Gaming F15 1 350 → 2 375 zł (+1 025, marża 43%,
   sprzedany w 2 dni); MSI RTX 4060 2 500 → 3 650 (+1 150, 32%, 5 dni); ASUS ROG Scar 17 R9 5900HX RTX 3080
   3 660 → 4 700 (+1 040, 22%, 6 dni). Horyzont sprzedaży ≤ 7 dni (Podbicie 7 dni, bez mrożenia gotówki).
@@ -311,10 +312,10 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
 - [ ] C2/C3 ceny i strategie – wnioski dopisane tutaj
 - [ ] C4 rekomendacje zbierania – decyzje użytkownika dopisane tutaj
 - [ ] C5 raport końcowy
-- [ ] D1 tabele cen + progi okazji, weryfikacja guidelines.md
+- [x] D1 tabele cen + progi okazji (w `sniper-guide`; weryfikacja guidelines.md – po danych użytkownika)
 - [ ] D2 cena a tempo zniknięcia (7 dni)
 - [ ] D3 ceny sprzedaży per model (po C4, 2–4 tyg.)
-- [ ] D4 `sniper-guide` (wytyczne per kategoria z danych)
+- [x] D4 `sniper-guide` (wytyczne per kategoria z danych, wersja 1: ceny ofert/zniknięć; v2 po D3)
 - [ ] D5 Sniper: wiele kategorii, karta rynku, zysk w odpowiedzi AI, backtest
 
 ## Dziennik wyników (dopisuj tu ustalenia z danych użytkownika, z datą)
