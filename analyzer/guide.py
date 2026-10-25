@@ -35,6 +35,7 @@ PROMO, SHIP = 26.0, 20.0
 CAT_TITLE = {"laptop": "Laptopy", "phone": "Telefony", "tablet": "Tablety", "console": "Konsole",
              "gpu": "Karty graficzne", "ram": "Pamięci RAM", "storage": "Dyski SSD"}
 CHEAP_SHARE, CHEAP_MIN = 0.30, 150.0        # alternatywny warunek dla tańszych przedmiotów (wyżej)
+MIXED_BELOW = 0.10                 # > 10% aktywnych ofert już ≤ max zakup → grupa mieszana, cena sprzedaży niepewna
 TOP_ROWS = 80                      # wierszy tabeli na kategorię (koszt tokenów w zapytaniu Snipera)
 # Katalogi Vinted Snipera → nasze kategorie (jak sniper/categories.py; mieszane - kategoria z tytułu).
 SNIPER_CATALOGS = {3580: ("laptop",), 3661: ("phone",), 3728: ("tablet",), 3025: ("console",),
@@ -84,6 +85,23 @@ def _gpu_name(text):
     return text.upper().replace(" TI", " Ti").replace(" SUPER", " Super")
 
 
+def cpu_generation(cpu):
+    """Przedział generacji procesora z modelu (do grup laptopów ze zintegrowaną grafiką) albo None.
+    i5-8350u → „8–9 gen.”, i5-1240p → „12+ gen.”, ryzen 5 5500u → „4000–5000”. Ten sam „i5 · 16 GB” z 2013 i z 2022 r.
+    to zupełnie inne ceny (2026-10-25: grupy bez generacji miały 12–14% ofert poniżej max zakupu = cena zawyżona)."""
+    cpu = (cpu or "").lower()
+    m = re.match(r"i[3579]-(\d{3,5})", cpu)
+    if m:
+        d = m.group(1)
+        gen = int(d[:2]) if len(d) == 5 or (len(d) == 4 and d[0] == "1") else int(d[0]) if len(d) == 4 else 1
+        return "do 7 gen." if gen <= 7 else "8–9 gen." if gen <= 9 else "10–11 gen." if gen <= 11 else "12+ gen."
+    m = re.match(r"ryzen [3579] (?:pro )?(\d)\d{3}", cpu)
+    if m:
+        series = int(m.group(1))
+        return "1000–3000" if series <= 3 else "4000–5000" if series <= 5 else "6000+"
+    return None
+
+
 def group_key(category, r):
     """Nazwa grupy cenowej oferty (czytelna dla człowieka i modelu AI) albo None."""
     key = r["config_key"]
@@ -102,8 +120,10 @@ def group_key(category, r):
         if re.match(r"(rtx|gtx|rx|arc|quadro)\b", gpu):
             return _gpu_name(gpu)
         line = analysis.cpu_line_of(r["cpu"], r["cpu_line"])
-        if line and r["ram_gb"] and r["ram_gb"] >= 2:          # „1 GB RAM” = błąd odczytu
-            return f"{line} · {r['ram_gb']} GB RAM (zintegrowana grafika)"
+        gen = cpu_generation(r["cpu"])
+        # bez generacji (sam „i5” w tytule) grupa miesza laptopy sprzed 10 lat z nowymi - pomijamy
+        if line and gen and r["ram_gb"] and r["ram_gb"] >= 2:          # „1 GB RAM” = błąd odczytu
+            return f"{line} {gen} · {r['ram_gb']} GB RAM (zintegrowana grafika)"
         return None
     if category in ("phone", "tablet"):
         if not parts:
@@ -112,7 +132,13 @@ def group_key(category, r):
     if category == "console":
         if len(parts) < 2:
             return None
-        return parts[0] if parts[1] == "?" else f"{parts[0]} {parts[1]}"
+        platform, variant = parts[0], parts[1]
+        if variant == "?" or variant.lower() in platform.lower():
+            return platform                                      # „Xbox 360 360” → „Xbox 360”
+        last = platform.split()[-1].lower()
+        if variant.lower().startswith(last) and len(variant) > len(last):
+            variant = variant[len(last):].upper() if len(variant) - len(last) <= 2 else variant[len(last):]
+        return f"{platform} {variant}"                           # „Xbox One ones” → „Xbox One S”
     if category == "gpu":
         if len(parts) < 2 or parts[1] == "?":
             return None
@@ -231,7 +257,10 @@ def header(category, costs, day, ai_count):
         "→ bliżej p25. p75 = górna granica (kupujący nieświadomy).",
         "4. Okazja, gdy cena oferty (z wysyłką) ≤ „max zakup” – albo gdy własne wyliczenie zysku i marży spełnia "
         "regułę wyżej. Podaj: szacowaną cenę sprzedaży, zysk, marżę i dni do sprzedaży.",
-        "5. Uwaga na oszustwa: cena ≪ p25, „tylko OLX / WhatsApp / przelew”, nowe konto, ten sam tytuł i cena w wielu "
+        f"5. ⚠ przy grupie = ponad {MIXED_BELOW * 100:.0f}% wystawionych ofert już kosztuje ≤ max zakup – grupa miesza "
+        "tańsze i droższe wersje (generacja, wariant, zestaw), więc „sprzedam za ~” jest niepewne. Tam okazja tylko, "
+        "gdy TA konkretna wersja jest wyraźnie tańsza niż podobne oferty (bliżej p25 niż mediany) – inaczej score ≤ 6.",
+        "6. Uwaga na oszustwa: cena ≪ p25, „tylko OLX / WhatsApp / przelew”, nowe konto, ten sam tytuł i cena w wielu "
         "ofertach.", "",
         "## Skąd liczby",
         f"Oferty z Vinted (PL + zagranica) zebrane przez analizator; tylko sprawne (stan z AI dla {ai_count} ofert, "
@@ -254,8 +283,9 @@ def table(rows_):
              "max zakup | zysk / marża | % ofert ≤ max |",
              "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in shown[:TOP_ROWS]:
+        mixed = " ⚠" if r["below"] > MIXED_BELOW else ""
         deal = f"{_zl(r['profit'])} / {r['margin'] * 100:.0f}%"
-        lines.append(f"| {r['name']} | {r['n']} | {_zl(r['p25'])} | {_zl(r['med'])} | {_zl(r['p75'])} | "
+        lines.append(f"| {r['name']}{mixed} | {r['n']} | {_zl(r['p25'])} | {_zl(r['med'])} | {_zl(r['p75'])} | "
                      f"{_zl(r['pl'])} / {_zl(r['zagr'])} | {r['gone']} ({r['sold']}) | {_zl(r['sale'])} | "
                      f"{_zl(r['buy'])} | {deal} | {r['below'] * 100:.0f}% |")
     if hidden:

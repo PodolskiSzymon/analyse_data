@@ -431,3 +431,7 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
   Polskę +50…+500 zł) → progi przeliczone regułą, premia zamieniona na wyższą ocenę; Sniper łączy laptop.md (dane) +
   guidelines.md (uzupełnienie). Grupy z dużym % ofert ≤ max (PS5 13%, DDR5 16 GB 24%, NVMe 4 TB 12%) = zawyżona cena
   sprzedaży niejednorodnej grupy – do poprawy w D2/D3. Pilot: polecenie `oceny` (oceny.html na telefon + Dysk).
+* 2026-10-25, `sniper-guide` z regułą 30% / 150 zł: opłacalnych grup telefony 638/642, konsole 99/100, GPU 25/50, RAM
+  18/48, SSD 9/22; `catalogs.json` od 50 zł. Grupy z > 10% ofert ≤ max zakup (laptopy „i5 · 16 GB” 14%, „i7 · 16 GB” 12%,
+  DDR5 16 GB 29%, DDR4 DIMM 32 GB 16%, SATA 4 TB 15%) = mieszane → laptopy ze zintegrowaną grafiką dzielone wg
+  generacji CPU (bez generacji pomijane), znak ⚠ w tabeli + zasada dla AI; nazwy konsol „Xbox One ones” → „Xbox One S”.

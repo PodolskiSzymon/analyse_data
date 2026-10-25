@@ -648,7 +648,15 @@ def test_group_names():
     assert group_key("laptop", {**row, "model": "macbook air 13 2020", "cpu": "apple m1", "ram_gb": 8}) == \
         "MacBook Air M1 8 GB RAM"
     assert group_key("laptop", {**row, "cpu": "i5-8350u", "ram_gb": 16, "gpu": "integrated"}) == \
-        "intel core i5 · 16 GB RAM (zintegrowana grafika)"
+        "intel core i5 8–9 gen. · 16 GB RAM (zintegrowana grafika)"
+    assert group_key("laptop", {**row, "cpu_line": "intel core i5", "ram_gb": 16}) is None     # bez generacji
+    from analyzer.guide import cpu_generation
+    assert [cpu_generation(c) for c in ("i5-4200u", "i7-10750h", "i5-1135g7", "i5-1240p", "i3-13100",
+                                        "ryzen 5 3500u", "ryzen 7 5800h", "ryzen 5 7530u", "i5-520m", "apple m1")] == [
+        "do 7 gen.", "10–11 gen.", "10–11 gen.", "12+ gen.", "12+ gen.", "1000–3000", "4000–5000", "6000+",
+        "do 7 gen.", None]
+    assert group_key("console", {**row, "config_key": "Xbox One|ones|?"}) == "Xbox One S"
+    assert group_key("console", {**row, "config_key": "Xbox 360|360|?"}) == "Xbox 360"
     assert group_key("phone", {**row, "config_key": "iphone 13|128"}) == "iphone 13 128 GB"
     assert group_key("phone", {**row, "config_key": "iphone 13|?"}) is None
     assert group_key("console", {**row, "config_key": "PlayStation 5|slim|?"}) == "PlayStation 5 slim"
