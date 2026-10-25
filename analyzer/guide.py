@@ -15,8 +15,9 @@ dyski - typ + pojemność.
 Cena szybkiej sprzedaży S (≤ 7 dni, kupujący porównujący ceny) - wersja 1, dopóki `watch` z szybkim resolverem nie
 zbierze cen sprzedaży: mediana OSTATNIEJ ceny ofert, które zniknęły (sprzedane + blocked + usunięte; ≥ 10 sztuk -
 usunięte w części to sprzedaże, ich cena ≈ cenie sprzedanych), a przy mniejszej liczbie - środek między p25 a medianą
-cen aktywnych. Kupujący „nieświadomy” - p75 aktywnych (górna granica). Flipy użytkownika (MSI RTX 4060 3 650 zł w 5 dni:
-p25 3 525, mediana 3 875) leżą w tym przedziale.
+cen aktywnych - WYŻSZA z tych dwóch wartości (2026-10-25: sama mediana zniknięć zaniżała - część to wycofane / tańsze
+oferty; sprzedaże użytkownika: MSI RTX 4060 3 650 zł w 5 dni przy medianie zniknięć 3 358 i środku p25–med ~3 600,
+Scar RTX 3080 4 700 zł przy 4 496). Kupujący „nieświadomy” - p75 aktywnych (górna granica).
 """
 import re
 
@@ -67,6 +68,10 @@ def _gb(value):
     return f"{value} GB" if value not in (None, "", "?") else None
 
 
+def _gpu_name(text):
+    return text.upper().replace(" TI", " Ti").replace(" SUPER", " Super")
+
+
 def group_key(category, r):
     """Nazwa grupy cenowej oferty (czytelna dla człowieka i modelu AI) albo None."""
     key = r["config_key"]
@@ -83,9 +88,9 @@ def group_key(category, r):
                                          _gb(r["ram_gb"]) and f"{r['ram_gb']} GB RAM") if x)
         gpu = (r["gpu"] or "").lower()
         if re.match(r"(rtx|gtx|rx|arc|quadro)\b", gpu):
-            return gpu.upper().replace(" TI", " Ti").replace(" SUPER", " Super")
+            return _gpu_name(gpu)
         line = analysis.cpu_line_of(r["cpu"], r["cpu_line"])
-        if line and r["ram_gb"]:
+        if line and r["ram_gb"] and r["ram_gb"] >= 2:          # „1 GB RAM” = błąd odczytu
             return f"{line} · {r['ram_gb']} GB RAM (zintegrowana grafika)"
         return None
     if category in ("phone", "tablet"):
@@ -97,7 +102,9 @@ def group_key(category, r):
             return None
         return parts[0] if parts[1] == "?" else f"{parts[0]} {parts[1]}"
     if category == "gpu":
-        return (f"{parts[0].upper()} {parts[1]} GB" if len(parts) > 1 and parts[1] != "?" else None) if parts else None
+        if len(parts) < 2 or parts[1] == "?":
+            return None
+        return f"{_gpu_name(parts[0])} {parts[1]} GB"
     if category == "ram":
         if len(parts) < 3 or parts[0] == "?":
             return None
@@ -162,10 +169,12 @@ def rows(groups, min_offers=8, costs=PROMO + SHIP):
         if len(a) < min_offers:
             continue
         p25, med, p75 = pct(a, .25), pct(a, .5), pct(a, .75)
-        if len(g["gone"]) >= MIN_GONE_FOR_S:
-            sale, src = analysis.median(g["gone"]), f"zniknięte (n={len(g['gone'])})"
+        mid = (p25 + med) / 2
+        gone_med = analysis.median(g["gone"]) if len(g["gone"]) >= MIN_GONE_FOR_S else None
+        if gone_med is not None and gone_med > mid:
+            sale, src = gone_med, f"zniknięte (n={len(g['gone'])})"
         else:
-            sale, src = (p25 + med) / 2, "oferty p25–med"
+            sale, src = mid, "oferty p25–med"
         deal = max_buy(sale, costs)
         below = sum(1 for x in a if deal and x <= deal[0]) / len(a) if deal else 0.0
         out.append({"name": name, "n": len(a), "p25": p25, "med": med, "p75": p75,
@@ -217,15 +226,26 @@ def header(category, costs, day, ai_count):
         "trafia się okazja.", ""]
 
 
+def practical(r):
+    """Wiersz wart pokazania Sniperowi: okazja w ogóle możliwa (max zakup ≥ 40% p25 - inaczej trzeba by kupić za
+    ułamek ceny rynkowej, czego nikt nie oferuje)."""
+    return bool(r["buy"]) and r["buy"] >= 0.4 * r["p25"]
+
+
 def table(rows_):
+    shown = [r for r in rows_ if practical(r)]
+    hidden = [r["name"] for r in rows_ if not practical(r)]
     lines = ["| grupa | ofert | p25 | mediana | p75 | PL / zagr. mediana | zniknęło (sprzed.) | sprzedam za ~ | "
              "max zakup | zysk / marża | % ofert ≤ max |",
              "|---|---|---|---|---|---|---|---|---|---|---|"]
-    for r in rows_[:TOP_ROWS]:
-        deal = f"{_zl(r['profit'])} / {r['margin'] * 100:.0f}%" if r["buy"] else "nie opłaca się"
+    for r in shown[:TOP_ROWS]:
+        deal = f"{_zl(r['profit'])} / {r['margin'] * 100:.0f}%"
         lines.append(f"| {r['name']} | {r['n']} | {_zl(r['p25'])} | {_zl(r['med'])} | {_zl(r['p75'])} | "
                      f"{_zl(r['pl'])} / {_zl(r['zagr'])} | {r['gone']} ({r['sold']}) | {_zl(r['sale'])} | "
                      f"{_zl(r['buy'])} | {deal} | {r['below'] * 100:.0f}% |")
+    if hidden:
+        lines += ["", f"Praktycznie nieopłacalne przy minimalnym zysku 300 zł (max zakup < 40% p25 albo brak) – "
+                      f"{len(hidden)} grup: " + ", ".join(hidden[:60]) + ("…" if len(hidden) > 60 else "")]
     return lines
 
 
@@ -246,8 +266,10 @@ def build(conn, aconn, out, promo=PROMO, ship=SHIP, min_offers=8, progress=None)
         rows_ = rows(groups, min_offers, costs)
         if not rows_:
             continue
-        lines = header(category, costs, day, len(ai)) + [f"## Ceny ({len(rows_)} grup z ≥ {min_offers} ofertami; "
-                                                         f"pokazane {min(len(rows_), TOP_ROWS)} najliczniejszych)", ""]
+        n_shown = sum(1 for r in rows_ if practical(r))
+        lines = header(category, costs, day, len(ai)) + [
+            f"## Ceny ({len(rows_)} grup z ≥ {min_offers} ofertami, z szansą na okazję {n_shown}; pokazane "
+            f"{min(n_shown, TOP_ROWS)} najliczniejszych)", ""]
         lines += table(rows_)
         path = out / f"{category}.md"
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -259,7 +281,7 @@ def summary_lines(result, per_category=8):
     """Krótki podgląd do terminala: najliczniejsze grupy z ceną sprzedaży i max zakupu."""
     lines = []
     for category, (path, rows_) in result.items():
-        deals = [r for r in rows_ if r["buy"]]
+        deals = [r for r in rows_ if practical(r)]
         lines += ["", f"{CAT_TITLE[category]}: {len(rows_)} grup, opłacalnych wg reguły {len(deals)} → {path.name}",
                   f"  {'grupa':<44} {'ofert':>6} {'sprzedam':>9} {'max zakup':>10} {'zysk':>6} {'marża':>6} "
                   f"{'%≤max':>6}"]

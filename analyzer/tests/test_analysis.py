@@ -647,6 +647,8 @@ def test_group_names():
     assert group_key("phone", {**row, "config_key": "iphone 13|?"}) is None
     assert group_key("console", {**row, "config_key": "PlayStation 5|slim|?"}) == "PlayStation 5 slim"
     assert group_key("storage", {**row, "config_key": "nvme|2000"}) == "NVMe 2 TB"
+    assert group_key("gpu", {**row, "config_key": "gtx 1050 ti|4"}) == "GTX 1050 Ti 4 GB"
+    assert group_key("laptop", {**row, "cpu": "i5-8350u", "ram_gb": 1}) is None
     assert group_key("ram", {**row, "config_key": "ddr4|so-dimm|16"}) == "DDR4 SO-DIMM (laptop) 16 GB"
 
 
@@ -664,4 +666,16 @@ def test_sniper_guide_files(relisted, flagged, tmp_path):
     pro = next(r for r in rows if r["name"] == "iphone 16 pro 512 GB")
     assert pro["p25"] > 3000
     assert result["ram"][1][0]["buy"] is None                      # tani RAM nie spełnia minimalnego zysku
+    ram_text = result["ram"][0].read_text(encoding="utf-8")
+    assert "Praktycznie nieopłacalne" in ram_text and "| DDR4" not in ram_text     # bez wiersza w tabeli
     assert len(guide.summary_lines(result)) > 10
+
+
+def test_sale_price_takes_higher_estimate():
+    from analyzer.guide import rows
+    active = [3000.0] * 10 + [3400.0] * 10 + [3800.0] * 10              # p25 3 400 (interpolacja), mediana 3 400
+    g = {"x": {"active": active, "active_pl": active, "active_zagr": [], "gone": [3000.0] * 12, "sold": []}}
+    r = rows(g)[0]
+    assert r["src"] == "oferty p25–med" and r["sale"] == pytest.approx((r["p25"] + r["med"]) / 2)
+    g["x"]["gone"] = [3900.0] * 12
+    assert rows(g)[0]["sale"] == 3900.0 and rows(g)[0]["src"].startswith("zniknięte")
