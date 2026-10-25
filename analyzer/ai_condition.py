@@ -9,7 +9,8 @@ kilka słów dalej, opisach w obcych językach; AI czyta sens całego opisu i wi
     - `sold`    - sprzedane, blocked i usunięte z opisem (dane o rynku),
     - `all`     - wszystkie oferty z opisem (drogo - najpierw `--estimate`).
   Tylko nasze kategorie i stany rynkowe; oferty bez opisu pomijamy (sam tytuł + zdjęcie rzadko rozstrzyga).
-* Zdjęcia jako URL (`--photos N`, domyślnie 1 = główne; więcej z zapisanych szczegółów `sidebar`) - pobiera je
+* Zdjęcia jako URL - domyślnie WSZYSTKIE zdjęcia oferty (z zapisanych szczegółów `sidebar`; bez nich samo główne
+  z katalogu; prośba użytkownika 2026-10-25: bez limitu), `--photos N` ogranicza do N, 0 = sam tekst - pobiera je
   dostawca AI, nie nasze proxy. Dostawca i klucz jak w Sniperze (SNIPER_AI_PROVIDER / SNIPER_AI_API_KEY), model
   ANALYZER_AI_MODEL (domyślnie tani: gemini-3.8-flash / claude-haiku-5-5).
 * Główna baza tylko do odczytu; wynik i cache w `analysis.db: ai_condition` (klucz: tytuł + opis + zdjęcia - ta
@@ -18,7 +19,7 @@ kilka słów dalej, opisach w obcych językach; AI czyta sens całego opisu i wi
 * `report` bierze stan z AI zamiast z reguł tam, gdzie AI odpowiedziało (uszkodzona = na części / zbity ekran /
   blokada).
 
-`python -m analyzer ai-condition [--scope flagged] [--photos 1] [--limit N] [--estimate] [--yes]`
+`python -m analyzer ai-condition [--scope flagged] [--photos N] [--limit N] [--estimate] [--yes]`
 """
 import asyncio
 import hashlib
@@ -98,12 +99,13 @@ def content_key(title, description, photos):
     return hashlib.sha256("\x1f".join([title or "", description or "", *photos]).encode()).hexdigest()
 
 
-def photo_urls(conn, row, n):
-    """Do n zdjęć: główne z katalogu + kolejne z zapisanych szczegółów (sidebar)."""
-    if n <= 0:
+def photo_urls(conn, row, n=None):
+    """Zdjęcia oferty: wszystkie z zapisanych szczegółów (sidebar), a bez nich główne z katalogu. n - najwyżej tyle
+    (None = bez limitu, 0 = żadne)."""
+    if n is not None and n <= 0:
         return []
     urls = [row["photo_url"]] if row["photo_url"] else []
-    if n > len(urls):
+    if n is None or n > len(urls):
         from sniper.extractor import extract_photo_urls, unwrap_sidebar
 
         raw = conn.execute("SELECT body FROM raw WHERE listing_id=? AND kind='sidebar' ORDER BY fetched_at DESC "
@@ -115,7 +117,7 @@ def photo_urls(conn, row, n):
                 more = []
             if more:                          # w szczegółach pełne rozmiary - wtedy one zamiast miniatury
                 urls = more
-    return urls[:n]
+    return urls if n is None else urls[:n]
 
 
 def prompt_text(row, description):
@@ -133,7 +135,7 @@ def prompt_text(row, description):
     return "\n".join(lines)
 
 
-def candidates(conn, aconn, scopes=("flagged",), limit=None, photos=1, again=False, progress=None):
+def candidates(conn, aconn, scopes=("flagged",), limit=None, photos=None, again=False, progress=None):
     """Oferty do oceny (bez tych, które już mają wynik dla tej samej treści, chyba że again) →
     [(row, opis, zdjęcia, klucz)]. Kolejność: sprzedane / blocked, usunięte, reszta; nowsze najpierw."""
     say = progress or (lambda _t: None)
@@ -178,17 +180,20 @@ def prices(ai_cfg, model):
     return MODEL_PRICES.get(model)
 
 
-def estimate(items, provider, price, photo_options=(0, 1, 3)):
-    """Szacunek tokenów i kosztu (USD) dla listy kandydatów - przy różnej liczbie zdjęć."""
+def estimate(items, provider, price):
+    """Szacunek tokenów i kosztu (USD) dla listy kandydatów: z wybranymi zdjęciami (rzeczywista liczba zdjęć każdej
+    oferty) oraz dla porównania sam tekst."""
     n = len(items)
     text_tokens = sum(len(prompt_text(row, desc)) for row, desc, _u, _k in items) / CHARS_PER_TOKEN
+    n_photos = sum(len(urls) for _r, _d, urls, _k in items)
     out_tokens = OUTPUT_TOKENS.get(provider, 300) * n
-    lines = [f"Do oceny: {n} ofert, tekst ~{text_tokens / max(n, 1):.0f} tokenów/ofertę (+ instrukcja "
-             f"{INSTRUCTION_TOKENS}), zdjęcie ~{IMAGE_TOKENS} tokenów, odpowiedź ~{OUTPUT_TOKENS.get(provider, 300)}."]
-    for k in photo_options:
-        tokens_in = text_tokens + n * (INSTRUCTION_TOKENS + k * IMAGE_TOKENS)
+    lines = [f"Do oceny: {n} ofert, zdjęć razem {n_photos} (śr. {n_photos / max(n, 1):.1f} na ofertę); tekst "
+             f"~{text_tokens / max(n, 1):.0f} tokenów/ofertę (+ instrukcja {INSTRUCTION_TOKENS}), zdjęcie "
+             f"~{IMAGE_TOKENS} tokenów, odpowiedź ~{OUTPUT_TOKENS.get(provider, 300)}."]
+    for label, photos in ((f"ze zdjęciami ({n_photos})", n_photos), ("sam tekst (--photos 0)", 0)):
+        tokens_in = text_tokens + n * INSTRUCTION_TOKENS + photos * IMAGE_TOKENS
         cost = f"~${(tokens_in * price[0] + out_tokens * price[1]) / 1e6:,.2f}" if price else "cena nieznana"
-        lines.append(f"  --photos {k}: wejście ~{tokens_in / 1e6:.1f} mln tokenów, wyjście ~{out_tokens / 1e6:.2f} mln "
+        lines.append(f"  {label}: wejście ~{tokens_in / 1e6:.1f} mln tokenów, wyjście ~{out_tokens / 1e6:.2f} mln "
                      f"→ {cost}")
     if not price:
         lines.append("  (brak ceny modelu w sniper/config.py MODEL_PRICES - ustaw SNIPER_AI_PRICE_IN / _OUT, USD za "

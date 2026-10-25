@@ -318,7 +318,7 @@ Jeśli raport ma być do udostępnienia – opublikuj jako stronę (Artifact) i 
     przeliczałby nowe oferty regułami v1).
 * 2026-10-25, decyzja użytkownika (C4 – AI): stan techniczny („na części” / „bez defektów”, zaprzeczenia dalej niż
   słowo od usterki) rozstrzyga AI z opisu i zdjęć → `python -m analyzer ai-condition` (moduł `ai_condition.py`):
-  zakres `flagged` (reguły: usterka albo jakakolwiek wzmianka o usterce) / `sold` / `all`, `--photos N` (domyślnie 1),
+  zakres `flagged` (reguły: usterka albo jakakolwiek wzmianka o usterce) / `sold` / `all`, wszystkie zdjęcia oferty (`--photos N` ogranicza),
   szacunek kosztu i pytanie o zgodę przed wywołaniami, wyniki i cache w `analysis.db: ai_condition`, `report` używa
   stanu z AI zamiast reguł (uszkodzona = na części / zbity ekran / blokada). Raport zgodności AI vs reguły.
   Kolejność: `--estimate` → `--limit 50` (próba, sprawdzić przykłady w `ai_condition.txt`) → całość.

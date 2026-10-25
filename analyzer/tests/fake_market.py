@@ -157,8 +157,9 @@ class Builder:
         db.put_raw(self.conn, lid, "catalog", raw, iso(first_seen))
         if has_details:                 # szczegóły (sidebar): lista zdjęć z is_suspicious
             db.put_raw(self.conn, lid, "sidebar", {"item": {"id": lid, "is_closed": False, "photos": [
-                {"is_main": True, "is_suspicious": False},
-                {"is_main": False, "is_suspicious": bool(catalog_photo_suspicious)}]}}, iso(first_seen))
+                {"is_main": True, "is_suspicious": False, "full_size_url": f"https://images1.vinted.net/{lid}-1.jpg"},
+                {"is_main": False, "is_suspicious": bool(catalog_photo_suspicious),
+                 "full_size_url": f"https://images1.vinted.net/{lid}-2.jpg"}]}}, iso(first_seen))
         # rynek i obniżki - tak jak liczy analiza (waluta: details > listings; bez waluty ułamkowa cena = zagr.)
         cur = details_currency or seller_currency
         mkt = ("PL" if cur == "PLN" else "zagr") if cur else ("zagr" if abs(price_now - round(price_now)) >= 0.005

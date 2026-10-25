@@ -20,7 +20,7 @@
   report [--age-days 14] [--photo-flag]   raport rynku: flagi + relisty + statystyki -> reports/<data>/summary.md,
                                           configs.csv, report.html (bez sieci, baza tylko do odczytu)
   export-analysis [--with-descriptions]   eksport do analizy w czacie (csv.gz, bez danych sprzedawców) -> export/<data>/
-  ai-condition [--scope flagged] [--photos 1] [--limit N] [--estimate] [--yes]
+  ai-condition [--scope flagged] [--photos N] [--limit N] [--estimate] [--yes]
                                           stan techniczny przez AI (opis + zdjęcia) -> analysis.db; najpierw koszt
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
@@ -463,7 +463,8 @@ def main(argv=None):
     p_aic.add_argument("--scope", default="flagged",
                        help="flagged (reguły: usterka albo wzmianka o usterce - domyślnie), sold (sprzedane / blocked "
                             "/ usunięte), all (wszystkie z opisem); po przecinku")
-    p_aic.add_argument("--photos", type=int, default=1, help="ile zdjęć na ofertę (0 = sam tekst, domyślnie 1)")
+    p_aic.add_argument("--photos", type=int, default=None,
+                       help="najwyżej tyle zdjęć na ofertę (domyślnie wszystkie; 0 = sam tekst)")
     p_aic.add_argument("--limit", type=int, default=None, help="najwyżej tyle ofert (np. 50 na próbę)")
     p_aic.add_argument("--concurrency", type=int, default=4)
     p_aic.add_argument("--estimate", action="store_true", help="tylko policz oferty i koszt, bez wywołań AI")
@@ -630,17 +631,17 @@ def main(argv=None):
                 ai_cfg = AiConfig()
                 model = cfg.ai_model or DEFAULT_MODELS.get(ai_cfg.provider, ai_cfg.model)
                 scopes = tuple(x.strip() for x in args.scope.split(",") if x.strip())
-                say(f"Szukam ofert ({', '.join(scopes)}, zdjęć {args.photos})...")
+                photos_label = "wszystkie" if args.photos is None else args.photos
+                say(f"Szukam ofert ({', '.join(scopes)}, zdjęcia: {photos_label})...")
                 items = ai_condition.candidates(conn, aconn, scopes, args.limit, args.photos, args.again, say)
                 say(f"Dostawca {ai_cfg.provider}, model {model}.")
-                print("\n".join(ai_condition.estimate(items, ai_cfg.provider, ai_condition.prices(ai_cfg, model),
-                                                      sorted({0, 1, 3, args.photos}))))
+                print("\n".join(ai_condition.estimate(items, ai_cfg.provider, ai_condition.prices(ai_cfg, model))))
                 go = bool(items) and not args.estimate
                 if go and not ai_cfg.api_key:
                     say("Brak klucza AI (SNIPER_AI_API_KEY w sniper\\.env) - nic nie wysyłam.")
                     go = False
                 if go and not args.yes:
-                    go = input(f"Wysłać {len(items)} ofert do AI (zdjęć {args.photos})? [t/N] ").strip().lower() \
+                    go = input(f"Wysłać {len(items)} ofert do AI (zdjęcia: {photos_label})? [t/N] ").strip().lower() \
                         in ("t", "tak", "y", "yes")
                 if go:
                     async def call():

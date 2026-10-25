@@ -408,19 +408,21 @@ def test_ai_condition_candidates_run_cache_and_report(market, tmp_path):
     copy = tmp_path / "analyzer.db"                       # własna analysis.db obok kopii bazy
     shutil.copy(path, copy)
     conn, aconn = analysis.open_ro(copy), analysis.open_analysis(copy)
-    items = ai_condition.candidates(conn, aconn, ("flagged",), photos=1)
+    items = ai_condition.candidates(conn, aconn, ("flagged",))           # domyślnie wszystkie zdjęcia
     ids = {row["id"] for row, *_ in items}
     assert {truth.ids["cond_negated"], truth.ids["cond_parts"]} <= ids      # wzmianka o usterce (też zaprzeczona)
     assert truth.ids["off_whatsapp"] not in ids                             # opis bez wzmianki o usterce
-    assert all(len(urls) == 1 for _r, _d, urls, _k in items)                # główne zdjęcie
+    by_id = {row["id"]: urls for row, _d, urls, _k in items}
+    assert len(by_id[truth.ids["cond_parts"]]) == 2                         # oba zdjęcia ze szczegółów (sidebar)
+    assert len(ai_condition.candidates(conn, aconn, ("flagged",), photos=1)[0][2]) == 1
     backend = FakeConditionBackend()
     stats = asyncio.run(ai_condition.run(aconn, items, backend, progress=False, flush_every=7))
     assert stats["done"] == len(items) and stats["failed"] == 0 and stats["tokens_in"] == 1000 * len(items)
     assert backend.calls[0][2] == ai_condition.INSTRUCTION and backend.calls[0][3] == ai_condition.SCHEMA
     dmg = ai_condition.load_damaged(aconn)
     assert dmg[truth.ids["cond_parts"]] is True and dmg[truth.ids["cond_negated"]] is False
-    assert ai_condition.candidates(conn, aconn, ("flagged",), photos=1) == []      # ta sama treść - z pamięci
-    assert len(ai_condition.candidates(conn, aconn, ("flagged",), photos=1, again=True)) == len(items)
+    assert ai_condition.candidates(conn, aconn, ("flagged",)) == []          # ta sama treść - z pamięci
+    assert len(ai_condition.candidates(conn, aconn, ("flagged",), again=True)) == len(items)
     lines = ai_condition.report(conn, aconn)
     assert lines[0] == f"Stan z AI: {len(items)} ofert" and any("zgodność" in line for line in lines)
     sold = ai_condition.candidates(conn, aconn, ("sold",), photos=0, again=True)
@@ -447,11 +449,11 @@ def test_ai_condition_overrides_rules_in_stats(stats_result, relisted):
 def test_ai_condition_estimate_and_parse():
     from analyzer import ai_condition
     row = {"category": "laptop", "title": "x" * 35, "status_label": "Dobry", "attributes_json": "{}"}
-    items = [(row, "y" * 315, [], "k")] * 1000
-    lines = ai_condition.estimate(items, "gemini", (0.75, 3.75), (0, 1))
-    assert lines[0].startswith("Do oceny: 1000 ofert")
-    assert "--photos 1" in lines[2] and "$" in lines[2]
-    assert "cena nieznana" in ai_condition.estimate(items, "gemini", None, (1,))[1]
+    items = [(row, "y" * 315, ["u1", "u2", "u3"], "k")] * 1000
+    lines = ai_condition.estimate(items, "gemini", (0.75, 3.75))
+    assert lines[0].startswith("Do oceny: 1000 ofert, zdjęć razem 3000 (śr. 3.0")
+    assert "ze zdjęciami (3000)" in lines[1] and "~$" in lines[1] and "sam tekst" in lines[2]
+    assert "cena nieznana" in ai_condition.estimate(items, "gemini", None)[1]
     r = ai_condition.parse_result('{"condition": "minor_issues", "cracked_screen": "maybe", "locked": "no", '
                                   '"photo_damage": "yes", "evidence": "martwy piksel"}')
     assert r["cracked_screen"] == "unknown" and not ai_condition.damaged(r)
