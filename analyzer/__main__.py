@@ -466,7 +466,11 @@ def main(argv=None):
     p_aic.add_argument("--photos", type=int, default=3,
                        help="najwyżej tyle zdjęć na ofertę (domyślnie 3; 0 = sam tekst; 99 = wszystkie)")
     p_aic.add_argument("--limit", type=int, default=None, help="najwyżej tyle ofert (np. 50 na próbę)")
-    p_aic.add_argument("--concurrency", type=int, default=4)
+    p_aic.add_argument("--concurrency", type=int, default=None, help="zapytań naraz (domyślnie 48)")
+    p_aic.add_argument("--rpm", type=int, default=None,
+                       help="najwyżej tyle zapytań na minutę (domyślnie 900 - 90%% limitu Tier 1; 0 = bez limitu)")
+    p_aic.add_argument("--tpm", type=int, default=None,
+                       help="najwyżej tyle tokenów wejścia na minutę (domyślnie 1800000; 0 = bez limitu)")
     p_aic.add_argument("--estimate", action="store_true", help="tylko policz oferty i koszt, bez wywołań AI")
     p_aic.add_argument("--yes", action="store_true", help="bez pytania o zgodę na koszt")
     p_aic.add_argument("--again", action="store_true", help="także oferty już ocenione")
@@ -647,14 +651,19 @@ def main(argv=None):
                     async def call():
                         backend = Backend(ai_cfg, model)
                         try:
-                            return await ai_condition.run(aconn, items, backend, args.concurrency)
+                            return await ai_condition.run(
+                                aconn, items, backend,
+                                args.concurrency or ai_condition.CONCURRENCY,
+                                rpm=ai_condition.RPM if args.rpm is None else args.rpm,
+                                tpm=ai_condition.TPM if args.tpm is None else args.tpm)
                         finally:
                             await backend.close()
                     st = asyncio.run(call())
                     price = ai_condition.prices(ai_cfg, model)
                     cost = (f", koszt ~${(st['tokens_in'] * price[0] + st['tokens_out'] * price[1]) / 1e6:.2f}"
                             if price else "")
-                    say(f"Ocenione {st['done']}, błędy {st['failed']}; tokeny {st['tokens_in']}/{st['tokens_out']} "
+                    say(f"Ocenione {st['done']}, błędy {st['failed']}, ponowienia {st['retried']}; "
+                        f"tokeny {st['tokens_in']}/{st['tokens_out']} "
                         f"(śr. {st['tokens_in'] / max(st['done'], 1):.0f}/{st['tokens_out'] / max(st['done'], 1):.0f} "
                         f"na ofertę){cost}")
                     if st["stopped"]:

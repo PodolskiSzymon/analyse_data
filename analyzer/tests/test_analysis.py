@@ -504,7 +504,8 @@ def test_ai_condition_stops_after_error_streak(market, tmp_path):
             return await super().ask(*a, **kw)
 
     backend = Broke()
-    stats = asyncio.run(ai_condition.run(aconn, items, backend, concurrency=1, progress=False, stop_after=10))
+    stats = asyncio.run(ai_condition.run(aconn, items, backend, concurrency=1, progress=False, stop_after=10,
+                                         retries=()))
     assert stats["done"] == 5 and stats["failed"] == 10 and "RESOURCE_EXHAUSTED" in stats["stopped"]
     assert len(backend.calls) < len(items)                       # reszty już nie wysłał
     assert aconn.execute("SELECT COUNT(*) FROM ai_condition").fetchone()[0] == 5
@@ -540,5 +541,76 @@ def test_ai_condition_falls_back_to_text_when_photos_gone(market, tmp_path):
     assert {r[0] for r in aconn.execute("SELECT DISTINCT photos FROM ai_condition")} == {0}
     assert ai_condition.photo_unavailable(RuntimeError("400 Unable to download the file from the URL"))
     assert not ai_condition.photo_unavailable(RuntimeError("429 RESOURCE_EXHAUSTED"))
+    conn.close()
+    aconn.close()
+
+
+def test_rate_limiter_window():
+    """Okno 60 s: 3 zapytania/min i 10 000 tokenów/min - czwarte (albo za dużo tokenów) czeka do zwolnienia okna."""
+    import asyncio
+
+    from analyzer.ai_condition import RateLimiter
+    now, waits = [0.0], []
+
+    async def sleep(seconds):
+        waits.append(seconds)
+        now[0] += seconds
+
+    async def scenario():
+        lim = RateLimiter(3, 10_000, clock=lambda: now[0], sleep=sleep)
+        for _ in range(3):
+            await lim.acquire(1000)
+        assert waits == []
+        await lim.acquire(1000)                    # 4. zapytanie w tej samej minucie → czeka 60 s
+        assert waits == [60] and now[0] == 60
+        await lim.acquire(9000)                    # 1000 + 9000 = 10 000 - mieści się
+        now[0] += 1
+        await lim.acquire(500)                     # przekroczyłoby TPM → czeka do wypadnięcia z okna
+        assert waits[-1] == pytest.approx(59)
+
+    asyncio.run(scenario())
+
+
+def test_ai_condition_retries_rate_limit_and_runs_in_parallel(market, tmp_path):
+    import asyncio
+    import shutil
+    import time
+
+    from analyzer import ai_condition
+    path, _truth = market
+    copy = tmp_path / "analyzer.db"
+    shutil.copy(path, copy)
+    conn, aconn = analysis.open_ro(copy), analysis.open_analysis(copy)
+    items = ai_condition.candidates(conn, aconn, ("sold",), photos=0)[:200]
+
+    class Slow(FakeConditionBackend):
+        def __init__(self):
+            super().__init__()
+            self.live = self.peak = 0
+            self.limited = set()
+
+        async def ask(self, text, photos, **kw):
+            self.live += 1
+            self.peak = max(self.peak, self.live)
+            try:
+                await asyncio.sleep(0.05)              # „sieć”
+                if text not in self.limited and len(self.limited) < 7:
+                    self.limited.add(text)
+                    raise RuntimeError("429 RESOURCE_EXHAUSTED. Resource has been exhausted (e.g. check quota).")
+                return await super().ask(text, photos, **kw)
+            finally:
+                self.live -= 1
+
+    async def no_wait(_seconds):
+        pass
+
+    backend = Slow()
+    started = time.monotonic()
+    stats = asyncio.run(ai_condition.run(aconn, items, backend, concurrency=40, progress=False, sleep=no_wait))
+    took = time.monotonic() - started
+    assert (stats["done"], stats["failed"], stats["retried"]) == (200, 0, 7)     # 429 ponowione, nie błędy
+    assert backend.peak == 40 and took < 2.5                  # 200 × 0,05 s po 1 naraz = 10 s
+    assert ai_condition.transient(RuntimeError("503 UNAVAILABLE: model overloaded"))
+    assert not ai_condition.transient(ValueError("nieznany stan: 'broken'"))
     conn.close()
     aconn.close()

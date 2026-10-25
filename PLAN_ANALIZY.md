@@ -328,3 +328,6 @@ Jeśli raport ma być do udostępnienia – opublikuj jako stronę (Artifact) i 
   po litewsku „be jokių defektų”, rumuńsku „fără defecte”, „camera was broken but i fixed it”). Flagged = 8 739 ofert
   / 58 466 zdjęć → całość ~$55 ze wszystkimi zdjęciami, ~$29 z 3, ~$10 sam tekst. Zmiany: domyślnie 3 zdjęcia,
   404 zdjęcia → ponowienie samym tekstem (bez /services – zero ruchu przez proxy), klucz pamięci bez zdjęć.
+* 2026-10-25: limity Tier 1 użytkownika (gemini-3.8-flash): 1 000 RPM, 2 mln TPM, 10 tys. RPD; pierwszy pełny
+  `ai-condition` szedł 4 naraz (~55/min). → domyślnie 48 naraz + ogranicznik 900 RPM / 1,8 mln TPM (~450 ofert/min
+  przy 3 zdjęciach), ponawianie 429/503/timeout (5–60 s). Uwaga: 10 tys. zapytań/dzień - większy przebieg w 2 dniach.

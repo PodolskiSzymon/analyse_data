@@ -215,18 +215,79 @@ def photo_unavailable(exc):
 
 
 STOP_AFTER_ERRORS = 10        # tyle błędów z rzędu = koniec środków / limit / brak sieci → przerwij przebieg
+# Równoległość i limity na minutę - domyślnie ~90% limitów Tier 1 użytkownika dla gemini-3.8-flash (2026-10-25:
+# 1 000 zapytań/min, 2 mln tokenów wejścia/min, 10 tys. zapytań/dzień). Przy ~4 tys. tokenów / ofertę (3 zdjęcia)
+# ogranicza TPM: ~450 ofert/min. Dawniej 4 naraz (~55/min).
+CONCURRENCY, RPM, TPM = 48, 900, 1_800_000
+RETRIES = (5, 10, 20, 40, 60)  # odczekanie (s) przy chwilowym błędzie (429 limit, 500/503 przeciążenie, timeout)
 
 
-async def run(aconn, items, backend, concurrency=4, progress=True, flush_every=25, stop_after=STOP_AFTER_ERRORS):
-    """Wywołania AI dla kandydatów, zapis do analysis.db co `flush_every` (przerwanie nie traci wyników).
-    Po `stop_after` błędach z rzędu (np. skończyły się środki na koncie API - przedpłata) przerywa resztę zamiast
-    wysyłać tysiące nieudanych zapytań; następne uruchomienie zaczyna od ofert bez wyniku.
-    → {"done", "failed", "tokens_in", "tokens_out", "stopped": ostatni błąd albo None}."""
+def transient(exc):
+    """Chwilowy błąd dostawcy - warto ponowić po chwili (nie: zły klucz, zła treść, niedostępne zdjęcie)."""
+    text = f"{type(exc).__name__} {exc}".lower()
+    return any(k in text for k in ("429", "resource_exhausted", "rate limit", "ratelimit", "quota", "503", "500 ",
+                                   "unavailable", "overloaded", "internal", "deadline", "timeout", "timed out",
+                                   "connection"))
+
+
+def estimate_tokens(text, urls):
+    return len(text) / CHARS_PER_TOKEN + INSTRUCTION_TOKENS + len(urls) * IMAGE_TOKENS
+
+
+class RateLimiter:
+    """Okno 60 s: najwyżej `rpm` zapytań i `tpm` (szacowanych) tokenów wejścia - poniżej limitów konta API, zamiast
+    zbierać odmowy 429. clock / sleep do testów."""
+
+    def __init__(self, rpm, tpm, clock=None, sleep=None):
+        import collections
+        import time
+
+        self.rpm, self.tpm = rpm, tpm
+        self.clock, self.sleep = clock or time.monotonic, sleep or asyncio.sleep
+        self.window = collections.deque()          # (czas, tokeny)
+        self.tokens = 0.0
+        self.lock = asyncio.Lock()
+
+    async def acquire(self, tokens):
+        async with self.lock:
+            while True:
+                now = self.clock()
+                while self.window and now - self.window[0][0] >= 60:
+                    self.tokens -= self.window.popleft()[1]
+                fits_rpm = not self.rpm or len(self.window) < self.rpm
+                fits_tpm = not self.tpm or not self.window or self.tokens + tokens <= self.tpm
+                if fits_rpm and fits_tpm:
+                    self.window.append((now, tokens))
+                    self.tokens += tokens
+                    return
+                await self.sleep(max(60 - (now - self.window[0][0]), 0.05))
+
+
+async def run(aconn, items, backend, concurrency=CONCURRENCY, progress=True, flush_every=25,
+              stop_after=STOP_AFTER_ERRORS, rpm=RPM, tpm=TPM, retries=RETRIES, sleep=None):
+    """Wywołania AI dla kandydatów - równolegle (`concurrency` naraz), w granicach `rpm` / `tpm` na minutę; chwilowe
+    błędy (429 / 503 / timeout) ponawiane po `retries` sekundach. Zapis do analysis.db co `flush_every` (przerwanie
+    nie traci wyników). Po `stop_after` błędach z rzędu (np. skończyły się środki na koncie API) przerywa resztę
+    zamiast wysyłać tysiące nieudanych zapytań; następne uruchomienie zaczyna od ofert bez wyniku.
+    → {"done", "failed", "retried", "tokens_in", "tokens_out", "stopped": ostatni błąd albo None}."""
     from .progress import Bar
 
-    stats = {"done": 0, "failed": 0, "tokens_in": 0, "tokens_out": 0, "stopped": None}
+    stats = {"done": 0, "failed": 0, "retried": 0, "tokens_in": 0, "tokens_out": 0, "stopped": None}
     bar = Bar("AI stan", len(items)) if progress else None
     semaphore = asyncio.Semaphore(max(1, concurrency))
+    limiter = RateLimiter(rpm, tpm, sleep=sleep)
+    pause = sleep or asyncio.sleep
+
+    async def ask(text, urls):
+        for attempt in range(len(retries) + 1):
+            await limiter.acquire(estimate_tokens(text, urls))
+            try:
+                return await backend.ask(text, urls, system=INSTRUCTION, schema=SCHEMA, max_tokens=300)
+            except Exception as exc:
+                if attempt == len(retries) or not transient(exc) or stats["stopped"]:
+                    raise
+                stats["retried"] += 1
+                await pause(retries[attempt])
     pending = []
 
     def flush():
@@ -246,16 +307,14 @@ async def run(aconn, items, backend, concurrency=4, progress=True, flush_every=2
                 return item, None, 0, 0
             try:
                 try:
-                    text, (t_in, t_out) = await backend.ask(prompt_text(row, desc), urls, system=INSTRUCTION,
-                                                            schema=SCHEMA, max_tokens=300)
+                    text, (t_in, t_out) = await ask(prompt_text(row, desc), urls)
                 except Exception as exc:
                     if not urls or not photo_unavailable(exc):
                         raise
                     log.info("[AI] Oferta %s: zdjęcia niedostępne (usunięte z Vinted) - oceniam z samego opisu.",
                              row["id"])
                     item = (row, desc, [], key)
-                    text, (t_in, t_out) = await backend.ask(prompt_text(row, desc), [], system=INSTRUCTION,
-                                                            schema=SCHEMA, max_tokens=300)
+                    text, (t_in, t_out) = await ask(prompt_text(row, desc), [])
                 result = parse_result(text)
                 streak[0] = 0
                 return item, result, t_in, t_out
