@@ -280,7 +280,10 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
   PL ~15 zł, zza granicy zwykle ~20 zł, z daleka do 50 zł. Opłatę Vinted (zwykle 5% + 2,90 zł) i weryfikację
   elektroniki (20 zł) płaci KUPUJĄCY – nie zmniejszają przychodu, ale podnoszą cenę dla kupującego (konkurencyjność).
 * **Cel = marża** (zysk / cena sprzedaży) **z dolnym limitem zysku w zł** (żeby nie tracić czasu na drobne):
-  ~40% idealnie, ~30% bardzo dobrze, ~20% „na dopchanie”. Dolny limit w zł – do ustalenia z użytkownikiem.
+  ~40% idealnie, ~30% bardzo dobrze, ~20% „na dopchanie”. Dolny limit (użytkownik 2026-10-25): 300 zł przy 40%,
+  500 zł przy 35% → propozycja (DO POTWIERDZENIA): +40 zł minimalnego zysku na każdy punkt marży mniej: ≥ 40% → 300,
+  35% → 500, 30% → 700, 25% → 900, 20% → 1 100, < 20% → nie. Flipy użytkownika ją spełniają (Scar 22%: 1 040 ≥ 1 020).
+  Zysk liczony PO kosztach (Podbicie ~26 zł + wysyłka 15–50 zł).
 * **Flipy (laptopy, koszt bez wysyłki i Podbicia)**: ASUS TUF Gaming F15 1 350 → 2 375 zł (+1 025, marża 43%,
   sprzedany w 2 dni); MSI RTX 4060 2 500 → 3 650 (+1 150, 32%, 5 dni); ASUS ROG Scar 17 R9 5900HX RTX 3080
   3 660 → 4 700 (+1 040, 22%, 6 dni). Horyzont sprzedaży ≤ 7 dni (Podbicie 7 dni, bez mrożenia gotówki).
@@ -377,3 +380,9 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
 * 2026-10-25: limity Tier 1 użytkownika (gemini-3.8-flash): 1 000 RPM, 2 mln TPM, 10 tys. RPD; pierwszy pełny
   `ai-condition` szedł 4 naraz (~55/min). → domyślnie 48 naraz + ogranicznik 900 RPM / 1,8 mln TPM (~450 ofert/min
   przy 3 zdjęciach), ponawianie 429/503/timeout (5–60 s). Uwaga: 10 tys. zapytań/dzień - większy przebieg w 2 dniach.
+* 2026-10-25, `report` z AI (8 685 ofert stan z AI): zwłoka sprawdzenia zniknięcia 2–4 / 4–7 / 7–10 / ≥ 10 dni →
+  % sold 3,2 / 3,1 / 3,7 / 3,8 – płasko; brak danych < 2 dni (recheck). ⇒ albo sprzedane znikają szybciej niż w 2 dni,
+  albo większość deleted to usunięcia – rozstrzygnie `watch` z C4 (sprawdzenie po 1 przejściu). Poszlaka: cena
+  usuniętych / mediana aktywnych tej samej konfiguracji ≈ cenie sprzedanych (telefony 0,91 vs 0,90, konsole 0,93 vs
+  1,00). Uszkodzone (AI) vs sprawne, PL: telefony 64%, laptopy 73%, konsole 88%. `watch` u użytkownika stoi od kilku
+  dni – zalecone uruchomienie z `analyse_data` (C4 już w kodzie), ceny sprzedaży 7 dni (D3) po 2–4 tyg.
