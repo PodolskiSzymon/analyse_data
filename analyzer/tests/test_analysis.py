@@ -511,3 +511,34 @@ def test_ai_condition_stops_after_error_streak(market, tmp_path):
     assert len(ai_condition.candidates(conn, aconn, ("sold",), photos=0)) == len(items) - 5   # wznowienie
     conn.close()
     aconn.close()
+
+
+def test_ai_condition_falls_back_to_text_when_photos_gone(market, tmp_path):
+    """Zdjęcia usuniętej oferty: dostawca AI 404 „Cannot fetch content” → ta sama oferta samym tekstem; nie liczy się
+    do serii błędów przerywającej przebieg."""
+    import asyncio
+    import shutil
+
+    from analyzer import ai_condition
+    path, _truth = market
+    copy = tmp_path / "analyzer.db"
+    shutil.copy(path, copy)
+    conn, aconn = analysis.open_ro(copy), analysis.open_analysis(copy)
+    items = ai_condition.candidates(conn, aconn, ("sold",), photos=2)[:30]
+    assert all(urls for _r, _d, urls, _k in items)
+
+    class PhotosGone(FakeConditionBackend):
+        async def ask(self, text, photos, **kw):
+            if photos:
+                self.calls.append(("photo", photos))
+                raise RuntimeError("404 NOT_FOUND. {'error': {'code': 404, 'message': 'Cannot fetch content from the "
+                                   "provided URL. The URL could not be found.'}}")
+            return await super().ask(text, photos, **kw)
+
+    stats = asyncio.run(ai_condition.run(aconn, items, PhotosGone(), concurrency=1, progress=False, stop_after=5))
+    assert (stats["done"], stats["failed"], stats["stopped"]) == (30, 0, None)
+    assert {r[0] for r in aconn.execute("SELECT DISTINCT photos FROM ai_condition")} == {0}
+    assert ai_condition.photo_unavailable(RuntimeError("400 Unable to download the file from the URL"))
+    assert not ai_condition.photo_unavailable(RuntimeError("429 RESOURCE_EXHAUSTED"))
+    conn.close()
+    aconn.close()

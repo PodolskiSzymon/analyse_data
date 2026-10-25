@@ -9,12 +9,15 @@ kilka słów dalej, opisach w obcych językach; AI czyta sens całego opisu i wi
     - `sold`    - sprzedane, blocked i usunięte z opisem (dane o rynku),
     - `all`     - wszystkie oferty z opisem (drogo - najpierw `--estimate`).
   Tylko nasze kategorie i stany rynkowe; oferty bez opisu pomijamy (sam tytuł + zdjęcie rzadko rozstrzyga).
-* Zdjęcia jako URL - domyślnie WSZYSTKIE zdjęcia oferty (z zapisanych szczegółów `sidebar`; bez nich samo główne
-  z katalogu; prośba użytkownika 2026-10-25: bez limitu), `--photos N` ogranicza do N, 0 = sam tekst - pobiera je
+* Zdjęcia jako URL - z zapisanych szczegółów `sidebar` (bez nich samo główne z katalogu); w CLI domyślnie 3
+  (próba 2026-10-25: ~1 090 tokenów / zdjęcie, śr. 6,6 zdjęcia na ofertę), `--photos 0` = sam tekst. Zdjęcia,
+  których Vinted już nie udostępnia (usunięta oferta → dostawca AI: 404 „Cannot fetch content”), nie psują oceny:
+  ta sama oferta idzie od razu ponownie samym tekstem. Zdjęcia pobiera dostawca AI - nie nasze proxy, zero ruchu do
+  Vinted (sprawdzanie /services przed wysłaniem kosztowałoby proxy i i tak nie gwarantuje zdjęć). Pobiera je
   dostawca AI, nie nasze proxy. Dostawca i klucz jak w Sniperze (SNIPER_AI_PROVIDER / SNIPER_AI_API_KEY), model
   ANALYZER_AI_MODEL (domyślnie tani: gemini-3.8-flash / claude-haiku-5-5).
-* Główna baza tylko do odczytu; wynik i cache w `analysis.db: ai_condition` (klucz: tytuł + opis + zdjęcia - ta
-  sama treść nie idzie drugi raz). Przerwane w połowie - wznowienie od miejsca przerwania.
+* Główna baza tylko do odczytu; wynik i cache w `analysis.db: ai_condition` (klucz: tytuł + opis - ta
+  sama treść nie idzie drugi raz, także przy innym `--photos`). Przerwane w połowie - wznowienie od miejsca przerwania.
 * Przed wywołaniami: szacunek kosztu i pytanie o zgodę (`--yes` pomija pytanie, `--estimate` tylko liczy).
 * `report` bierze stan z AI zamiast z reguł tam, gdzie AI odpowiedziało (uszkodzona = na części / zbity ekran /
   blokada).
@@ -69,7 +72,7 @@ Nie oceniaj ceny ani uczciwości sprzedawcy. Odpowiedz wyłącznie JSON-em wedł
 CHARS_PER_TOKEN = 3.5
 INSTRUCTION_TOKENS = 450
 IMAGE_TOKENS = 1100
-OUTPUT_TOKENS = {"gemini": 350, "anthropic": 120}      # Gemini: + tokeny „myślenia” (thinking LOW)
+OUTPUT_TOKENS = {"gemini": 120, "anthropic": 120}      # próba 50 ofert (gemini-3.8-flash): śr. 97 z „myśleniem”
 
 
 def damaged(result):
@@ -95,8 +98,10 @@ def mentions_fault(title, description):
     return bool(FOR_PARTS.search(text) or CRACKED.search(text) or LOCKED.search(text))
 
 
-def content_key(title, description, photos):
-    return hashlib.sha256("\x1f".join([title or "", description or "", *photos]).encode()).hexdigest()
+def content_key(title, description, photos=()):
+    """Klucz pamięci wyników: tytuł + opis. Zdjęcia celowo poza kluczem - inne `--photos` nie wysyła ponownie
+    ofert już ocenionych (`--again` wymusza)."""
+    return hashlib.sha256("\x1f".join([title or "", description or ""]).encode()).hexdigest()
 
 
 def photo_urls(conn, row, n=None):
@@ -201,6 +206,14 @@ def estimate(items, provider, price):
     return lines
 
 
+def photo_unavailable(exc):
+    """Dostawca AI nie pobrał zdjęcia z podanego URL-a (Gemini: 404 NOT_FOUND „Cannot fetch content from the
+    provided URL”; Claude: błąd pobrania obrazu z URL)."""
+    text = str(exc).lower()
+    return "cannot fetch content" in text or ("url" in text and ("404" in text or "not_found" in text or
+                                                                  "could not" in text or "unable to" in text))
+
+
 STOP_AFTER_ERRORS = 10        # tyle błędów z rzędu = koniec środków / limit / brak sieci → przerwij przebieg
 
 
@@ -232,8 +245,17 @@ async def run(aconn, items, backend, concurrency=4, progress=True, flush_every=2
             if stats["stopped"]:                # przerwane - nie wysyłamy już nic
                 return item, None, 0, 0
             try:
-                text, (t_in, t_out) = await backend.ask(prompt_text(row, desc), urls, system=INSTRUCTION,
-                                                        schema=SCHEMA, max_tokens=300)
+                try:
+                    text, (t_in, t_out) = await backend.ask(prompt_text(row, desc), urls, system=INSTRUCTION,
+                                                            schema=SCHEMA, max_tokens=300)
+                except Exception as exc:
+                    if not urls or not photo_unavailable(exc):
+                        raise
+                    log.info("[AI] Oferta %s: zdjęcia niedostępne (usunięte z Vinted) - oceniam z samego opisu.",
+                             row["id"])
+                    item = (row, desc, [], key)
+                    text, (t_in, t_out) = await backend.ask(prompt_text(row, desc), [], system=INSTRUCTION,
+                                                            schema=SCHEMA, max_tokens=300)
                 result = parse_result(text)
                 streak[0] = 0
                 return item, result, t_in, t_out

@@ -322,3 +322,9 @@ Jeśli raport ma być do udostępnienia – opublikuj jako stronę (Artifact) i 
   szacunek kosztu i pytanie o zgodę przed wywołaniami, wyniki i cache w `analysis.db: ai_condition`, `report` używa
   stanu z AI zamiast reguł (uszkodzona = na części / zbity ekran / blokada). Raport zgodności AI vs reguły.
   Kolejność: `--estimate` → `--limit 50` (próba, sprawdzić przykłady w `ai_condition.txt`) → całość.
+* 2026-10-25, `ai-condition --limit 50` (gemini-3.8-flash, wszystkie zdjęcia): 46 ocenionych, 4 × 404 (zdjęcia
+  usuniętych ofert), śr. 7 840 / 97 tokenów na ofertę (≈ 1 090 tokenów / zdjęcie, 6,6 zdjęcia), $0,29. AI vs reguły
+  (v1): zgodność 30% – 32 × reguły „uszkodzona”, AI sprawna/drobna usterka; przykłady przyznają rację AI (zaprzeczenia
+  po litewsku „be jokių defektų”, rumuńsku „fără defecte”, „camera was broken but i fixed it”). Flagged = 8 739 ofert
+  / 58 466 zdjęć → całość ~$55 ze wszystkimi zdjęciami, ~$29 z 3, ~$10 sam tekst. Zmiany: domyślnie 3 zdjęcia,
+  404 zdjęcia → ponowienie samym tekstem (bez /services – zero ruchu przez proxy), klucz pamięci bez zdjęć.

@@ -20,7 +20,7 @@
   report [--age-days 14] [--photo-flag]   raport rynku: flagi + relisty + statystyki -> reports/<data>/summary.md,
                                           configs.csv, report.html (bez sieci, baza tylko do odczytu)
   export-analysis [--with-descriptions]   eksport do analizy w czacie (csv.gz, bez danych sprzedawców) -> export/<data>/
-  ai-condition [--scope flagged] [--photos N] [--limit N] [--estimate] [--yes]
+  ai-condition [--scope flagged] [--photos 3] [--limit N] [--estimate] [--yes]
                                           stan techniczny przez AI (opis + zdjęcia) -> analysis.db; najpierw koszt
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
@@ -463,8 +463,8 @@ def main(argv=None):
     p_aic.add_argument("--scope", default="flagged",
                        help="flagged (reguły: usterka albo wzmianka o usterce - domyślnie), sold (sprzedane / blocked "
                             "/ usunięte), all (wszystkie z opisem); po przecinku")
-    p_aic.add_argument("--photos", type=int, default=None,
-                       help="najwyżej tyle zdjęć na ofertę (domyślnie wszystkie; 0 = sam tekst)")
+    p_aic.add_argument("--photos", type=int, default=3,
+                       help="najwyżej tyle zdjęć na ofertę (domyślnie 3; 0 = sam tekst; 99 = wszystkie)")
     p_aic.add_argument("--limit", type=int, default=None, help="najwyżej tyle ofert (np. 50 na próbę)")
     p_aic.add_argument("--concurrency", type=int, default=4)
     p_aic.add_argument("--estimate", action="store_true", help="tylko policz oferty i koszt, bez wywołań AI")
