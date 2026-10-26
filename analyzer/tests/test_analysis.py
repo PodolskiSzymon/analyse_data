@@ -823,6 +823,7 @@ def test_auto_pipeline_publishes_guides(market, tmp_path):
     assert summary["ai"]["done"] == 20 and len(backend.calls) == 20
     assert (sniper / "guides" / "laptop.md").exists() and (sniper / "guides" / "phone.md").exists()
     assert (sniper / "guides" / "catalogs.json").exists()                     # SNIPER_CATALOGS=auto
+    assert (sniper / "guides" / "comparables.db").exists()                    # porównywalne oferty
     assert old.read_text(encoding="utf-8").startswith("# Laptopy")             # laptop.md → plik Snipera
     assert (sniper / "guidelines.md.bak").read_text(encoding="utf-8") == "ręczne wytyczne"
     assert sent and "wytyczne Snipera" in sent[0][0]
@@ -1114,3 +1115,25 @@ def test_remote_sniper_gets_own_env_not_pilots(tmp_path, monkeypatch):
                              extra={"drop_env": {"SNIPER_NTFY_MIN_SCORE"}})
     remote.spawn(program)
     assert "SNIPER_NTFY_MIN_SCORE" not in seen and seen["KEEP_ME"] == "1" and seen["PYTHONUNBUFFERED"] == "1"
+
+
+def test_comparables_db(relisted, flagged, tmp_path):
+    import sqlite3
+
+    from analyzer import comparables, guide
+    conn, aconn, truth = relisted
+    out = tmp_path / "2026-10-26" / "guides"
+    guide.build(conn, aconn, out)
+    db = sqlite3.connect(out / "comparables.db")
+    n = int(db.execute("SELECT value FROM meta WHERE key='rows'").fetchone()[0])
+    assert n > 100
+    rows = db.execute("SELECT price, gone FROM offers WHERE offers MATCH ? AND category = 'phone'",
+                      ('"iphone" "13" "128"',)).fetchall()
+    assert len(rows) > 10 and any(g for _, g in rows) and any(not g for _, g in rows)
+    assert db.execute("SELECT doc FROM vocab WHERE term = 'iphone'").fetchone()[0] > 10
+    assert comparables.tokens("PS5 Slim iPhone13") == ["playstation", "5", "slim", "iphone", "13"]
+    # oszustwa (flagi wykluczające) nie trafiają do porównań
+    fraud_prices = db.execute("SELECT price FROM offers WHERE offers MATCH ? AND price < 600",
+                              ('"iphone" "16" "pro"',)).fetchall()
+    assert not fraud_prices
+    db.close()

@@ -94,10 +94,14 @@ def publish(cfg, guides):
             shutil.copy2(path, target / path.name)
             copied.append(str(target / path.name))
         # Zakresy cen katalogów (Sniper: SNIPER_CATALOGS=auto) - z tego samego folderu co wytyczne.
-        extra = next(iter(guides.values()))[0].with_name("catalogs.json") if guides else None
-        if extra is not None and extra.exists():
-            shutil.copy2(extra, target / extra.name)
-            copied.append(str(target / extra.name))
+        folder = next(iter(guides.values()))[0].parent if guides else None
+        for name in ("catalogs.json", "comparables.db"):      # zakresy cen katalogów, porównywalne oferty
+            extra = folder / name if folder else None
+            if extra is not None and extra.exists():
+                tmp = target / (name + ".tmp")
+                shutil.copy2(extra, tmp)
+                tmp.replace(target / name)                      # Sniper nie czyta pliku w połowie kopiowania
+                copied.append(str(target / name))
     if cfg.sniper_guidelines_file and "laptop" in guides:
         target = Path(cfg.sniper_guidelines_file)
         if target.exists():

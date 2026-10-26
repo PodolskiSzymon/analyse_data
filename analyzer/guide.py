@@ -306,7 +306,8 @@ def build(conn, aconn, out, promo=PROMO, ship=SHIP, min_offers=8, progress=None)
 
     excluded = load_flags(aconn, tuple(f for f in EXCLUDING if f != "is_suspicious"))
     ai = load_damaged(aconn)
-    data = collect(conn, excluded, load_relists(aconn), ai, progress)
+    relists = load_relists(aconn)
+    data = collect(conn, excluded, relists, ai, progress)
     costs = promo + ship
     out.mkdir(parents=True, exist_ok=True)
     day = out.parent.name
@@ -324,6 +325,10 @@ def build(conn, aconn, out, promo=PROMO, ship=SHIP, min_offers=8, progress=None)
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         result[category] = (path, rows_)
     write_catalogs(result, out)
+    if result:
+        from . import comparables
+        (progress or (lambda _t: None))("  porównywalne oferty dla Snipera (comparables.db)...")
+        comparables.build(conn, out / "comparables.db", excluded, set(relists.values()), ai, progress)
     return result
 
 
