@@ -5,8 +5,9 @@ Bez sieci, główna baza tylko do odczytu; flagi, relisty i stan z AI z `analysi
 
 Reguła zysku użytkownika (2026-10-26, zmiana z 2026-10-25): zysk = cena sprzedaży − koszt zakupu − koszty (Podbicie
 międzynarodowe 7 dni ~26 zł + wysyłka ~20 zł), marża = zysk / cena sprzedaży; zysk ZAWSZE ≥ 300 zł („zysk < 300 zł to
-za mało”), a przy niższej marży rośnie: ≥ 40% → 300 zł, 35% → 400, 30% → 500, 25% → 600, 20% → 700 (+20 zł na punkt),
-< 20% → nie kupujemy. (Wcześniej: 30% → 700 zł +40 zł/pkt i wyjątek 30% / 150 zł dla tańszych - usunięty.)
+za mało”), a przy niższej marży rośnie: ≥ 40% → 300 zł, 35% → 400, 30% → 500 (+20 zł na punkt), marża < 30% → nie
+kupujemy (2026-10-26 po ofercie S25 z marżą 19%: „dla sprzętu powyżej 1000 zł marża min. 30%” - poniżej 1000 zł
+zysk ≥ 300 zł i tak wymusza ≥ 30%). (Wcześniej: dopuszczalne 20–30% marży; 30% → 700 zł +40 zł/pkt; wyjątek 150 zł.)
 
 Grupy (tylko sprawne - stan z AI, inaczej z reguł; bez flag wykluczających i ofert z relistem):
 laptopy - karta graficzna (gamingowe), MacBooki - linia + chip + RAM, reszta - linia CPU + RAM; telefony / tablety -
@@ -33,6 +34,7 @@ PROMO, SHIP = 26.0, 20.0
 CAT_TITLE = {"laptop": "Laptopy", "phone": "Telefony", "tablet": "Tablety", "console": "Konsole",
              "gpu": "Karty graficzne", "ram": "Pamięci RAM", "storage": "Dyski SSD"}
 MIN_PROFIT, PROFIT_PER_POINT = 300.0, 20.0  # zysk ≥ 300 zł; +20 zł za każdy punkt marży poniżej 40%
+MIN_MARGIN = 0.30                            # marża poniżej 30% - nigdy
 MIXED_BELOW = 0.10                 # > 10% aktywnych ofert już ≤ max zakup → grupa mieszana, cena sprzedaży niepewna
 TOP_ROWS = 80                      # wierszy tabeli na kategorię (koszt tokenów w zapytaniu Snipera)
 # Katalogi Vinted Snipera → nasze kategorie (jak sniper/categories.py; mieszane - kategoria z tytułu).
@@ -46,8 +48,8 @@ PRICE_TO_HEADROOM = 1.15           # do „Zaproponuj cenę”: oferta trochę p
 
 
 def min_profit(margin):
-    """Minimalny zysk (zł) przy danej marży; None = za niska marża (< 20%)."""
-    if margin < 0.20 - 1e-9:
+    """Minimalny zysk (zł) przy danej marży; None = za niska marża (< 30%)."""
+    if margin < MIN_MARGIN - 1e-9:
         return None
     return MIN_PROFIT if margin >= 0.40 else MIN_PROFIT + PROFIT_PER_POINT * 100 * (0.40 - margin)
 
@@ -56,13 +58,13 @@ def max_buy(sale, costs=PROMO + SHIP):
     """Najwyższa cena zakupu, przy której flip spełnia regułę (zysk ≥ min_profit(marża)) → (cena, zysk, marża) albo
     None, gdy przy tej cenie sprzedaży żaden zakup się nie opłaca.
 
-    Najmniejszy dopuszczalny zysk P*: w przedziale marży 20–40% warunek P ≥ 300 + 2000·(0,4 − P/S) daje
-    P ≥ 1100·S / (S + 2000) (i zawsze ≥ 300 zł, ≥ 20% S); przy marży ≥ 40% wystarcza P ≥ max(0,4·S, 300)."""
+    Najmniejszy dopuszczalny zysk P*: w przedziale marży 30–40% warunek P ≥ 300 + 2000·(0,4 − P/S) daje
+    P ≥ 1100·S / (S + 2000) (i zawsze ≥ 300 zł, ≥ 30% S); przy marży ≥ 40% wystarcza P ≥ max(0,4·S, 300)."""
     if not sale or sale <= 0:
         return None
     k = PROFIT_PER_POINT * 100
     candidates = [max(0.4 * sale, MIN_PROFIT)]
-    p2 = max(0.2 * sale, MIN_PROFIT, (MIN_PROFIT + 0.4 * k) * sale / (sale + k))
+    p2 = max(MIN_MARGIN * sale, MIN_PROFIT, (MIN_PROFIT + 0.4 * k) * sale / (sale + k))
     if p2 < 0.4 * sale:
         candidates.append(p2)
     profit = min(candidates)
@@ -232,7 +234,7 @@ def _zl(v):
 
 
 def header(category, costs, day, ai_count):
-    profit_table = " · ".join(f"{m}% → {_zl(min_profit(m / 100))} zł" for m in (40, 35, 30, 25, 20))
+    profit_table = " · ".join(f"{m}% → {_zl(min_profit(m / 100))} zł" for m in (40, 35, 30))
     return [
         f"# {CAT_TITLE[category]} – wytyczne oceny okazji (z danych rynku, {day})", "",
         "## Strategia kupującego",
@@ -241,7 +243,7 @@ def header(category, costs, day, ai_count):
         f"- Koszty jednej transakcji: Podbicie ~{PROMO:.0f} zł + wysyłka ~{SHIP:.0f} zł (PL ~15, z daleka do 50) = "
         f"**{costs:.0f} zł**. Opłatę Vinted (5% + 2,90 zł) i weryfikację elektroniki płaci kupujący.",
         "- **Zysk** = cena sprzedaży − cena zakupu − koszty; **marża** = zysk / cena sprzedaży.",
-        f"- Minimalny zysk zależy od marży: {profit_table}; marża < 20% – nie kupuję.",
+        f"- Minimalny zysk zależy od marży: {profit_table}; marża < 30% – nie kupuję (także przy drogim sprzęcie).",
         f"- Zysk nigdy poniżej {_zl(MIN_PROFIT)} zł – mniejszy zysk nie jest wart zachodu.",
         "- Sprzedawca z Polski: paczka dochodzi w 1–2 dni zamiast ~5–10 z zagranicy – krócej mrożę gotówkę, szybciej "
         "obracam kapitałem. Program sam dodaje +1 do oceny okazji z Polski – oceniaj bez tej premii; w "

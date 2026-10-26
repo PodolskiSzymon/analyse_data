@@ -621,20 +621,20 @@ def test_ai_condition_retries_rate_limit_and_runs_in_parallel(market, tmp_path):
 
 def test_profit_rule_matches_user_examples():
     from analyzer.guide import max_buy, min_profit
-    # 2026-10-26: zysk zawsze ≥ 300 zł, 30% → 500 zł, +20 zł na punkt marży poniżej 40%
-    assert [min_profit(m) for m in (0.45, 0.40, 0.35, 0.30, 0.25, 0.20)] == pytest.approx(
-        [300, 300, 400, 500, 600, 700])
-    assert min_profit(0.19) is None
-    for buy, sale in ((1350, 2375), (2500, 3650), (3660, 4700)):       # flipy użytkownika (koszty 46 zł)
+    # 2026-10-26: zysk zawsze ≥ 300 zł, 35% → 400, 30% → 500 zł, marża < 30% nigdy (S25: 19% przyszło jako okazja)
+    assert [min_profit(m) for m in (0.45, 0.40, 0.35, 0.30)] == pytest.approx([300, 300, 400, 500])
+    assert min_profit(0.29) is None and min_profit(0.19) is None
+    for buy, sale in ((1350, 2375), (2500, 3650)):                     # flipy użytkownika (koszty 46 zł)
         limit, profit, margin = max_buy(sale)
         assert buy <= limit, (buy, sale, limit)
-        assert profit >= min_profit(margin) - 0.01 and profit >= 300
-    for sale in range(400, 9000, 25):                                  # nigdy zysk < 300 ani reguła złamana
+    assert max_buy(4700)[0] < 3660                                      # Scar 17 (22%) - dziś już za drogo
+    for sale in range(400, 20000, 25):                                 # nigdy zysk < 300 ani marża < 30%
         deal = max_buy(sale)
         if deal:
-            assert deal[1] >= 300 - 1e-6 and deal[1] >= min_profit(deal[2]) - 1e-6, sale
-    assert max_buy(340) is None                                         # 300 zł zysku + 46 kosztów > 340
-    assert max_buy(850)[1] == pytest.approx(1100 * 850 / 2850)          # iPhone 13: ~328 zł przy ~39% marży
+            assert deal[1] >= 300 - 1e-6 and deal[2] >= 0.30 - 1e-9 and deal[1] >= min_profit(deal[2]) - 1e-6, sale
+    s25 = max_buy(2394)                                                 # Galaxy S25 z maila: max zakup ~1 630 zł
+    assert s25[2] >= 0.30 and s25[0] < 1899
+    assert max_buy(340) is None
     buys = [max_buy(x)[0] for x in range(400, 6000, 10)]               # bez skoków: droższa sprzedaż = wyższy próg
     assert all(b2 > b1 for b1, b2 in zip(buys, buys[1:]))
 
@@ -672,7 +672,7 @@ def test_sniper_guide_files(relisted, flagged, tmp_path):
     assert set(result) == set(analysis.CATEGORIES)
     path, rows = result["phone"]
     text = path.read_text(encoding="utf-8")
-    assert "≤ 7 dni" in text and "40% → 300 zł" in text and "30% → 500 zł" in text and "20% → 700 zł" in text
+    assert "≤ 7 dni" in text and "40% → 300 zł" in text and "30% → 500 zł" in text and "marża < 30%" in text
     assert "nigdy poniżej 300 zł" in text and "Sprzedawca z Polski" in text
     iphone = next(r for r in rows if r["name"] == "iphone 13 128 GB")
     assert iphone["src"].startswith("zniknięte") and iphone["buy"] < iphone["sale"]
