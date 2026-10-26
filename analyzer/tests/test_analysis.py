@@ -334,7 +334,7 @@ def test_export_analysis(market, tmp_path, flagged):
                            "flags.csv", "relists.csv", "descriptions.jsonl.gz"}
     with gzip.open(tmp_path / "listings.csv.gz", "rt", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
-    assert "seller_hash" not in rows[0] and "photo_url" not in rows[0]              # RODO / zbędne
+    assert "seller_hash" in rows[0] and "photo_url" not in rows[0]                  # sprzedawca jako hash
     assert len(rows) == sum(1 for r in truth.rows.values() if r["state"] != "ignored")
     # observations: pierwsza + prawdziwe zmiany - dryf kursu (<1% u zagranicznych) wycięty
     with gzip.open(tmp_path / "observations_real.csv.gz", "rt", encoding="utf-8") as f:
@@ -348,6 +348,32 @@ def test_export_analysis(market, tmp_path, flagged):
     assert result["flags.csv"][0] == sum(len(v) for v in truth.flags.values())
     lines = export.size_lines(result, tmp_path)
     assert lines[-1].strip().startswith("razem")
+
+
+def test_export_analysis_split(market, tmp_path, flagged):
+    """--split: folder na kategorię, te same wiersze co bez podziału; wspólne pliki w folderze głównym."""
+    import csv
+    import gzip
+
+    from analyzer import export
+    path, truth = market
+    conn, aconn = analysis.open_ro(path), analysis.open_analysis(path)
+    whole = export.run(conn, tmp_path / "a", aconn, with_descriptions=True, progress=False)
+    split = export.run(conn, tmp_path / "b", aconn, with_descriptions=True, progress=False, split=True)
+    cats = {r[0] for r in conn.execute("SELECT DISTINCT category FROM listings WHERE state NOT IN "
+                                       "('ignored', 'unclassified')")}
+    conn.close()
+    aconn.close()
+    for name in ("listings.csv.gz", "features.csv.gz", "observations_real.csv.gz", "descriptions.jsonl.gz"):
+        parts = {k: v for k, v in split.items() if k.endswith("/" + name)}
+        assert parts and sum(n for n, _ in parts.values()) == whole[name][0], name
+    assert {k.split("/")[0] for k in split if "/" in k and k.endswith("listings.csv.gz")} == cats
+    assert "crawl_runs.csv" in split and "flags.csv" in split
+    cat = sorted(cats)[0]
+    with gzip.open(tmp_path / "b" / cat / "listings.csv.gz", "rt", encoding="utf-8") as f:
+        assert {r["category"] for r in csv.DictReader(f)} == {cat}
+    lines = export.size_lines(split, tmp_path / "b")
+    assert any(line.strip().startswith(cat + "/") for line in lines)
 
 
 def test_delay_buckets_and_price_ratios(stats_result):

@@ -115,7 +115,7 @@ class AnalyzerConfig:
     # 2 przejściach co 10-14 h zwłoka sięgała 1-2 dób. Fałszywe zniknięcie (oferta wraca) resolver rozpozna jako
     # aktywną / unlisted - koszt: jedno tanie zapytanie.
     gone_after_runs: int = _env_int("ANALYZER_GONE_AFTER_RUNS", 1)
-    # Sól do hasha sprzedawcy (RODO). Pusta = hash sprzedawcy nie jest zapisywany wcale.
+    # Sól do hasha sprzedawcy. Pusta = stała catalog.DEFAULT_SELLER_SALT (hash zapisywany zawsze, od 2026-10-26).
     seller_salt: str = _env("ANALYZER_SELLER_SALT")
     # Kategorie, w których szczegóły pobieramy dla KAŻDEJ śledzonej oferty (details w watch). W pozostałych tylko
     # przy zniknięciu oferty (resolver zapisuje opis sprzedanej z tej samej odpowiedzi) - oszczędność transferu

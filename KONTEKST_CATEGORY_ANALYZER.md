@@ -41,8 +41,8 @@ Pełna architektura, schemat bazy, etapy i kryteria ukończenia: **`ARCHITEKTURA
   bez zgadywania endpointów** (zasada przeniesiona ze Snipera).
 * **Tempo**: pełne przejście katalogu rozłożone w czasie, losowe przerwy; budżet na proxy nie jest problemem, problemem
   jest zbyt agresywne tempo.
-* **RODO**: nazw/ID sprzedawców nie zapisujemy (do analizy cen niepotrzebne) – najwyżej hash, jeśli trzeba liczyć
-  „ofert na sprzedawcę”.
+* **Sprzedawcy** (zmiana 2026-10-26 – patrz CLAUDE.md): hash sprzedawcy zapisywany zawsze (handlarze, relisty,
+  „ofert na sprzedawcę”), w eksporcie `seller_hash`; nicków nie zbieramy.
 * **Cena „sprzedaży” = ostatnia cena wystawienia** (Vinted ma „Zaproponuj cenę” – faktyczna cena transakcji bywa niższa
   i nie jest widoczna). W raportach traktować jako górną granicę.
 * Dane (`data/`) i `.env` nigdy w repo. Nie commitować sekretów.

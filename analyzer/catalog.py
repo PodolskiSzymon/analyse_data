@@ -89,12 +89,18 @@ def parse_item_box(item):
     return found
 
 
+# 2026-10-26 (decyzja użytkownika): hash sprzedawcy zapisujemy zawsze - do wykrywania handlarzy / relistów i liczenia
+# „ofert na sprzedawcę” w analizie. Bez własnej soli (ANALYZER_SELLER_SALT) - stała poniżej (zmiana soli = nowe hashe,
+# stare oferty nie połączą się z nowymi, więc raz ustawionej nie zmieniać).
+DEFAULT_SELLER_SALT = "vinted-analyzer"
+
+
 def _seller_hash(item, salt):
     user = item.get("user")
     user_id = user.get("id") if isinstance(user, dict) else item.get("user_id")
-    if not salt or user_id is None:
+    if user_id is None:
         return None
-    return hashlib.sha256(f"{salt}:{user_id}".encode()).hexdigest()[:24]
+    return hashlib.sha256(f"{salt or DEFAULT_SELLER_SALT}:{user_id}".encode()).hexdigest()[:24]
 
 
 # Kraj sprzedawcy nie jest daną osobową, a jest potrzebny (premia za Polskę w guidelines, oferty zagraniczne).
@@ -109,7 +115,8 @@ def seller_country(item):
 
 
 def strip_personal(item):
-    """Kopia pozycji bez danych sprzedawcy (RODO) - tak trafia do tabeli `raw`. Zostaje tylko kraj sprzedawcy."""
+    """Kopia pozycji bez danych sprzedawcy - tak trafia do tabeli `raw` (nick niepotrzebny, w listings jest hash).
+    Zostaje tylko kraj sprzedawcy."""
     clean = dict(item)
     if isinstance(clean.get("user"), dict):
         kept = {k: clean["user"][k] for k in COUNTRY_KEYS if clean["user"].get(k) is not None}

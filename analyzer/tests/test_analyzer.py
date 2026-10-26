@@ -147,14 +147,18 @@ def test_raw_roundtrip_and_no_personal_data():
     (fetched_at, raw), = db.get_raw(conn, 5, "catalog")
     assert raw["user"] == {"redacted": True} and raw["title"] == "ThinkPad"
     row = conn.execute("SELECT * FROM listings WHERE id=5").fetchone()
-    assert row["seller_hash"] is None and row["last_run_id"] == 2
+    assert row["seller_hash"] and "77" not in row["seller_hash"] and row["last_run_id"] == 2   # hash, bez nicka
     assert rawstore.decompress(rawstore.compress({"a": "ż"})) == {"a": "ż"}
 
 
-def test_seller_hash_only_with_salt():
+def test_seller_hash_stable_and_salted():
     item = parse_item({"id": 1, "user": {"id": 77}}, 3580, seller_salt="sol")
     other = parse_item({"id": 2, "user": {"id": 77}}, 3580, seller_salt="sol")
     assert item.seller_hash and item.seller_hash == other.seller_hash and "77" not in item.seller_hash
+    default = parse_item({"id": 1, "user": {"id": 77}}, 3580)                  # bez soli - stała domyślna
+    assert default.seller_hash and default.seller_hash != item.seller_hash
+    assert parse_item({"id": 3, "user": {"id": 78}}, 3580).seller_hash != default.seller_hash
+    assert parse_item({"id": 4}, 3580).seller_hash is None
 
 
 def test_parse_item_missing_fields_are_none():

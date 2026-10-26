@@ -19,7 +19,9 @@
   relist-report                           ponowne wystawienia (usunięta + wystawiona od nowa) -> analysis.db
   report [--age-days 14] [--photo-flag]   raport rynku: flagi + relisty + statystyki -> reports/<data>/summary.md,
                                           configs.csv, report.html (bez sieci, baza tylko do odczytu)
-  export-analysis [--with-descriptions]   eksport do analizy w czacie (csv.gz, bez danych sprzedawców) -> export/<data>/
+  export-analysis [--with-descriptions] [--split]
+                                          eksport do analizy w czacie (csv.gz, sprzedawca jako hash) -> export/<data>/;
+                                          --split = osobny folder na kategorię
   ai-condition [--scope flagged] [--photos 3] [--limit N] [--estimate] [--yes]
                                           stan techniczny przez AI (opis + zdjęcia) -> analysis.db; najpierw koszt
   sniper-guide [--promo 26] [--ship 20]   wytyczne dla Snipera z danych (ceny, max zakup wg reguły zysku) -> guides/
@@ -487,10 +489,12 @@ def main(argv=None):
                           help="aktywne starsze niż tyle dni liczą się do mianownika sell-through (domyślnie 14)")
     p_report.add_argument("--photo-flag", action="store_true", help="wykluczaj też is_suspicious (po suspicious-diag)")
     p_export = sub.add_parser("export-analysis", help="oferty, parametry, prawdziwe zmiany cen, przejścia (+ flagi, "
-                                                      "relisty) -> export/<data>/*.csv.gz - bez sieci, bez danych "
-                                                      "sprzedawców")
+                                                      "relisty) -> export/<data>/*.csv.gz - bez sieci, sprzedawca "
+                                                      "tylko jako hash")
     p_export.add_argument("--with-descriptions", action="store_true",
                           help="także opisy (e-mail/telefon/link zamaskowane, max 2000 znaków) -> descriptions.jsonl.gz")
+    p_export.add_argument("--split", action="store_true",
+                          help="osobny folder na kategorię (listings, features, observations, opisy) - mniejsze paczki")
     p_aic = sub.add_parser("ai-condition", help="stan techniczny (sprawna / usterka / na części, zbity ekran, "
                                                 "blokada) przez AI z opisu i zdjęć -> analysis.db; przed wywołaniami "
                                                 "szacunek kosztu")
@@ -670,7 +674,9 @@ def main(argv=None):
         conn = analysis.open_ro(cfg.db_path)
         aconn = analysis.open_analysis(cfg.db_path) if analysis.analysis_path(cfg.db_path).exists() else None
         out = analysis.out_dir(cfg.db_path, "export")
-        result = export.run(conn, out, aconn, args.with_descriptions, say=say)
+        result = export.run(conn, out, aconn, args.with_descriptions, say=say, split=args.split)
+        hashed, total = conn.execute("SELECT COUNT(seller_hash), COUNT(*) FROM listings").fetchone()
+        say(f"  sprzedawca (hash) znany w {hashed}/{total} ofert - aktywne uzupełni kolejne przejście watch/crawl")
         conn.close()
         if aconn is not None:
             aconn.close()

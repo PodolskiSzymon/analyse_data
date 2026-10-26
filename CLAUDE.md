@@ -21,8 +21,11 @@ zbierającego dane albo czegoś, czego tu nie ma). Szczegóły Snipera: `sniper/
 * Zapytania do Vinted tylko na podstawie realnego ruchu przeglądarki (cURL z F12) albo testu u użytkownika –
   **bez zgadywania endpointów**. Budżet proxy jest ograniczony (Evomi) – analiza ma działać **bez sieci**.
 * **Nie commitować** sekretów (`.env`, hasła, klucze, tokeny, temat ntfy) ani danych (`data/`, `*.db`, eksporty).
-* **RODO**: nazw/ID sprzedawców nie zapisujemy i nie eksportujemy. W eksportach z opisami maskować e-mail/telefon/URL
-  (`analyzer/sample.py: redact`).
+* **Sprzedawcy** (zmiana zasady 2026-10-26, decyzja użytkownika – pseudonimy z Vinted to dla niego nie są dane
+  wrażliwe): sprzedawcę zapisujemy i eksportujemy jako stały hash (`listings.seller_hash`, zawsze – sól
+  `ANALYZER_SELLER_SALT` albo stała domyślna) do analizy handlarzy / relistów / „ofert na sprzedawcę”. Nicków nie
+  zbieramy, bo do analizy niepotrzebne (nie zakaz). Dane i eksporty nadal NIE trafiają do repo. W eksportach z opisami
+  dalej maskować e-mail/telefon/URL (`analyzer/sample.py: redact`).
 * Cena „sprzedaży” = ostatnia cena wystawienia (Vinted ma „Zaproponuj cenę”) → w raportach **górna granica**.
 * Nie tworzyć PR bez prośby. Commity na gałąź **`claude/hopeful-faraday-n33quh`** (w tym repo i w `unreachable_sniper`;
   `main` jest stary - użytkownik na serwerze używa tej gałęzi), dawniej: `main` tego repo (repo było puste),

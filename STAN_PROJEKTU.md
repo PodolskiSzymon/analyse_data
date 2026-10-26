@@ -143,9 +143,10 @@ Stary rdzeń zbierania (crawl/watch/resolver/details/extract) opisany w `KONTEKS
 ## 7. Zasady pracy (skrót `CLAUDE.md`)
 
 Po polsku (także komentarze w kodzie). Claude **nie ma dostępu do vinted.pl ani bazy** – kod + testy na atrapach,
-użytkownik uruchamia i wkleja wynik. Bez sekretów i danych w repo (`.env`, `*.db`, `data/`, eksporty). **RODO**: bez
-nazw/ID sprzedawców w eksportach/analizach (uwaga: `oceny.html` Snipera ma nazwę sprzedawcy – lokalnie u użytkownika,
-nie przenosić do repo ani odpowiedzi). Zapytania do Vinted tylko z realnego ruchu przeglądarki – bez zgadywania
+użytkownik uruchamia i wkleja wynik. Bez sekretów i danych w repo (`.env`, `*.db`, `data/`, eksporty). **Sprzedawcy**
+(zmiana 2026-10-26, decyzja użytkownika): w bazie i eksportach jako stały hash (`seller_hash`, zapisywany zawsze),
+nicków nie zbieramy (niepotrzebne); `export-analysis --split` = paczka na kategorię do wysłania w czacie (Claude nie
+otworzy linku do Dysku bez connectora). Zapytania do Vinted tylko z realnego ruchu przeglądarki – bez zgadywania
 endpointów. Commit + push po każdej zmianie na `claude/hopeful-faraday-n33quh` w danym repo; testy obu repo przed
 pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`git pull` w obu, `sniper-guide`,
 `restart sniper`).
@@ -173,6 +174,10 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
    dzienny nie działa – OpenRouter podaje koszt sam).
 8. **Sprzedawcy zagraniczni**: większość ofert RO/SK/LT/SE; rozważyć karę/limit czasu dostawy w ocenie lub filtr
    krajów; waluty przeliczane przez Vinted.
+8a. **Handlarze (hash sprzedawcy, od 2026-10-26)**: `seller_hash` zapisywany zawsze – starsze zniknięte oferty go
+   nie mają, aktywne uzupełnia każde przejście. Gdy użytkownik wyśle `export-analysis --split`: udział ofert od
+   sprzedawców z ≥ 5 ofertami w grupie, czy psują medianę / szybkość sprzedaży, relisty u tego samego sprzedawcy
+   (lepsze wykrywanie relistów), ew. wykluczenie handlarzy z „sprzedam za ~”.
 9. **Backtest** (pozostałość D5): ocena historii ofert nowymi regułami vs to, co się sprzedało.
 10. **Drobne**: nazwy grup typu „Xbox serie S i X seriess”; `catalogs.json` od 50 zł (dużo tanich ofert – bramka
     i reguła 300 zł je odcinają, ale kosztuje to szczegóły przez proxy); procesory jako kategoria (użytkownik pytał;
