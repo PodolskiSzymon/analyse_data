@@ -1,8 +1,8 @@
 # analyse_data – analiza rynku Vinted (kontynuacja `category_analyzer`)
 
 **Gdy użytkownik napisze „wykonaj md” → przeczytaj CAŁY `STAN_PROJEKTU.md` (pełny stan projektu analizator +
-Sniper z 2026-10-26, reguły biznesowe, infrastruktura, niedoskonałości) i postępuj wg jego nagłówka i sekcji
-„8. Do zrobienia”.** (Dawne „wykonaj plan” = `PLAN_ANALIZY.md`, części A–E zrobione; jego dziennik wyników nadal
+Sniper z 2026-10-26, reguły biznesowe, infrastruktura, niedoskonałości), potem CAŁY `PLAN_OCENY.md` (główny plan:
+dokładna ocena ofert bez zgadywania przez AI, fazy F0–F5) i postępuj wg nich – zacznij od F0.** (Dawne „wykonaj plan” = `PLAN_ANALIZY.md`, części A–E zrobione; jego dziennik wyników nadal
 aktualny.) Nie pytaj o rzeczy, które pliki już rozstrzygają.
 
 To repo jest **zrzutem** `PodolskiSzymon/category_analyzer` (gałąź `claude/focused-johnson-6ytqgt`, commit `26110ca`,

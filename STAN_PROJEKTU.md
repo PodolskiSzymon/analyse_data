@@ -3,8 +3,10 @@
 > **Dla Claude w nowej rozmowie („wykonaj md”):** przeczytaj CAŁY ten plik, potem `CLAUDE.md` (zasady),
 > a przy pracy nad kodem – pliki wskazane w sekcjach. Repo `unreachable_sniper` NIE jest w tej sesji domyślnie:
 > dodaj je narzędziem `add_repo` (owner `PodolskiSzymon`, repo `unreachable_sniper`, dostęp `push`), sklonuj i
-> przełącz na gałąź `claude/hopeful-faraday-n33quh`. Potem zacznij od sekcji **8. Do zrobienia** – najpierw zapytaj
-> użytkownika o świeże `oceny.html` + `mails.csv` + linię kosztu AI (punkt 8.1), bo od nich zależy kalibracja.
+> przełącz na gałąź `claude/hopeful-faraday-n33quh`. **Potem przeczytaj CAŁY `PLAN_OCENY.md` – to główny plan
+> dalszej pracy** (ocena ofert: „AI rozpoznaje, dane wyceniają, program decyduje”; fazy F0–F5, dane i pytania do
+> użytkownika). Zacznij od jego F0: pytania §11 + dane D1 (`status`, `diag`). Sekcja 8 niżej = pozostałe
+> niedoskonałości i kontekst (część z nich plan już obejmuje).
 
 ---
 
@@ -153,6 +155,10 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
 
 ## 8. Do zrobienia / niedoskonałości (priorytety)
 
+0. **GŁÓWNY PLAN: `PLAN_OCENY.md`** (2026-10-26) – taksonomia modeli, ceny S7 z danych (`prices.json`), AI tylko do
+   rozpoznania i stanu (z cytatami jako dowodem), deterministyczna ocena, pętla zwrotna (flipy, wynik alertów,
+   backtest). Punkty 1, 3, 4, 5, 7, 9 niżej są jego częścią. **YOLO / zbiór zdjęć – odrzucone i cofnięte 26.10.**
+
 1. **Kalibracja na nowych danych (najpierw):** poprosić o `oceny.html`, `mails.csv` z 2–3 dni po zmianach z 26.10 i
    linię kosztu (`log sniper` → „dziś ~$…”). Sprawdzić: ile 8–10, czy reguła/limity działają, ile kosztuje dzień,
    ile ofert odcina bramka z podobnych, czy flash-lite trafnie ocenia okazje. (Parser kart: regexy po
@@ -187,6 +193,7 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
 
 | temat | plik |
 |---|---|
+| **plan dokładnej oceny (główny)** | `PLAN_OCENY.md` |
 | zasady pracy | `analyse_data/CLAUDE.md`, `unreachable_sniper/CLAUDE.md` |
 | historia analizatora, API Vinted | `KONTEKST_CATEGORY_ANALYZER.md`, `PLAN_ANALIZY.md` (dziennik wyników na końcu) |
 | serwer, pilot, uruchamianie | `PILOT.md`, `ENV_SERWER.example`, `remote.bat`, `watch.bat` |
