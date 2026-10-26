@@ -1,8 +1,9 @@
 # analyse_data – analiza rynku Vinted (kontynuacja `category_analyzer`)
 
-**Gdy użytkownik napisze „wykonaj md” (albo „wykonaj plan”) → otwórz `PLAN_ANALIZY.md` i wykonuj go krok po kroku,
-od pierwszego niezrobionego kroku (lista kontrolna na końcu pliku). Po każdym kroku odhacz go w `PLAN_ANALIZY.md`,
-commit + push.** Nie pytaj o rzeczy, które plik już rozstrzyga.
+**Gdy użytkownik napisze „wykonaj md” → przeczytaj CAŁY `STAN_PROJEKTU.md` (pełny stan projektu analizator +
+Sniper z 2026-10-26, reguły biznesowe, infrastruktura, niedoskonałości) i postępuj wg jego nagłówka i sekcji
+„8. Do zrobienia”.** (Dawne „wykonaj plan” = `PLAN_ANALIZY.md`, części A–E zrobione; jego dziennik wyników nadal
+aktualny.) Nie pytaj o rzeczy, które pliki już rozstrzygają.
 
 To repo jest **zrzutem** `PodolskiSzymon/category_analyzer` (gałąź `claude/focused-johnson-6ytqgt`, commit `26110ca`,
 2026-10-24): cały kod `analyzer/` + `sniper/`, dokumentacja i testy (333 testy przechodzą). Pełna historia decyzji
@@ -23,7 +24,8 @@ zbierającego dane albo czegoś, czego tu nie ma). Szczegóły Snipera: `sniper/
 * **RODO**: nazw/ID sprzedawców nie zapisujemy i nie eksportujemy. W eksportach z opisami maskować e-mail/telefon/URL
   (`analyzer/sample.py: redact`).
 * Cena „sprzedaży” = ostatnia cena wystawienia (Vinted ma „Zaproponuj cenę”) → w raportach **górna granica**.
-* Nie tworzyć PR bez prośby. Commity na gałąź domyślną `main` tego repo (repo było puste – nie ma innej gałęzi),
+* Nie tworzyć PR bez prośby. Commity na gałąź **`claude/hopeful-faraday-n33quh`** (w tym repo i w `unreachable_sniper`;
+  `main` jest stary - użytkownik na serwerze używa tej gałęzi), dawniej: `main` tego repo (repo było puste),
   chyba że użytkownik powie inaczej. W commitach/kodzie nie wpisywać identyfikatora modelu AI.
 
 ## Uruchomienie (u użytkownika)

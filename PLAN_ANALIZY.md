@@ -439,3 +439,6 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
   30% → 500, 25% → 600, 20% → 700 (+20 zł/pkt), < 20% nie; wyjątek 30% / 150 zł usunięty. Okazje od sprzedawców
   z Polski +1 do oceny w Sniperze (krótsza dostawa = szybszy obrót gotówką). Koszt zakupu w Sniperze z opłatą Vinted
   dla kupującego (5% + 2,90 zł).
+* 2026-10-26 (koniec rozmowy): pełny stan projektu, reguły i lista niedoskonałości → **`STAN_PROJEKTU.md`**
+  („wykonaj md” w nowej rozmowie). Reguła: zysk ≥ 300 zł, marża ≥ 30% (35% → 400, 30% → 500), Polska +1,
+  program egzekwuje regułę po AI, podobne oferty z bazy (`comparables.db`), pilot, sprzęt testowy kupiony.
