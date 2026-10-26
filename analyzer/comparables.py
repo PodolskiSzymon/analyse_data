@@ -13,7 +13,7 @@ from pathlib import Path
 
 STATES = ("active", "reserved", "sold", "blocked", "deleted", "closed")
 GONE = ("sold", "blocked", "deleted", "closed")
-_ALIASES = ((re.compile(r"\bps\s?([345])\b"), r"playstation \1"),)
+_ALIASES = ((re.compile(r"\bps\s?([345])\b"), r"playstation \1"), (re.compile(r"\bgameboy\b"), "game boy"))
 
 
 def tokens(text):
