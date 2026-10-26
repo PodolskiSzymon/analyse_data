@@ -99,8 +99,24 @@ def default_programs(cfg):
         venv = Path(sniper_dir) / ".venv" / ("Scripts" if os.name == "nt" else "bin") / \
             ("python.exe" if os.name == "nt" else "python")
         python = str(venv) if venv.exists() else sys.executable
-        programs["sniper"] = Program("sniper", [python, "-m", "sniper"], sniper_dir, logs / "sniper.log")
+        programs["sniper"] = Program("sniper", [python, "-m", "sniper"], sniper_dir, logs / "sniper.log",
+                                     extra={"drop_env": own_env_keys()})
     return programs
+
+
+def own_env_keys(path=None):
+    """Nazwy ustawień z .env pilota (analyse_data/sniper/.env). Pilot ma je w swoim środowisku (load_dotenv), a Sniper
+    nie nadpisuje już ustawionych - bez usunięcia wygrałyby nad unreachable_sniper/sniper/.env (2026-10-26:
+    SNIPER_NTFY_MIN_SCORE=8 w pliku Snipera, a powiadomienia dalej od 5 z pliku pilota)."""
+    path = Path(path) if path else ROOT / "sniper" / ".env"
+    if not path.exists():
+        return set()
+    keys = set()
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            keys.add(line.split("=", 1)[0].replace("export ", "").strip())
+    return keys
 
 
 def pid_alive(pid):
@@ -144,7 +160,9 @@ def spawn(program):
     out.write(f"\n===== start {time.strftime('%Y-%m-%d %H:%M:%S')} =====\n")
     out.flush()
     flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
-    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
+    drop = program.extra.get("drop_env") or ()
+    env = {k: v for k, v in os.environ.items() if k not in drop}        # Sniper czyta własny .env
+    env.update(PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
     proc = subprocess.Popen(program.cmd, cwd=program.cwd, stdout=out, stderr=subprocess.STDOUT,
                             stdin=subprocess.DEVNULL, creationflags=flags, env=env)
     pid_file.write_text(str(proc.pid))

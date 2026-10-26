@@ -1091,3 +1091,26 @@ def test_find_search(market):
     assert "mediana" in text and "seller" not in text.lower()
     conn.close()
     aconn.close()
+
+
+def test_remote_sniper_gets_own_env_not_pilots(tmp_path, monkeypatch):
+    """Ustawienia z .env pilota nie mogą przesłonić unreachable_sniper/sniper/.env (SNIPER_NTFY_MIN_SCORE 5 vs 8)."""
+    import sys
+    from analyzer import remote
+    env_file = tmp_path / ".env"
+    env_file.write_text("# komentarz\nSNIPER_NTFY_MIN_SCORE=5\nexport SNIPER_X = 1\nANALYZER_DB=x\n", encoding="utf-8")
+    assert remote.own_env_keys(env_file) == {"SNIPER_NTFY_MIN_SCORE", "SNIPER_X", "ANALYZER_DB"}
+    monkeypatch.setenv("SNIPER_NTFY_MIN_SCORE", "5")
+    monkeypatch.setenv("KEEP_ME", "1")
+    seen = {}
+
+    class FakePopen:
+        def __init__(self, cmd, cwd, stdout, stderr, stdin, creationflags, env):
+            seen.update(env)
+            self.pid = 1
+
+    monkeypatch.setattr(remote.subprocess, "Popen", FakePopen)
+    program = remote.Program("sniper", [sys.executable, "-m", "sniper"], str(tmp_path), tmp_path / "s.log",
+                             extra={"drop_env": {"SNIPER_NTFY_MIN_SCORE"}})
+    remote.spawn(program)
+    assert "SNIPER_NTFY_MIN_SCORE" not in seen and seen["KEEP_ME"] == "1" and seen["PYTHONUNBUFFERED"] == "1"
