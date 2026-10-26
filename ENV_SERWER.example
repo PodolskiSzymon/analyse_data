@@ -65,6 +65,9 @@ SNIPER_AI_FALLBACK=true
 SNIPER_AI_MAX_TOKENS=8000
 # Jak dotąd 12. Przy 7 kategoriach ocen będzie więcej - 6 zdjęć obniży koszt ~o połowę, jeśli zechcesz.
 SNIPER_AI_MAX_PHOTOS=12
+# Zbiór do YOLO: zdjęcia ocenionych ofert + ramki od AI -> sniper\dataset\<kategoria>\<marka_model>\ (off = wyłączony)
+SNIPER_DATASET_DIR=
+SNIPER_DATASET_MAX_PER_MODEL=30
 SNIPER_AI_PHOTOS=url
 SNIPER_AI_MIN_SCORE=5
 SNIPER_AI_NOTIFY_ALL=false

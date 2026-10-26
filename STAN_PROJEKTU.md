@@ -178,6 +178,12 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
    nie mają, aktywne uzupełnia każde przejście. Gdy użytkownik wyśle `export-analysis --split`: udział ofert od
    sprzedawców z ≥ 5 ofertami w grupie, czy psują medianę / szybkość sprzedaży, relisty u tego samego sprzedawcy
    (lepsze wykrywanie relistów), ew. wykluczenie handlarzy z „sprzedam za ~”.
+8b. **Identyfikacja + zbiór do YOLO (od 2026-10-26, `sniper/dataset.py`)**: AI zwraca markę / dokładny model /
+   wariant / zestaw i ramki obiektów; zdjęcia + etykiety YOLO lądują w `sniper/dataset/<kategoria>/<marka_model>/`.
+   Do zrobienia: (a) sprawdzić u użytkownika jakość ramek (kilka `<id>.json` + podgląd), (b) skrypt podglądu ramek /
+   eksport do Label Studio, (c) gdy będzie ~1–2 tys. zdjęć: trening YOLO (Colab/Kaggle GPU, nie na serwerze), potem
+   YOLO jako filtr przed AI (brak urządzenia na zdjęciach / wybór zdjęć do wysłania). Pomysł użytkownika na dalej:
+   cena po rozpoznanym modelu z taksonomii (AI rozpoznaje, program wycenia z bazy) – patrz rozmowa 2026-10-26.
 9. **Backtest** (pozostałość D5): ocena historii ofert nowymi regułami vs to, co się sprzedało.
 10. **Drobne**: nazwy grup typu „Xbox serie S i X seriess”; `catalogs.json` od 50 zł (dużo tanich ofert – bramka
     i reguła 300 zł je odcinają, ale kosztuje to szczegóły przez proxy); procesory jako kategoria (użytkownik pytał;
