@@ -435,3 +435,7 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
   18/48, SSD 9/22; `catalogs.json` od 50 zł. Grupy z > 10% ofert ≤ max zakup (laptopy „i5 · 16 GB” 14%, „i7 · 16 GB” 12%,
   DDR5 16 GB 29%, DDR4 DIMM 32 GB 16%, SATA 4 TB 15%) = mieszane → laptopy ze zintegrowaną grafiką dzielone wg
   generacji CPU (bez generacji pomijane), znak ⚠ w tabeli + zasada dla AI; nazwy konsol „Xbox One ones” → „Xbox One S”.
+* 2026-10-26, decyzja użytkownika: zysk < 300 zł to za mało → reguła: zysk zawsze ≥ 300 zł, 40% → 300, 35% → 400,
+  30% → 500, 25% → 600, 20% → 700 (+20 zł/pkt), < 20% nie; wyjątek 30% / 150 zł usunięty. Okazje od sprzedawców
+  z Polski +1 do oceny w Sniperze (krótsza dostawa = szybszy obrót gotówką). Koszt zakupu w Sniperze z opłatą Vinted
+  dla kupującego (5% + 2,90 zł).

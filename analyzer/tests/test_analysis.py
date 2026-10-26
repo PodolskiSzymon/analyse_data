@@ -621,24 +621,22 @@ def test_ai_condition_retries_rate_limit_and_runs_in_parallel(market, tmp_path):
 
 def test_profit_rule_matches_user_examples():
     from analyzer.guide import max_buy, min_profit
+    # 2026-10-26: zysk zawsze ≥ 300 zł, 30% → 500 zł, +20 zł na punkt marży poniżej 40%
     assert [min_profit(m) for m in (0.45, 0.40, 0.35, 0.30, 0.25, 0.20)] == pytest.approx(
-        [300, 300, 500, 700, 900, 1100])
+        [300, 300, 400, 500, 600, 700])
     assert min_profit(0.19) is None
-    for buy, sale in ((1350, 2375), (2500, 3650)):                     # flipy użytkownika (koszty 46 zł)
+    for buy, sale in ((1350, 2375), (2500, 3650), (3660, 4700)):       # flipy użytkownika (koszty 46 zł)
         limit, profit, margin = max_buy(sale)
         assert buy <= limit, (buy, sale, limit)
-        assert profit >= min_profit(margin) - 0.01
-    # Scar 17: 4 700 − 3 660 − 46 = 994 zł przy marży 21% - reguła wymaga ~1 056 zł → po kosztach o włos za drogo
-    assert 3600 < max_buy(4700)[0] < 3660
-    buy, profit, margin = max_buy(3650)                                # MSI RTX 4060
-    assert round(buy) == 2697 and round(margin * 100) == 25
-    assert max_buy(150) is None                                         # 150 zł zysku ze 150 zł sprzedaży - nigdy
-    # tanie (< 1 500 zł): zysk ≥ 30% sprzedaży, min. 150 zł (Switch ~741: było 395, iPhone 13 ~850: było 471)
-    assert round(max_buy(741)[0]) == round(741 - 46 - 0.3 * 741) and round(max_buy(850)[1]) == 255
-    assert max_buy(400)[1] == 150
-    buys = [max_buy(x)[0] for x in range(300, 6000, 10)]                # bez skoków: droższa sprzedaż = wyższy próg
+        assert profit >= min_profit(margin) - 0.01 and profit >= 300
+    for sale in range(400, 9000, 25):                                  # nigdy zysk < 300 ani reguła złamana
+        deal = max_buy(sale)
+        if deal:
+            assert deal[1] >= 300 - 1e-6 and deal[1] >= min_profit(deal[2]) - 1e-6, sale
+    assert max_buy(340) is None                                         # 300 zł zysku + 46 kosztów > 340
+    assert max_buy(850)[1] == pytest.approx(1100 * 850 / 2850)          # iPhone 13: ~328 zł przy ~39% marży
+    buys = [max_buy(x)[0] for x in range(400, 6000, 10)]               # bez skoków: droższa sprzedaż = wyższy próg
     assert all(b2 > b1 for b1, b2 in zip(buys, buys[1:]))
-    assert max_buy(3000)[1] == pytest.approx(1900 * 3000 / 7000)         # powyżej ~2 300 zł zwykła reguła marży
 
 
 def test_group_names():
@@ -673,7 +671,8 @@ def test_sniper_guide_files(relisted, flagged, tmp_path):
     assert set(result) == set(analysis.CATEGORIES)
     path, rows = result["phone"]
     text = path.read_text(encoding="utf-8")
-    assert "≤ 7 dni" in text and "40% → 300 zł" in text and "20% → 1 100 zł" in text
+    assert "≤ 7 dni" in text and "40% → 300 zł" in text and "30% → 500 zł" in text and "20% → 700 zł" in text
+    assert "nigdy poniżej 300 zł" in text and "Sprzedawca z Polski" in text
     iphone = next(r for r in rows if r["name"] == "iphone 13 128 GB")
     assert iphone["src"].startswith("zniknięte") and iphone["buy"] < iphone["sale"]
     # oszustwa (519 zł, flagi) nie zaniżają cen iPhone 16 Pro
