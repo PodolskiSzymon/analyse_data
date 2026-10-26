@@ -655,6 +655,7 @@ def test_group_names():
         "do 7 gen.", None]
     assert group_key("console", {**row, "config_key": "Xbox One|ones|?"}) == "Xbox One S"
     assert group_key("console", {**row, "config_key": "Xbox 360|360|?"}) == "Xbox 360"
+    assert group_key("console", {**row, "config_key": "PlayStation 4|2|?"}) == "PlayStation 4"
     assert group_key("phone", {**row, "config_key": "iphone 13|128"}) == "iphone 13 128 GB"
     assert group_key("phone", {**row, "config_key": "iphone 13|?"}) is None
     assert group_key("console", {**row, "config_key": "PlayStation 5|slim|?"}) == "PlayStation 5 slim"

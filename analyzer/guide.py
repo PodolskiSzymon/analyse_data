@@ -131,8 +131,10 @@ def group_key(category, r):
         if len(parts) < 2:
             return None
         platform, variant = parts[0], parts[1]
-        if variant == "?" or variant.lower() in platform.lower():
-            return platform                                      # „Xbox 360 360” → „Xbox 360”
+        if variant == "?" or variant.lower() in platform.lower() or variant.isdigit():
+            # „Xbox 360 360” → „Xbox 360”; sama liczba to śmieć z tytułu („PS4 + 2 pady” → „PlayStation 4 2”,
+            # 2026-10-26: Sniper dopasowywał do niej każde „PS4 … 2xpad” z progiem 239 zł)
+            return platform
         last = platform.split()[-1].lower()
         if variant.lower().startswith(last) and len(variant) > len(last):
             variant = variant[len(last):].upper() if len(variant) - len(last) <= 2 else variant[len(last):]
