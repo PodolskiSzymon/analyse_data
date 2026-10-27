@@ -35,6 +35,8 @@ Użytkownik może dać bazę na jeden z dwóch sposobów – zapytaj, który wyb
   `curl -L -o slim.zip "https://drive.usercontent.google.com/download?id=<ID>&export=download&confirm=t"` → `unzip`
   → `sqlite3`/Python `file:analyzer_slim.db?mode=ro`. To migawka – świeże dane = nowy `slim-db`. Po pracy przypomnij
   użytkownikowi, żeby wyłączył udostępnianie linku.
+  Wariant pełny: użytkownik może zamiast slim wrzucić całą bazę (`analyzer_full.db` z `VACUUM INTO`, ~1,3 GB, z tabelą
+  `raw` – surowe odpowiedzi API, skompresowane `rawstore`) + `analysis.db` – pobieranie tak samo (curl z `confirm=t`).
 * W obu przypadkach: schemat bazy – `analyzer/db.py` (migracje v1–v11) i `PLAN_ANALIZY.md` (zastrzeżenia do danych:
   `deleted` ≠ sprzedaż, sprzedaże przed 24.10 niepełne, cena = ostatnia cena wystawienia, dryf kursów).
 
