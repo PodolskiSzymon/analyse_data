@@ -385,3 +385,27 @@ z kodem.
   przejściu, ponowne sprawdzenia w tle do końca cyklu (równolegle ze szczegółami), odstęp resolvera 1–2,5 s,
   przejścia co 5–7 h, linia „Cykl: …” w logu. Oczekiwana zwłoka sprzedanej ~6–9 h. Do sprawdzenia po 2–3 dniach:
   `sold-report --od <restart>` (≥ 90% ≤ 24 h, udział sold+blocked), 429 w logu resolvera, zużycie Evomi.
+* **2026-10-27 – odpowiedzi użytkownika (§11):** sprzedaje głównie zagranicznym kupującym (Podbicie
+  międzynarodowe) ⇒ R = mediana wszystkich rynków (§4.2 bez zmian); kupować chce głównie od Polaków (szybsza
+  dostawa – premia PL +1 zostaje, od 27.10 działa: kraj z waluty wysyłki). Negocjacje: wystawia z zawyżoną ceną
+  i schodzi „o kilka set zł” ⇒ δ liczone od JEGO ceny wystawienia nic nie mówi o rynku; δ = 8% od mediany rynku
+  zostaje do czasu danych z `flips.csv` (cena otrzymana vs mediana aktywnych w dniu sprzedaży).
+* **2026-10-27 – powtórka 6a z `comparables.db`:**
+  `mediany`: 1 okazja (iPhone 14 Pro 850 zł, 7/10 = prawdziwa), 0 ocen 8+, ta sama decyzja 47/50, 9 poprawionych
+  modeli (sensowne: iPad 6 Cellular A1954, PS5 Fat, GBC re-shell, iPad Pro 12.9 2020), brak w medianach 7; oszustwa
+  (iPhone 16 za 800 / 16 Pro za 1 000) – AI samo 0/10 mimo „zysku” 1 500 zł; Wii białe 6/10 (S 480, zysk 296 zł –
+  tuż pod progiem; dane potwierdzają), Wii czarne bez pada S 180 → 2, iPad 2 S 80 (trafnie). Koszt $0,73.
+  `model`: 3 okazje – iPhone 14 Pro (prawdziwa), **iPad 2 za 125 zł (FAŁSZYWA: wyceniony jako „iPad 3 16 GB” 491 zł –
+  słowa „ipad 3 16” łapią iPady 10.x)**, Realme 14 Pro+ 500 zł (S 937 z 9 ofert – za mało danych; `mediany` dało
+  S 880 i 5/10); oszustwa 3/10 (cheap_guard działa). Koszt $0,58 (−21%).
+  Złoty zbiór (`unreachable_sniper/sniper/bench_golden.json`, 18 ofert): `mediany` 1/1 trafione, 0 fałszywych;
+  `model` 1/1, 1 fałszywa. **Wniosek: jakość lepsza w `mediany`** (AI z medianami łapie oszustwa, zestawy, generacje,
+  których dopasowanie słów nie widzi); `model` jest tańszy, ale jego wycena zależy od kruchych słów tytułu.
+  → `SNIPER_EVAL_MODE=mediany` dodane (laptopy dalej zwykle); decyzja po `sniper.bench`.
+* **2026-10-27 – koszty AI:** 50 ocen = $0,58–0,82 (~1,2–1,6 centa/ofertę; ~13,6 tys. tokenów wejścia na ofertę,
+  z tego zdjęcia ~1 100 tokenów każde, wyjście ~1,4 tys. z myśleniem). Na tych 50 ofertach **do AI poszłoby tylko
+  15**: próg 300 zł odcina 14, bramka „za drogo wg podobnych ofert” 21 (działa dopiero od skopiowania
+  `comparables.db` 27.10), prawdziwa okazja przechodzi ⇒ ~70% mniej wywołań za darmo. Dalsze próby: `python -m
+  sniper.bench` (warianty: mediany, 3 zdjęcia, średnia / niska rozdzielczość zdjęć, krótsze myślenie,
+  flash-lite + mediany, kaskada „tani model bez zdjęć → pełna ocena tylko ≥ 4/10”), miary: złoty zbiór (okazje
+  trafione / przegapione / fałszywe, S w zakresie), zgodność z odniesieniem, $/ofertę. Równoległość AI 3 → 10.

@@ -7,15 +7,19 @@
 > dalszej pracy** (ocena ofert: „AI rozpoznaje, dane wyceniają, program decyduje”; fazy F0–F5, dane i pytania do
 > użytkownika). Sekcja 8 niżej = pozostałe niedoskonałości i kontekst (część z nich plan już obejmuje).
 >
-> **PIERWSZY KROK w nowej rozmowie (stan 2026-10-27 wieczór):** eksperyment 6a przeanalizowany (`PLAN_OCENY.md`
-> §15, 27.10); pierwszy przebieg szedł BEZ `comparables.db` (tryb `mediany` nieważny). Watch przebudowany
+> **PIERWSZY KROK w nowej rozmowie (stan 2026-10-27 noc):** eksperyment 6a powtórzony z `comparables.db` –
+> jakość lepsza w `mediany` (`PLAN_OCENY.md` §15); odpowiedzi §11 są w §15. Teraz porównanie jakość/koszt:
+> `python -m sniper.bench` (`unreachable_sniper/sniper/bench.py`, złoty zbiór `bench_golden.json`). Watch przebudowany
 > (resolver nie blokuje cyklu, przejścia co 5–7 h). **Czekamy od użytkownika na (sprawdź, co już przyszło):**
-> 1. powtórkę `sniper.experiment mediany|model --last 50` (już z `comparables.db` – skopiowany 27.10 przez `auto`),
-> 2. `summary.md` z `reports\2026-10-27\`,
-> 3. odpowiedzi: iPad Air 4 anulowany?; kupujący głównie PL czy UE?; ile % schodzi przy „Zaproponuj cenę” (δ),
+> 1. wynik `python -m sniper.bench` (tabela + `logs\bench_<czas>.txt`) → decyzja: `SNIPER_EVAL_MODE`, zdjęcia,
+>    rozdzielczość, model; potem uzupełnianie złotego zbioru prawdziwymi przypadkami,
+> 2. ~~summary.md~~ (przyszło 27.10), ~~odpowiedzi §11~~ (27.10; iPad Air 4 – użytkownik nie pamiętał, o który
+>    chodzi: to „iPad Air 2022” kupiony 26.10 od Słowaczki, która prosiła o anulowanie – zapytać o wynik),
+> 3. — ,
 > 4. `flips.csv` (szablon: `python -m analyzer flips --szablon`), potem wynik `python -m analyzer flips`,
 > 5. log `watch` z 24–26.10 (pilot `log watch` albo `data\remote\watch.log`) – czemu `watch` stał większość dni,
-> 6. ile GB zostało w Evomi (watch 5–7 h ≈ 0,5–0,6 GB/dobę razem z resolverem i szczegółami),
+> 6. ile GB zostało w Evomi (watch 5–7 h ≈ 0,5–0,6 GB/dobę razem z resolverem i szczegółami), dzienny koszt AI
+>    po zmianach (`log sniper` → „dziś ~$…”),
 > 7. po 2–3 dniach nowego `watch`: `python -m analyzer sold-report --od <data restartu>` (cel: ≥ 90% zniknięć ≤ 24 h).
 > Potem decyzja o trybie oceny i F1 (taksonomia). F0 zrobione na pełnej bazie (`sold-report`, `flips`).
 
