@@ -3,7 +3,7 @@
   probe  --catalog 3580 [--item ID ...]   etap 0: odpowiedzi Vinted do sprawdzenia założeń -> data/probe/
   crawl  --catalog 3580                   pełne przejście kategorii -> data/analyzer.db (wznawia przerwane)
   probe-show [folder]                     wyciąg z plików probe do wklejenia (bez sieci)
-  watch  [--catalog 3580]                 bez końca: crawl + resolve, między przejściami details (10-14 h)
+  watch  [--catalog 3580]                 bez końca: crawl + resolve, między przejściami details (5-7 h)
   details [--limit N]                     szczegóły ofert (opis, atrybuty, „Dodane”) raz na ofertę
   resolve [--limit N]                     zniknięte z katalogu -> sold / deleted / unlisted (1 zapytanie/ofertę)
   classify-report / reclassify            klasyfikacja ofert z kategorii mieszanych (bez sieci)
@@ -90,8 +90,11 @@ async def cmd_watch(cfg, catalogs, resolve_limit, with_details=True):
     from .details import fetch_details
     from .resolver import resolve
 
+    from .sold_report import cycle_line
+
     while True:
-        next_start = datetime.now(timezone.utc) + timedelta(hours=random.uniform(*cfg.watch_hours))
+        started = datetime.now(timezone.utc)
+        next_start = started + timedelta(hours=random.uniform(*cfg.watch_hours))
         conn = db.connect(cfg.db_path)
         session = build_session()
         try:
@@ -99,23 +102,26 @@ async def cmd_watch(cfg, catalogs, resolve_limit, with_details=True):
             for catalog_id in catalogs:
                 await crawler.run(catalog_id)
             await run_ai_classify(cfg, conn)
-            await resolve(cfg, session, conn, resolve_limit)
+            # Świeże zniknięcia od razu (sprzedane strony znikają z Vinted po kilku dniach), ponowne sprawdzenia
+            # niewidocznych / ukrytych w tle do następnego przejścia - nie blokują już cyklu (27.10).
+            await resolve(cfg, session, conn, resolve_limit, only="fresh")
+            log.info("[WATCH] %s", cycle_line(conn, started.isoformat(timespec="milliseconds")))
             await watch_extras(cfg, conn)
             for line in status_lines(conn):
                 log.info("[STATUS] %s", line)
-            if with_details or cfg.photos:
-                log.info("[WATCH] Do następnego przejścia (%s UTC): %s.", next_start.strftime("%H:%M"),
-                         " + ".join(x for x in ("szczegóły ofert (proxy)" if with_details else "",
-                                                "archiwum zdjęć (bez proxy)" if cfg.photos else "") if x))
-                jobs = []
-                if with_details:
-                    jobs.append(fetch_details(cfg, session, conn, deadline=next_start))
-                if cfg.photos:
-                    from .photos import archive
-                    jobs.append(archive(cfg, conn, deadline=next_start))
-                for result in await asyncio.gather(*jobs, return_exceptions=True):
-                    if isinstance(result, Exception):
-                        log.error("[WATCH] Szczegóły / zdjęcia przerwane błędem: %r", result)
+            log.info("[WATCH] Do następnego przejścia (%s UTC): %s.", next_start.strftime("%H:%M"),
+                     " + ".join(x for x in ("ponowne sprawdzenia niewidocznych (proxy)",
+                                            "szczegóły ofert (proxy)" if with_details else "",
+                                            "archiwum zdjęć (bez proxy)" if cfg.photos else "") if x))
+            jobs = [resolve(cfg, session, conn, resolve_limit, only="due", deadline=next_start)]
+            if with_details:
+                jobs.append(fetch_details(cfg, session, conn, deadline=next_start))
+            if cfg.photos:
+                from .photos import archive
+                jobs.append(archive(cfg, conn, deadline=next_start))
+            for result in await asyncio.gather(*jobs, return_exceptions=True):
+                if isinstance(result, Exception):
+                    log.error("[WATCH] Sprawdzenia / szczegóły / zdjęcia przerwane błędem: %r", result)
             log.info("[TRANSFER] %s", session.traffic.window_report()[0])
         except Exception:
             log.exception("[WATCH] Cykl przerwany błędem - spróbuję przy następnym.")
@@ -430,7 +436,7 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="command", required=True)
     p_crawl = sub.add_parser("crawl", help="pełne przejście kategorii")
     p_crawl.add_argument("--catalog", type=int, action="append", help="catalog_id (domyślnie ANALYZER_CATALOGS)")
-    p_watch = sub.add_parser("watch", help="bez końca: crawl + resolve co ANALYZER_WATCH_HOURS (domyślnie 10-14 h)")
+    p_watch = sub.add_parser("watch", help="bez końca: crawl + resolve co ANALYZER_WATCH_HOURS (domyślnie 5-7 h)")
     p_watch.add_argument("--catalog", type=int, action="append")
     p_watch.add_argument("--resolve-limit", type=int, default=None)
     p_watch.add_argument("--no-details", action="store_true", help="bez pobierania szczegółów między przejściami")

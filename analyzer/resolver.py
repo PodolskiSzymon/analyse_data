@@ -185,14 +185,19 @@ def apply_result(conn, row, state, status_code, body, now, services=None):
         conn.execute("UPDATE listings SET state=?, state_at=? WHERE id=?", (state, now, row["id"]))
 
 
-def candidates(conn, recheck_days, limit=None):
-    """gone_pending + (unlisted / reserved / hidden, których dalej nie ma w katalogu, sprawdzane co recheck_days)."""
+def candidates(conn, recheck_days, limit=None, only=None):
+    """gone_pending (świeże zniknięcia) + (unlisted / reserved / hidden, których dalej nie ma w katalogu, sprawdzane
+    co recheck_days). only="fresh" - tylko świeże, only="due" - tylko ponowne sprawdzenia (tryb watch, 27.10)."""
     before = (datetime.now(timezone.utc) - timedelta(days=recheck_days)).isoformat(timespec="milliseconds")
-    sql = """SELECT * FROM listings WHERE state='gone_pending'
-             OR (state IN ('unlisted', 'reserved', 'hidden') AND missed_runs > 0 AND state_at < ?)
-             ORDER BY state='gone_pending' DESC, last_seen"""
-    rows = conn.execute(sql + (" LIMIT ?" if limit else ""), (before, limit) if limit else (before,)).fetchall()
-    return rows
+    fresh = "state='gone_pending'"
+    due = "(state IN ('unlisted', 'reserved', 'hidden') AND missed_runs > 0 AND state_at < ?)"
+    where = {"fresh": fresh, "due": due}.get(only, f"{fresh} OR {due}")
+    params = [] if only == "fresh" else [before]
+    sql = f"SELECT * FROM listings WHERE {where} ORDER BY state='gone_pending' DESC, last_seen"
+    if limit:
+        sql += " LIMIT ?"
+        params.append(limit)
+    return conn.execute(sql, params).fetchall()
 
 
 def _below_min(cfg, row, res):
@@ -223,19 +228,26 @@ RATE_LIMIT_WAITS = (300, 900, 1800, 3600)    # 429 w recheck: czekamy 5, 15, 30,
 
 
 async def _run(cfg, session, conn, rows, tag, sleep=asyncio.sleep, verbose=True, pacer=None, progress=None,
-               wait_on_429=False):
+               wait_on_429=False, deadline=None, clock=None):
     """Sprawdza oferty po kolei (resolve_item) i zapisuje wyniki. Zwraca {stan: liczba}.
-    pacer - HumanPacer („ludzkie” przerwy) zamiast cfg.pick_delay(); progress(dict) - pasek postępu (recheck);
-    wait_on_429 - przy „za dużo zapytań” czekaj (RATE_LIMIT_WAITS) i ponów tę samą ofertę zamiast przerywać."""
+    pacer - HumanPacer („ludzkie” przerwy) zamiast odstępu z ANALYZER_RESOLVE_DELAY_S; progress(dict) - pasek
+    postępu (recheck); wait_on_429 - przy „za dużo zapytań” czekaj (RATE_LIMIT_WAITS) i ponów tę samą ofertę zamiast
+    przerywać; deadline (datetime UTC) - przerwij po tym czasie, reszta w następnym cyklu (tryb watch)."""
     import time
+
+    clock = clock or (lambda: datetime.now(timezone.utc))
+    pick = getattr(cfg, "pick_resolve_delay", None) or cfg.pick_delay
 
     counts = {}
     started = time.monotonic()
     total = len(rows)
     state = {"total": total, "counts": counts, "n": 0, "eta": None}
     for n, row in enumerate(rows):
+        if deadline and clock() >= deadline:
+            log.info("[%s] Koniec czasu cyklu - sprawdzone %d/%d, reszta w następnym.", tag, n, total)
+            break
         if n:
-            delay, label = pacer.next() if pacer else (cfg.pick_delay(), None)
+            delay, label = pacer.next() if pacer else (pick(), None)
             await _pause(delay, label, sleep, progress, state)
         state.update(n=n, row=row)
         if progress:
@@ -283,10 +295,15 @@ async def _run(cfg, session, conn, rows, tag, sleep=asyncio.sleep, verbose=True,
     return counts
 
 
-async def resolve(cfg, session, conn, limit=None, sleep=asyncio.sleep):
-    rows = candidates(conn, cfg.recheck_days, limit)
-    log.info("[RESOLVE] Do sprawdzenia: %d ofert.", len(rows))
-    return await _run(cfg, session, conn, rows, "RESOLVE", sleep)
+async def resolve(cfg, session, conn, limit=None, sleep=asyncio.sleep, only=None, deadline=None, clock=None):
+    """Sprawdza zniknięte oferty. Tryb watch (27.10): najpierw only="fresh" (zaraz po przejściu - sprzedane strony
+    znikają z Vinted po kilku dniach), potem only="due" w tle do `deadline` razem ze szczegółami. Wcześniej jedno
+    wywołanie robiło też ~12 tys. ponownych sprawdzeń co 3 dni (~17 h przy 2-6 s odstępu) i następne przejście
+    czekało - przerwy między przejściami 16-21 h zamiast 10-14 h."""
+    rows = candidates(conn, cfg.recheck_days, limit, only)
+    tag = {"fresh": "RESOLVE", "due": "RESOLVE-RECHECK"}.get(only, "RESOLVE")
+    log.info("[%s] Do sprawdzenia: %d ofert.", tag, len(rows))
+    return await _run(cfg, session, conn, rows, tag, sleep, deadline=deadline, clock=clock)
 
 
 RECHECK_STATES = ("deleted",)

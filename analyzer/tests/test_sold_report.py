@@ -63,3 +63,50 @@ def test_flips_template_and_report(tmp_path):
     assert "δ (rabat od ceny wystawienia): mediana 4.2% z 2" in text                # 6,7% i 1,8%
     assert "stan zgodny z ogłoszeniem: 1/2 (niezgodne: iPhone 12 128 GB)" in text
     assert "iPad Air 4 900 zł, 11 dni" in text
+
+
+def test_cycle_line_and_activity(tmp_path):
+    conn = _db(tmp_path)
+    line = sold_report.cycle_line(conn, "2026-10-25T00:00:00.000+00:00")
+    # od 25.10: #1 sold 6 h, #2 deleted 10 h, #3 deleted 20 h, #4 blocked 48 h
+    assert line == ("Cykl: zniknięć 4, pewnych sprzedaży 2 (50.0%), sprawdzone ≤ 24 h 75.0%, "
+                    "mediana zwłoki 20.0 h")
+    assert sold_report.cycle_line(conn, "2026-11-01") == "Cykl: brak rozpoznanych zniknięć."
+    activity = sold_report.activity_lines(conn, "2026-10-24T12:00")
+    assert activity and "aktywne bez szczegółów: 1" in activity[0] and "10-26 0 / 1" in activity[0]
+    conn.close()
+
+
+def test_watch_default_interval(monkeypatch):
+    from analyzer.config import AnalyzerConfig
+    monkeypatch.delenv("ANALYZER_WATCH_HOURS", raising=False)
+    assert AnalyzerConfig().watch_hours == (5.0, 7.0)
+
+
+def test_resolver_fresh_first_and_rechecks_until_deadline(tmp_path):
+    """27.10: watch sprawdza świeże zniknięcia od razu, a ponowne sprawdzenia niewidocznych tylko do końca cyklu
+    (wcześniej ~12 tys. ponownych sprawdzeń co 3 dni blokowało następne przejście na kilkanaście godzin)."""
+    import asyncio
+    from datetime import datetime, timedelta, timezone
+
+    from analyzer.config import AnalyzerConfig
+    from analyzer.resolver import candidates, resolve
+
+    conn = db.connect(tmp_path / "r.db")
+    old = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat(timespec="milliseconds")
+    new = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    with conn:
+        for lid, state, missed, at in [(1, "gone_pending", 1, new), (2, "unlisted", 1, old), (3, "hidden", 1, new),
+                                       (4, "unlisted", 0, old), (5, "active", 0, old)]:
+            conn.execute("INSERT INTO listings (id, catalog_id, category, title, first_seen, last_seen, state, "
+                         "state_at, missed_runs) VALUES (?, 3661, 'phone', 't', ?, ?, ?, ?, ?)",
+                         (lid, old, old, state, at, missed))
+    assert [r["id"] for r in candidates(conn, 3.0)] == [1, 2]                  # jak dawniej (komenda resolve)
+    assert [r["id"] for r in candidates(conn, 3.0, only="fresh")] == [1]
+    assert [r["id"] for r in candidates(conn, 3.0, only="due")] == [2]
+    cfg = AnalyzerConfig(db_path=":memory:")
+    past = datetime.now(timezone.utc) - timedelta(seconds=1)
+    counts = asyncio.run(resolve(cfg, None, conn, only="due", deadline=past))   # koniec czasu - bez zapytań
+    assert counts == {}
+    assert cfg.resolve_delay == (1.0, 2.5) and 1.0 <= cfg.pick_resolve_delay() <= 2.5
+    conn.close()

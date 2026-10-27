@@ -101,6 +101,34 @@ def daily_lines(conn, since, max_delay_h=72):
         f"{d[5:]} sold {s} blocked {b} deleted {x}" for d, s, b, x in rows)] if rows else []
 
 
+def activity_lines(conn, since):
+    """Czy watch w ogóle pracował: szczegóły pobrane i nowe oferty na dzień (27.10: 24-25.10 tylko 71 i 238
+    szczegółów przy zaległości ~56 tys. = watch stał większość czasu)."""
+    details = dict(conn.execute("SELECT substr(fetched_at, 1, 10), COUNT(*) FROM details WHERE fetched_at >= ? "
+                                "GROUP BY 1", (since[:10],)).fetchall())
+    new = dict(conn.execute("SELECT substr(first_seen, 1, 10), COUNT(*) FROM listings WHERE first_seen >= ? AND "
+                            "state NOT IN ('below_min', 'ignored', 'unclassified') GROUP BY 1", (since[:10],)).fetchall())
+    missing = conn.execute("SELECT COUNT(*) FROM listings WHERE state = 'active' AND details_at IS NULL").fetchone()[0]
+    days = sorted(set(details) | set(new))
+    return [f"Praca watch na dzień (szczegóły / nowe oferty; aktywne bez szczegółów: {missing}): " + "; ".join(
+        f"{d[5:]} {details.get(d, 0)} / {new.get(d, 0)}" for d in days)] if days else []
+
+
+def cycle_line(conn, since):
+    """Jedna linia do logu watch po resolve: zniknięcia rozpoznane od startu cyklu, pewne sprzedaże, zwłoka."""
+    rows = conn.execute(f"SELECT state, {_DELAY} FROM listings WHERE state IN ('sold', 'blocked', 'deleted') "
+                        f"AND state_at >= ?", (since,)).fetchall()
+    if not rows:
+        return "Cykl: brak rozpoznanych zniknięć."
+    sure = sum(1 for state, _d in rows if state in ("sold", "blocked"))
+    delays = sorted(d for _s, d in rows if d is not None)
+    fast = sum(1 for d in delays if d <= 24)
+    median = delays[len(delays) // 2] if delays else None
+    return (f"Cykl: zniknięć {len(rows)}, pewnych sprzedaży {sure} ({_pct(sure, len(rows))}), sprawdzone ≤ 24 h "
+            f"{_pct(fast, len(rows))}, mediana zwłoki {median:.1f} h" if median is not None else
+            f"Cykl: zniknięć {len(rows)}, pewnych sprzedaży {sure}")
+
+
 def report(conn, since=DEFAULT_SINCE):
-    return [*runs_lines(conn, since), "", *delay_lines(conn, since), "", *category_lines(conn, since),
-            *daily_lines(conn, since)]
+    return [*runs_lines(conn, since), *activity_lines(conn, since), "", *delay_lines(conn, since), "",
+            *category_lines(conn, since), *daily_lines(conn, since)]

@@ -97,7 +97,9 @@ Pełna architektura, schemat bazy, etapy i kryteria ukończenia: **`ARCHITEKTURA
   (`Crawler._apply_price_min`: partycje poniżej wyłączone, przecinające próg przycięte, przy obniżeniu progu dochodzi
   partycja [nowy próg, najniższa]). Oferty z ostatnią ceną < progu → stan `below_min` (nie idą do resolvera);
   resolver: aktywna, ale potaniała poniżej progu → `below_min`; oferta znów ≥ progu w katalogu → `active`.
-* **Tryb `watch`** (`python -m analyzer watch`): bez końca crawl + resolve, przerwa `ANALYZER_WATCH_HOURS` (10–14 h).
+* **Tryb `watch`** (`python -m analyzer watch`): bez końca crawl + resolve, przerwa `ANALYZER_WATCH_HOURS` (10–14 h;
+  od 2026-10-27 5–7 h, świeże zniknięcia od razu po przejściu, ponowne sprawdzenia niewidocznych w tle do końca
+  cyklu – `STAN_PROJEKTU.md` §4).
 * **Drugie przejście (od 700 zł, 2026-10-11)**: 17 min, 209 zapytań, 7,7 MB, 17 205 aktywnych ≥ 700 zł
   (17 018 → `below_min`), nowe 64, zmienione 14; kontrola pokrycia: brakuje ~24 (najwięcej 1699–1820 zł: 17 –
   pewnie oferty zagraniczne z ceną filtra ≠ `price`).

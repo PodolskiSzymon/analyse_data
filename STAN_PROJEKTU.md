@@ -7,10 +7,16 @@
 > dalszej pracy** (ocena ofert: „AI rozpoznaje, dane wyceniają, program decyduje”; fazy F0–F5, dane i pytania do
 > użytkownika). Sekcja 8 niżej = pozostałe niedoskonałości i kontekst (część z nich plan już obejmuje).
 >
-> **PIERWSZY KROK w nowej rozmowie (stan 2026-10-27 popołudnie):** eksperyment 6a przeanalizowany – wyniki,
-> poprawione błędy i rekomendacja w `PLAN_OCENY.md` §15 (2026-10-27). Pierwszy przebieg szedł BEZ `comparables.db`
-> (tryb `mediany` nieważny). Czekamy na: (1) powtórkę obu trybów po `sniper-guide` (komendy w §6a), (2) odpowiedzi
-> na pytania §11 planu (kupujący PL/UE, ile schodzi przy negocjacji, czy iPad Air 4 anulowany), (3) `flips.csv`.
+> **PIERWSZY KROK w nowej rozmowie (stan 2026-10-27 wieczór):** eksperyment 6a przeanalizowany (`PLAN_OCENY.md`
+> §15, 27.10); pierwszy przebieg szedł BEZ `comparables.db` (tryb `mediany` nieważny). Watch przebudowany
+> (resolver nie blokuje cyklu, przejścia co 5–7 h). **Czekamy od użytkownika na (sprawdź, co już przyszło):**
+> 1. powtórkę `sniper.experiment mediany|model --last 50` (już z `comparables.db` – skopiowany 27.10 przez `auto`),
+> 2. `summary.md` z `reports\2026-10-27\`,
+> 3. odpowiedzi: iPad Air 4 anulowany?; kupujący głównie PL czy UE?; ile % schodzi przy „Zaproponuj cenę” (δ),
+> 4. `flips.csv` (szablon: `python -m analyzer flips --szablon`), potem wynik `python -m analyzer flips`,
+> 5. log `watch` z 24–26.10 (pilot `log watch` albo `data\remote\watch.log`) – czemu `watch` stał większość dni,
+> 6. ile GB zostało w Evomi (watch 5–7 h ≈ 0,5–0,6 GB/dobę razem z resolverem i szczegółami),
+> 7. po 2–3 dniach nowego `watch`: `python -m analyzer sold-report --od <data restartu>` (cel: ≥ 90% zniknięć ≤ 24 h).
 > Potem decyzja o trybie oceny i F1 (taksonomia). F0 zrobione na pełnej bazie (`sold-report`, `flips`).
 
 ---
@@ -126,6 +132,15 @@ Stary rdzeń zbierania (crawl/watch/resolver/details/extract) opisany w `KONTEKS
   (zakresy cen katalogów: od 60% min max-zakupu, do max × 1,15; laptop waga 3) i **`comparables.db`**.
 * **`comparables.py`** (2026-10-26): `comparables.db` = SQLite FTS5 (słowa tytułu jak w Sniperze, kategoria, cena,
   zniknięta) + fts5vocab; bez flag/relistów/uszkodzonych; kopiowany do Snipera. **Nieprzetestowany na prawdziwej bazie**.
+* **`watch` od 2026-10-27** (prośba użytkownika „podejrzanie mało sprzedaży”): dane pokazały, że resolver brał
+  odstęp stron katalogu 2–6 s (~700 ofert/h) i w jednym wywołaniu robił też ~12 tys. ponownych sprawdzeń
+  niewidocznych/ukrytych co 3 dni → resolve ~17 h, następne przejście czekało (przerwy 16–21 h, mediana zwłoki
+  rozpoznania 88 h, 5% zniknięć ≤ 24 h), a szczegóły prawie nie szły (24–25.10: 71 i 238 dziennie, zaległość 56 tys.).
+  Teraz: przejście → `resolve(only="fresh")` (świeże zniknięcia) → log „Cykl: zniknięć N, pewnych sprzedaży X (%),
+  ≤ 24 h %, mediana zwłoki” → automat → do następnego startu RÓWNOLEGLE ponowne sprawdzenia (`only="due"`, do
+  `deadline`), szczegóły, zdjęcia. `ANALYZER_RESOLVE_DELAY_S` 1–2,5 s, `ANALYZER_WATCH_HOURS` 5–7 h (przejście ≈ 3,1 h,
+  ≈ 85 MB proxy). Szacunek proxy analizatora ≈ 0,5–0,6 GB/dobę (przejścia ~340 MB + resolver + szczegóły) – za dużo
+  przy budżecie → `ANALYZER_WATCH_HOURS=8-10`. `sold-report` pokazuje też pracę watch na dzień (szczegóły / nowe).
 * **`find.py`** – `python -m analyzer szukaj ram ddr4 dimm 16 --max 200`: najtańsze aktywne oferty z linkami; RAM:
   forma/typ z kodu naklejki w opisie (PC4-…-U = PC, -S = laptop, PC3 = DDR3).
 * Testy: **243** (`python -m pytest analyzer/tests -q`), atrapa rynku `analyzer/tests/fake_market.py`.

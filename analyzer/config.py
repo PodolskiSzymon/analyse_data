@@ -124,6 +124,9 @@ class AnalyzerConfig:
     # Szczegóły ofert (details): losowa przerwa między zapytaniami (s).
     # 2026-10-25: 1-2 s zamiast 2-5 s (decyzja użytkownika: 17 GB w Evomi; zaległość ~40 tys. ofert × ~15 KB ≈ 600 MB).
     details_delay: tuple = field(default_factory=lambda: parse_range(_env("ANALYZER_DETAILS_DELAY_S"), (1.0, 2.0)))
+    # Resolver (zniknięte oferty: /services ~1,3 KB + ewentualnie sidebar): odstęp między ofertami (s). Do 27.10 brał
+    # odstęp stron katalogu 2-6 s → ~700 ofert/h i resolve zajmował większość doby; 1-2,5 s jak szczegóły.
+    resolve_delay: tuple = field(default_factory=lambda: parse_range(_env("ANALYZER_RESOLVE_DELAY_S"), (1.0, 2.5)))
     # Archiwum zdjęć (photos.py): WSZYSTKIE zdjęcia ofert z CDN Vinted, bezpośrednio (bez proxy), do folderu obok bazy.
     photos: bool = _env_bool("ANALYZER_PHOTOS", True)
     photos_dir: str = _env("ANALYZER_PHOTOS_DIR")                       # puste = <folder bazy>/photos
@@ -138,7 +141,11 @@ class AnalyzerConfig:
     sold_alarm_min: int = _env_int("ANALYZER_SOLD_ALARM_MIN", 300)
     sold_alarm_hours: float = _env_float("ANALYZER_SOLD_ALARM_HOURS", 72.0)
     # Tryb `watch`: odstęp między startami pełnych przejść (godziny, zakres „od-do” - losowo).
-    watch_hours: tuple = field(default_factory=lambda: parse_range(_env("ANALYZER_WATCH_HOURS"), (10.0, 14.0)))
+    # 2026-10-27 (C4, prośba użytkownika „podejrzanie mało sprzedaży”): 5-7 h zamiast 10-14 h. Sprzedana oferta po
+    # kilku dniach znika z Vinted (404 = „deleted”): sold+blocked wśród zniknięć 12-24 h 16,9%, > 3 dni 3,1%.
+    # Pełne przejście wszystkich katalogów ≈ 3,1 h i ≈ 85 MB proxy → 5-7 h = ~4 przejścia/dobę ≈ 340 MB/dobę
+    # (było ~170 MB); mniej czasu na szczegóły między przejściami.
+    watch_hours: tuple = field(default_factory=lambda: parse_range(_env("ANALYZER_WATCH_HOURS"), (5.0, 7.0)))
     # Niedokończone przejście młodsze niż tyle godzin jest wznawiane zamiast zaczynane od nowa.
     resume_hours: float = _env_float("ANALYZER_RESUME_HOURS", 24.0)
     # Kategoria ze zdjęcia głównego przez AI, gdy tytuł pasuje do RAM-u i innej kategorii (ai_classify.py).
@@ -171,6 +178,9 @@ class AnalyzerConfig:
 
     def pick_delay(self):
         return random.uniform(*self.page_delay)
+
+    def pick_resolve_delay(self):
+        return random.uniform(*self.resolve_delay)
 
     def pick_details_delay(self):
         return random.uniform(*self.details_delay)

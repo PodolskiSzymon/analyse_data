@@ -377,3 +377,11 @@ z kodem.
     34 / 843 (3,9% – podejrzanie mało, sprawdzić relisty/podbicia telefonów), laptopy 8 / 261, GPU 5, tablety 5,
     dyski 3, RAM 2. 26.10: 153 pewne sprzedaże / dzień łącznie. ⇒ do F2 potrzebne ≥ 2–4 tyg. CIĄGŁEGO `watch`
     i szybszy resolver (C4: `ANALYZER_GONE_AFTER_RUNS=1` / krótszy `ANALYZER_WATCH_HOURS` – decyzja użytkownika).
+* **2026-10-27 wieczór – `watch` częściej (prośba użytkownika „podejrzanie mało sprzedaży”).** Przyczyna z danych:
+  resolver sprawdzał ~700 ofert/h (odstęp stron katalogu 2–6 s) bez przerwy 25.10 18:00 → 27.10 10:00 – oprócz
+  świeżych zniknięć ~12 tys. ponownych sprawdzeń niewidocznych/ukrytych co 3 dni; przejście czekało na koniec
+  resolve ⇒ przerwy 16–21 h, mediana zwłoki rozpoznania (od 26.10) 88 h, p25 24 h. Szczegóły ofert prawie stały
+  (24.10: 71, 25.10: 238, 26.10: 2 513; aktywnych bez szczegółów 56 580). Zmiany: świeże zniknięcia zaraz po
+  przejściu, ponowne sprawdzenia w tle do końca cyklu (równolegle ze szczegółami), odstęp resolvera 1–2,5 s,
+  przejścia co 5–7 h, linia „Cykl: …” w logu. Oczekiwana zwłoka sprzedanej ~6–9 h. Do sprawdzenia po 2–3 dniach:
+  `sold-report --od <restart>` (≥ 90% ≤ 24 h, udział sold+blocked), 429 w logu resolvera, zużycie Evomi.

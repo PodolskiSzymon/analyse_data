@@ -141,6 +141,15 @@ SNIPER_BUY_MIN_SCORE=7
 # ---------------------------------------------------------------- analizator (watch, automat)
 ANALYZER_DB=C:\Users\szymo\category_analyzer\data\analyzer.db
 ANALYZER_DETAILS_CATALOGS=all
+# Odstęp między startami pełnych przejść (h, losowo z zakresu). 2026-10-27: 5-7 (było 10-14) - sprzedane oferty
+# znikają z Vinted po kilku dniach, więc im szybciej resolver je sprawdzi, tym więcej pewnych sprzedaży.
+# Przejście ≈ 3,1 h i ≈ 85 MB proxy; 5-7 h ≈ 340 MB/dobę. Oszczędniej: 8-10.
+ANALYZER_WATCH_HOURS=5-7
+# Po ilu pełnych przejściach bez oferty resolver ją sprawdza (/services ~1,3 KB). 1 = najszybciej.
+ANALYZER_GONE_AFTER_RUNS=1
+# Odstęp resolvera między ofertami (s). Do 27.10 brał 2-6 s (odstęp stron katalogu) → ~700 ofert/h, resolve trwał
+# kilkanaście godzin i blokował następne przejście. Przy 429 w logu [RESOLVE] podnieś np. do 2-4.
+ANALYZER_RESOLVE_DELAY_S=1-2.5
 # Automat 2x w tygodniu kopiuje wytyczne per kategoria + catalogs.json prosto do Snipera (NOWE):
 ANALYZER_SNIPER_GUIDES_DIR=C:\Users\szymo\unreachable_sniper\sniper\guides
 # PUSTE: Twój ręczny sniper\guidelines.md zostaje nietknięty (Sniper bierze laptop.md z guides).
