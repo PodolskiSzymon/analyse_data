@@ -316,3 +316,8 @@ z kodem.
 
 * 2026-10-26: plan spisany; YOLO odrzucone i cofnięte; `seller_hash` zapisywany zawsze, `export-analysis --split`
   gotowe (D2). Sniper dalej na v1 (gemini-3.8-flash, użytkownik doładował 160 zł).
+* 2026-10-27: iPad kupiony 26.10 (SK): tytuł „iPad Air 2022”, formularz Vinted „iPad 10.9 (2022)”, a zrzut Ustawień od
+  sprzedawcy = **iPad Air (4. generacja, 2020), 64 GB** – OBA źródła błędne. Wniosek do §5/§6: sprzeczność tytułu
+  i formularza = item niepewny (bez okazji przed potwierdzeniem); przy tabletach/telefonach w powiadomieniu
+  podpowiedź „poproś o zrzut Ustawienia → Ogólne → To urządzenie (nazwa i numer modelu)”. Użytkownik prosi
+  o anulowanie.
