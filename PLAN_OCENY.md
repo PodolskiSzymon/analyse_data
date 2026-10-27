@@ -321,3 +321,10 @@ z kodem.
   i formularza = item niepewny (bez okazji przed potwierdzeniem); przy tabletach/telefonach w powiadomieniu
   podpowiedź „poproś o zrzut Ustawienia → Ogólne → To urządzenie (nazwa i numer modelu)”. Użytkownik prosi
   o anulowanie.
+* 2026-10-27: użytkownik nieprzekonany do całego planu – najpierw porównanie na danych: `python -m sniper.experiment
+  mediany --last 50` (jego pomysł: kilka median z `comparables.db` od szczegółowej do całej rodziny → AI wycenia samo,
+  może poprawić model, brak w medianach = ignoruj) vs `python -m sniper.experiment model --last 50` (AI tylko
+  rozpoznaje z pewnością %, warianty a/b, program wycenia gorszy wariant + „zarobisz więcej, jeśli to X”). Wyniki:
+  `unreachable_sniper/sniper/logs/experiment_<tryb>.jsonl` – NOWY CZAT: poproś o podsumowania obu i porównaj
+  (zgodność ze starymi ocenami, okazje, poprawione modele, brak danych, koszt), zanim ruszysz F1+.
+
