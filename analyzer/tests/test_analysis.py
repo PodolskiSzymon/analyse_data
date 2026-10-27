@@ -1163,3 +1163,20 @@ def test_comparables_db(relisted, flagged, tmp_path):
                               ('"iphone" "16" "pro"',)).fetchall()
     assert not fraud_prices
     db.close()
+
+
+def test_slim_db_copies_without_raw(market, tmp_path, flagged):
+    import sqlite3
+    import zipfile
+
+    from analyzer import slim
+    path, truth = market
+    out = tmp_path / "analyzer_slim.db"
+    counts = slim.build(path, analysis.analysis_path(path), out, progress=False, say=lambda _t: None)
+    conn = sqlite3.connect(out)
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "listings" in tables and "raw" not in tables and "a_flags" in tables
+    assert conn.execute("SELECT COUNT(*) FROM listings").fetchone()[0] == counts["listings"] == len(truth.rows)
+    assert conn.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='index'").fetchone()[0] > 0
+    conn.close()
+    assert zipfile.ZipFile(out.with_suffix(".zip")).namelist() == ["analyzer_slim.db"]

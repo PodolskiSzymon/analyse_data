@@ -16,6 +16,28 @@
 
 ---
 
+## 0. Dostęp nowego czatu do danych użytkownika (2026-10-27)
+
+Użytkownik może dać bazę na jeden z dwóch sposobów – zapytaj, który wybrał:
+
+* **A. Claude Code na serwerze (Remote Control)** – sesja działa na serwerze użytkownika, w folderze
+  `C:\Users\szymo\analyse_data`: masz prawdziwą bazę (`ANALYZER_DB`), logi Snipera i możesz sam uruchamiać
+  komendy (`python -m analyzer …`, `sqlite3`, eksperyment). Zasady: baza tylko do odczytu (`analysis.open_ro`) –
+  `watch` może pisać równolegle; serwer ma 4 GB RAM (SQL z agregacją, nie ładować wszystkiego do pamięci); **żadnych
+  zapytań do Vinted** i nic przez proxy bez zgody; nie zatrzymuj `watch`/Snipera i nie zmieniaj `.env` bez pytania;
+  nie wypisuj sekretów z `.env`; płatne wywołania AI (eksperyment, `ai-condition`) – najpierw podaj koszt.
+* **B. Lekka kopia bazy przez Dysk Google** – użytkownik robi `python -m analyzer slim-db` (kopia bez tabeli `raw`
+  + tabele `analysis.db` z przedrostkiem `a_`, ZIP w `<folder bazy>\export\<data>\analyzer_slim.zip`), wrzuca ZIP na
+  Dysk, udostępnia „Każdy z linkiem” i podaje link. W środowisku chmurowym muszą być dozwolone domeny
+  `drive.google.com` i `drive.usercontent.google.com` (ustawienia środowiska → Network access → Allowed domains;
+  bez tego curl dostaje 403 od proxy – wtedy poproś użytkownika o zmianę i NIE zgaduj wyników). Pobranie (ID z linku
+  `…/file/d/<ID>/view`), do katalogu roboczego/scratchpadu, nigdy do repo:
+  `curl -L -o slim.zip "https://drive.usercontent.google.com/download?id=<ID>&export=download&confirm=t"` → `unzip`
+  → `sqlite3`/Python `file:analyzer_slim.db?mode=ro`. To migawka – świeże dane = nowy `slim-db`. Po pracy przypomnij
+  użytkownikowi, żeby wyłączył udostępnianie linku.
+* W obu przypadkach: schemat bazy – `analyzer/db.py` (migracje v1–v11) i `PLAN_ANALIZY.md` (zastrzeżenia do danych:
+  `deleted` ≠ sprzedaż, sprzedaże przed 24.10 niepełne, cena = ostatnia cena wystawienia, dryf kursów).
+
 ## 1. O co chodzi (cel biznesowy)
 
 Użytkownik (Szymon, rozmawiamy **po polsku**) **flipuje elektronikę na Vinted**: kupuje okazje, sprzedaje w ≤ 7 dni.

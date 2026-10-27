@@ -31,6 +31,7 @@
   remote                                  pilot z telefonu (ntfy): start/stop watch i Snipera, status, logi (PILOT.md)
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
+  slim-db                                 lekka kopia bazy dla Claude (bez raw) -> export/<data>/analyzer_slim.zip
   status                                  podsumowanie bazy (oferty, stany, partycje, przejścia, transfer)
 """
 import argparse
@@ -441,6 +442,8 @@ def main(argv=None):
     p_show = sub.add_parser("probe-show", help="wyciąg z zapisanych plików probe (bez sieci)")
     p_show.add_argument("folder", nargs="?", default=None, help="domyślnie najnowszy data/probe/*")
     sub.add_parser("status", help="podsumowanie bazy")
+    sub.add_parser("slim-db", help="lekka kopia bazy do analizy przez Claude (bez surowych odpowiedzi API) -> "
+                                   "export/<data>/analyzer_slim.db + .zip")
     sub.add_parser("diag", help="diagnostyka bazy (zmiany cen, braki pokrycia) - bez sieci")
     p_recheck = sub.add_parser("recheck", help="naprawa stanów: oferty 'deleted' sprawdzone od nowa (/services + "
                                                 "sidebar) -> sold / deleted / active ...; można przerwać i wznowić")
@@ -792,6 +795,16 @@ def main(argv=None):
         conn = db.connect(cfg.db_path)
         print("\n".join(report(conn)))
         conn.close()
+    elif args.command == "slim-db":
+        from . import analysis, slim
+        out = analysis.out_dir(cfg.db_path, "export") / "analyzer_slim.db"
+        print(f"Kopiuję {cfg.db_path} bez tabeli raw -> {out} (baza tylko do odczytu, watch może działać) ...",
+              flush=True)
+        counts = slim.build(cfg.db_path, analysis.analysis_path(cfg.db_path), out, say=lambda t: print(t, flush=True))
+        print("Wiersze: " + ", ".join(f"{k} {v}" for k, v in counts.items()))
+        for path in (out, out.with_suffix(".zip")):
+            print(f"  {path}  {path.stat().st_size / 1e6:.0f} MB")
+        print("Na Dysk Google wrzuć plik .zip (instrukcja w STAN_PROJEKTU.md, sekcja 0).")
     elif args.command == "status":
         say = lambda text: print(text, flush=True)  # noqa: E731
         say(f"Otwieram bazę {cfg.db_path} ...")
