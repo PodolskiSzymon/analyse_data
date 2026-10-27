@@ -442,3 +442,6 @@ wg GPU, „max zakup = sprzedaż − 1 150 zł”).
 * 2026-10-26 (koniec rozmowy): pełny stan projektu, reguły i lista niedoskonałości → **`STAN_PROJEKTU.md`**
   („wykonaj md” w nowej rozmowie). Reguła: zysk ≥ 300 zł, marża ≥ 30% (35% → 400, 30% → 500), Polska +1,
   program egzekwuje regułę po AI, podobne oferty z bazy (`comparables.db`), pilot, sprzęt testowy kupiony.
+* 2026-10-27 (C4, `sold-report` na pełnej bazie): udział sold+blocked wśród zniknięć wg zwłoki rozpoznania –
+  ≤ 12 h 3,2%, 12–24 h 16,9%, 1–3 dni 8,4%, > 3 dni 3,1% ⇒ sprzedane znikają (404) po kilku dniach; ≤ 24 h tylko 5%
+  zniknięć (przerwy w `watch` 16–21 h). Szczegóły i wniosek: `PLAN_OCENY.md` §15.

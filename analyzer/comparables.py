@@ -21,8 +21,9 @@ def tokens(text):
     text = (text or "").lower()
     for pattern, repl in _ALIASES:
         text = pattern.sub(repl, text)
-    text = re.sub(r"(?<=[a-ząćęłńóśźż])(?=\d)|(?<=\d)(?=[a-ząćęłńóśźż])", " ", text)
-    return re.findall(r"[a-ząćęłńóśźż]+|\d+", text)
+    # Litery z każdego języka (RO „vând”, SE „säljer”, CZ „prodám”) - samo [a-ząćęłńóśźż] cięło słowa na kawałki.
+    text = re.sub(r"(?<=[^\W\d_])(?=\d)|(?<=\d)(?=[^\W\d_])", " ", text)
+    return re.findall(r"[^\W\d_]+|\d+", text)
 
 
 def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=None):

@@ -31,6 +31,8 @@
   remote                                  pilot z telefonu (ntfy): start/stop watch i Snipera, status, logi (PILOT.md)
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
+  sold-report [--od ISO]                  F0: ciągłość watch, zwłoka resolvera, sold vs deleted wg zwłoki, tempo
+  flips [--szablon] [--plik P]            rejestr flipów (flips.csv obok bazy): realny zysk, marża, dni, rabat δ
   slim-db                                 lekka kopia bazy dla Claude (bez raw) -> export/<data>/analyzer_slim.zip
   status                                  podsumowanie bazy (oferty, stany, partycje, przejścia, transfer)
 """
@@ -445,6 +447,12 @@ def main(argv=None):
     sub.add_parser("slim-db", help="lekka kopia bazy do analizy przez Claude (bez surowych odpowiedzi API) -> "
                                    "export/<data>/analyzer_slim.db + .zip")
     sub.add_parser("diag", help="diagnostyka bazy (zmiany cen, braki pokrycia) - bez sieci")
+    p_sold = sub.add_parser("sold-report", help="F0: zdrowie danych o sprzedaży (ciągłość watch, zwłoka resolvera, "
+                                                 "sold vs deleted wg zwłoki, tempo sprzedaży) - bez sieci")
+    p_sold.add_argument("--od", default=None, help="od kiedy (ISO, domyślnie 2026-10-24T12:00 - po recheck)")
+    p_flips = sub.add_parser("flips", help="rejestr flipów (flips.csv obok bazy): realny zysk, marża, dni, rabat δ")
+    p_flips.add_argument("--szablon", action="store_true", help="zapisz flips.csv z nagłówkiem i zakupami z 26.10")
+    p_flips.add_argument("--plik", default=None, help="inny plik niż <folder bazy>/flips.csv")
     p_recheck = sub.add_parser("recheck", help="naprawa stanów: oferty 'deleted' sprawdzone od nowa (/services + "
                                                 "sidebar) -> sold / deleted / active ...; można przerwać i wznowić")
     p_recheck.add_argument("--states", default="deleted",
@@ -790,6 +798,22 @@ def main(argv=None):
         conn.close()
         print(f"Zapisano {sum(counts.values())} ofert ({', '.join(f'{k} {v}' for k, v in counts.items())}) -> {path}")
         print(f"Rozmiar: {path.stat().st_size / 1e6:.1f} MB")
+    elif args.command == "sold-report":
+        from . import analysis, sold_report
+        print(f"Otwieram bazę {cfg.db_path} (tylko do odczytu) ...", flush=True)
+        conn = analysis.open_ro(cfg.db_path)
+        print("\n".join(sold_report.report(conn, args.od or sold_report.DEFAULT_SINCE)))
+        conn.close()
+    elif args.command == "flips":
+        from . import flips
+        path = Path(args.plik) if args.plik else flips.path_for(cfg.db_path)
+        if args.szablon:
+            print(f"Zapisano szablon {path} - uzupełnij w Excelu (średnik, przecinek dziesiętny)." if
+                  flips.write_template(path) else f"{path} już istnieje - nie nadpisuję.")
+        elif not path.exists():
+            print(f"Brak {path} - utwórz: python -m analyzer flips --szablon")
+        else:
+            print("\n".join(flips.report(flips.load(path))))
     elif args.command == "diag":
         from .diag import report
         conn = db.connect(cfg.db_path)

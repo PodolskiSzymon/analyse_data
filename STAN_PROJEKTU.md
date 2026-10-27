@@ -7,12 +7,11 @@
 > dalszej pracy** (ocena ofert: „AI rozpoznaje, dane wyceniają, program decyduje”; fazy F0–F5, dane i pytania do
 > użytkownika). Sekcja 8 niżej = pozostałe niedoskonałości i kontekst (część z nich plan już obejmuje).
 >
-> **PIERWSZY KROK w nowej rozmowie (stan 2026-10-27):** użytkownik NIE jest przekonany do całego `PLAN_OCENY.md`
-> i najpierw porównuje dwa sposoby oceny na danych (sekcja **6a**). Przyniesie Ci wyniki dwóch komend
-> (`python -m sniper.experiment mediany --last 50` i `... model --last 50`: tabele + podsumowania, ewentualnie pliki
-> `logs/experiment_mediany.jsonl` / `experiment_model.jsonl`). Jeśli ich nie wkleił – poproś o nie. Przeanalizuj je
-> wg 6a („Jak ocenić wyniki”), daj rekomendację, który sposób (albo połączenie) wdrożyć w Sniperze na stałe,
-> i dopiero potem F0/F1 planu. Przy okazji poproś o D1 (`status`, `diag`) i odpowiedzi na pytania §11 planu.
+> **PIERWSZY KROK w nowej rozmowie (stan 2026-10-27 popołudnie):** eksperyment 6a przeanalizowany – wyniki,
+> poprawione błędy i rekomendacja w `PLAN_OCENY.md` §15 (2026-10-27). Pierwszy przebieg szedł BEZ `comparables.db`
+> (tryb `mediany` nieważny). Czekamy na: (1) powtórkę obu trybów po `sniper-guide` (komendy w §6a), (2) odpowiedzi
+> na pytania §11 planu (kupujący PL/UE, ile schodzi przy negocjacji, czy iPad Air 4 anulowany), (3) `flips.csv`.
+> Potem decyzja o trybie oceny i F1 (taksonomia). F0 zrobione na pełnej bazie (`sold-report`, `flips`).
 
 ---
 
@@ -61,7 +60,9 @@ Dwa programy na jego serwerze:
   baza `C:\Users\szymo\category_analyzer\data\analyzer.db` (~1,3 GB, `ANALYZER_DB`), raporty
   `…\category_analyzer\data\reports\<data>\`, logi pilota `…\data\remote\{watch,sniper}.log`,
   logi Snipera `unreachable_sniper\sniper\logs\` (`evaluations.jsonl/.csv`, `oceny.html`, `mails.csv`, `sniper.log`).
-* **Gałęzie: w OBU repo pracujemy na `claude/hopeful-faraday-n33quh`** (nie `main` – `main` w obu jest stary).
+* **Gałęzie:** od 2026-10-27 w OBU repo `claude/magical-bell-vdwpt1` (zawiera całą `claude/hopeful-faraday-n33quh`
+  + zmiany z 27.10). Na serwerze (lokalnie dalej gałąź hopeful-faraday) aktualizacja: `git pull origin
+  claude/magical-bell-vdwpt1` w obu repo. Wcześniej: `claude/hopeful-faraday-n33quh` (`main` w obu jest stary).
   Na serwerze oba repo są już na tej gałęzi (2026-10-26). Aktualizacja u użytkownika: `git pull` w obu.
 * **Dwa pliki `.env`** (tej samej treści – wzór `ENV_SERWER.example`, bez sekretów):
   `unreachable_sniper\sniper\.env` (czyta Sniper) i `analyse_data\sniper\.env` (analizator + pilot).
@@ -206,6 +207,15 @@ Użytkownik chce porównać na 50 ostatnich ocenach Snipera (z `logs/evaluations
   `SNIPER_EVAL_MODE`), co z planu zostaje.
 * Warunek: `comparables.db` w `SNIPER_GUIDES_DIR` (robi go `python -m analyzer sniper-guide`); bez niego program
   ostrzega i wynik nie ma sensu.
+* **Wynik 27.10 (szczegóły `PLAN_OCENY.md` §15):** przebieg bez `comparables.db` → `mediany` nieważny; `model`
+  odtworzony offline z prawdziwą bazą: zabija fałszywe okazje retro (Wii, GBC), zostawia iPhone 14 Pro 850 zł, ale
+  dawał 10/10 oszustwom (iPhone 16 za 800 zł) → `cheap_guard`. Powtórka u użytkownika (po `git pull` w obu repo):
+  `python -m analyzer sniper-guide` (z `ANALYZER_SNIPER_GUIDES_DIR` → kopiuje `comparables.db`), sprawdzić, że jest
+  `unreachable_sniper\sniper\guides\comparables.db`, `restart sniper`, potem oba `sniper.experiment … --last 50`.
+* **Sniper 27.10 (poza eksperymentem):** `SNIPER_PRICE_FLOOR=300` (price_from każdego katalogu ≥ 300 zł), wysyłka
+  przeliczana z waluty sprzedawcy (`FX_TO_PLN`; było 799 HUF = 799 zł), kraj sprzedawcy z waluty wysyłki (premia PL
+  wcześniej nigdy nie działała), tokenizacja liter spoza PL, `comparables` próg słów 35% + słowa ogólne obcych
+  języków, heartbeat „/N!” = pełna strona nowych ofert (zwiększ `SNIPER_PER_PAGE`).
 
 ## 7. Zasady pracy (skrót `CLAUDE.md`)
 
@@ -220,7 +230,7 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
 
 ## 8. Do zrobienia / niedoskonałości (priorytety)
 
-00. **Najpierw: wyniki eksperymentu 6a** (użytkownik przyniesie) → rekomendacja i decyzja, potem plan.
+00. ~~Wyniki eksperymentu 6a~~ (27.10, `PLAN_OCENY.md` §15) → **powtórka z `comparables.db`** i decyzja o trybie.
 
 0. **GŁÓWNY PLAN: `PLAN_OCENY.md`** (2026-10-26) – taksonomia modeli, ceny S7 z danych (`prices.json`), AI tylko do
    rozpoznania i stanu (z cytatami jako dowodem), deterministyczna ocena, pętla zwrotna (flipy, wynik alertów,
@@ -252,8 +262,8 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
    sprzedawców z ≥ 5 ofertami w grupie, czy psują medianę / szybkość sprzedaży, relisty u tego samego sprzedawcy
    (lepsze wykrywanie relistów), ew. wykluczenie handlarzy z „sprzedam za ~”.
 9. **Backtest** (pozostałość D5): ocena historii ofert nowymi regułami vs to, co się sprzedało.
-10. **Drobne**: nazwy grup typu „Xbox serie S i X seriess”; `catalogs.json` od 50 zł (dużo tanich ofert – bramka
-    i reguła 300 zł je odcinają, ale kosztuje to szczegóły przez proxy); procesory jako kategoria (użytkownik pytał;
+10. **Drobne**: nazwy grup typu „Xbox serie S i X seriess”; ~~`catalogs.json` od 50 zł~~ (27.10: Sniper
+    `SNIPER_PRICE_FLOOR=300` podnosi dolną granicę każdego katalogu); procesory jako kategoria (użytkownik pytał;
     brak w analizatorze); DDR5 – stanowisko B (H610M DDR5 + Pentium G7400) gdy będą okazje; auto-zakup wyłączony.
 
 ## 9. Gdzie co jest (mapa plików)

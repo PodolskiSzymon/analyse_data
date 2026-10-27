@@ -35,8 +35,11 @@ SNIPER_GUIDES_DIR=C:\Users\szymo\unreachable_sniper\sniper\guides
 # Katalogi skanowane PO KOLEI: co 10 s jeden skan; laptopy co ~30 s, reszta co ~90 s. Transfer proxy jak dotąd.
 SNIPER_POLL_INTERVAL=10
 SNIPER_POLL_JITTER=1
-# Ofert na skan: 10 (było 3 - przy 7 katalogach każdy jest skanowany rzadziej, 3 to za mało na telefony).
-SNIPER_PER_PAGE=10
+# Dolny próg ceny każdego katalogu (2026-10-27): bez ofert < 300 zł - catalogs.json zaczynał od 50-100 zł.
+SNIPER_PRICE_FLOOR=300
+# Ofert na skan: przy progu 300 zł wystarcza ~6 (dane 26.10: telefony ≥ 300 zł ~1,8 nowej/min, konsole ~0,8/min,
+# laptopy ≥ 700 zł ~0,3/min). „/N!” przy katalogu w heartbeat = cała strona nowa → zwiększ.
+SNIPER_PER_PAGE=6
 SNIPER_DEDUP_SIZE=100
 # Używane tylko, gdy SNIPER_CATALOGS jest puste (stary tryb: jeden katalog)
 SNIPER_CATALOG=3580

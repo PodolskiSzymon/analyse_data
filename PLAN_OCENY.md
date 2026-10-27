@@ -4,7 +4,7 @@
 > który opisuje stan i kontekst – przeczytaj go najpierw). Realizuj fazy po kolei (§9), odhaczaj `[x]` w liście
 > kontrolnej (§14), wyniki z danych użytkownika dopisuj do dziennika (§15) z datą. Zasady pracy: `CLAUDE.md`
 > (po polsku, bez dostępu do Vinted i bazy – kod + testy na atrapie, użytkownik uruchamia i wkleja wynik, komendy
-> lekkie z postępem, commit + push na `claude/hopeful-faraday-n33quh` w obu repo, bez PR).
+> lekkie z postępem, commit + push na gałąź sesji w obu repo – od 27.10 `claude/magical-bell-vdwpt1` –, bez PR).
 >
 > **Decyzje użytkownika (2026-10-26):** YOLO / zbiór zdjęć z ramkami – **odrzucone i cofnięte** (zysk nieistotny,
 > patrz §13). Cel: ocena „ultra dokładna” – AI ma jak najmniej zgadywać. Dalsza praca w nowym czacie.
@@ -303,7 +303,9 @@ z kodem.
 
 ## 14. Lista kontrolna
 
-- [ ] F0: D1 od użytkownika; `sold-report`; odpowiedzi na pytania §11; szablon + komenda `flips`
+- [~] F0: ~~D1~~ (zamiast `status`/`diag` – pełna baza z 27.10, §15) · [x] `sold-report` · [x] szablon + komenda
+  `flips` · [ ] odpowiedzi na pytania §11 (kupujący PL/UE, δ – czekam) · [ ] `flips.csv` wypełniony (D4)
+- [ ] Eksperyment 6a powtórzony z `comparables.db` (tryb `mediany` był nieważny) → decyzja `SNIPER_EVAL_MODE`
 - [ ] F1 konsole: taksonomia + golden + `item_ids` + `taxonomy-report`; pokrycie/precyzja OK
 - [ ] F1 telefony, tablety; [ ] GPU, RAM, dyski
 - [ ] F2: `prices.py` + `prices.json` (S_tymcz), tabele md z `prices.json`, publikacja do Snipera
@@ -327,4 +329,51 @@ z kodem.
   rozpoznaje z pewnością %, warianty a/b, program wycenia gorszy wariant + „zarobisz więcej, jeśli to X”). Wyniki:
   `unreachable_sniper/sniper/logs/experiment_<tryb>.jsonl` – NOWY CZAT: poproś o podsumowania obu i porównaj
   (zgodność ze starymi ocenami, okazje, poprawione modele, brak danych, koszt), zanim ruszysz F1+.
-
+* **2026-10-27 – wyniki eksperymentu 6a** (pliki `experiment_{mediany,model}.jsonl` + pełna baza `analyzer_full.db`
+  z Dysku, migawka 27.10 ~10:10). **Oba przebiegi szły BEZ `comparables.db`** (ostrzeżenie w logu; u użytkownika nie
+  było pliku w `unreachable_sniper\sniper\guides` – to znaczy, że od 26.10 także zwykły Sniper działał bez bramki
+  „podobne oferty” i bez przycinania wyceny AI). ⇒ `mediany`: 50/50 „brak w medianach” = wynik nieważny (AI musiało
+  dać ≤ 3); `model`: wycenione tylko 10/50 (z wierszy tabeli). Koszt: mediany $0,82, model $0,73 za 50 ofert
+  (~1,5 centa/ofertę, jak zwykła ocena – zdjęcia dominują).
+  * Zbudowałem `comparables.db` z prawdziwej bazy (166 tys. ofert, 18 MB, ~3 s, ~50 MB RAM – §8.2 STAN: OK) i
+    odtworzyłem część programową trybu `model` offline (rozpoznania AI z pliku, bez nowych wywołań): wycenione 41/50.
+  * **Stary Sniper: 4 okazje, z tego 3 fałszywe** – Wii 128 zł (10/10) i 100 zł (9/10): dane = mediana aktywnych
+    ~450 zł, S_kons ~370 zł → zysk ~190 zł (AI zakładało 600–760); Game Boy Color re-shell 435 zł (9/10): mediana
+    ~450–500 zł → strata (AI: 850). Prawdziwa: **iPhone 14 Pro 128 GB za 850 zł** (PL, 149 opinii, bateria 80%):
+    S z danych 1 584 → S_kons 1 457, zysk ~510 zł, marża 35% → `model` 7/10 (+1 PL = 8 po poprawce kraju niżej).
+  * **`model` bez bramki daje 10/10 oszustwom**: iPhone 16 za 800 zł i „Telefon 16 pro” za 1 000 zł (konta bez
+    opinii, „TYLKO PRZEZ DHL I INPOST”) – AI samo wpisało „oszustwo” w red_flags, a program to pominął. Stary
+    Sniper dał 0 (AI wycenia + ocenia ryzyko). → dodane `cheap_guard`: < 45% wartości + konto bez opinii = nie
+    okazja; < 45% z opiniami = max 7 („sprawdź ręcznie”). Wniosek do F3: flagi oszustwa z AI (enum) muszą działać.
+  * `mediany` – poziomy na prawdziwej bazie (bez AI): „cała rodzina” bywa bezużyteczna albo groźna: „iPad 2” →
+    tylko „ipad” (mediana 713 zł, a iPad 2 = ~300 zł), Pixel 9 → „google”, iPad Pro 11 (tytuł HU) → „eladó”
+    (= „sprzedam”). Model AI z taką medianą łatwo „znajdzie” okazję – ten tryb wymaga dokładnego poziomu albo
+    taksonomii (F1). Poprawne poziomy dla iPhone'ów pojawiły się dopiero po poprawce df niżej.
+  * **Błędy znalezione i poprawione (Sniper, gałąź `claude/magical-bell-vdwpt1`):**
+    (1) wysyłka w walucie sprzedawcy doliczana jak zł – **799 HUF = +799 zł** (Xbox One S 328 zł → koszt 1 146 zł,
+    iPad Pro 11 1 458 zł → 2 253 zł; RON/EUR małe błędy) → kurs `FX_TO_PLN`;
+    (2) **kraj sprzedawcy pusty w 50/50** – premia „Polska +1” nie zadziałała ani razu → kraj z waluty wysyłki
+    (PLN = opis po polsku 20/20; EUR bez zgadywania);
+    (3) tokenizacja tytułów cięła litery spoza PL („Vând” → „v nd”, „Säljer” → „s ljer”) – w obu repo;
+    (4) `comparables`: „iphone” (25% bazy) > progu 20% → „iPhone 7” szukał każdego telefonu z „7” (mediana 834 zł,
+    po poprawce 365 zł), „Telefon iphone 16” → [16 telefon] 650 zł (po poprawce 2 255 zł) – próg 35% + słowa
+    ogólne w językach sprzedawców; zostaje znany problem: liczby dziesiętne („10.2” → „10”, „2”) mieszają iPad 2
+    z iPadem 10.2 – rozwiąże taksonomia F1.
+  * **Rekomendacja:** kierunek `model` (AI rozpoznaje, program wycenia z danych) – na danych zabił wszystkie 3
+    fałszywe okazje retro i zostawił prawdziwą; ale tylko z bramką oszustw i z lepszym dopasowaniem cen (słowa
+    tytułu są kruche → F1 taksonomia). `mediany` nie da się ocenić bez powtórki z `comparables.db`; z poziomów
+    widać ryzyko „całej rodziny”. Decyzja po powtórce obu trybów (komendy w STAN §6a).
+  * **Próg ceny 300 zł** (prośba użytkownika): catalogs.json zaczynał od 50–100 zł (tablety 50, telefony 100).
+    W 50 ocenach 14 ofert < 300 zł = 29% tokenów, wśród nich 2 fałszywe 9–10/10 (Wii), 0 prawdziwych okazji.
+    Przy regule zakup < 300 zł byłby okazją tylko przy sprzedaży ≥ ~650 zł. → `SNIPER_PRICE_FLOOR=300` (domyślnie),
+    „/N!” w heartbeat = cała strona nowa. Tempo nowych ofert z `crawl_runs` 26.10 (≥ progów analizatora): telefony
+    ~1,8/min, konsole ~0,8/min, laptopy ≥ 700 zł ~0,3/min, tablety ~0,25/min → `SNIPER_PER_PAGE=6` wystarczy.
+  * **F0 – `sold-report` na bazie 27.10:** przejścia od 24.10 12:00 – 3 na katalog (laptopy 5), najdłuższa przerwa
+    16–21 h (cel 10–14 h; 25.10 brak szybkich rozpoznań), przejście #137 z 24.10 niedokończone ⇒ `watch` miał przerwy.
+    Zniknięcia rozpoznane od 24.10: 20 307, z tego **sprawdzone ≤ 24 h tylko 5%** (cel ≥ 90%). Udział sold+blocked
+    wg zwłoki: ≤ 12 h 3,2%, 12–24 h 16,9%, 1–3 dni 8,4%, > 3 dni 3,1% (głównie recheck 24.10) ⇒ potwierdza hipotezę
+    C4: sprawdzane późno sprzedane już nie istnieją (404 = „deleted”); szybkie sprawdzanie daje 3–5× więcej pewnych
+    sprzedaży. Per kategoria (zwłoka ≤ 3 dni, 2,4 dnia): konsole 98 sold+blocked / 358 deleted (21,5%), telefony
+    34 / 843 (3,9% – podejrzanie mało, sprawdzić relisty/podbicia telefonów), laptopy 8 / 261, GPU 5, tablety 5,
+    dyski 3, RAM 2. 26.10: 153 pewne sprzedaże / dzień łącznie. ⇒ do F2 potrzebne ≥ 2–4 tyg. CIĄGŁEGO `watch`
+    i szybszy resolver (C4: `ANALYZER_GONE_AFTER_RUNS=1` / krótszy `ANALYZER_WATCH_HOURS` – decyzja użytkownika).

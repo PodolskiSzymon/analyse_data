@@ -27,9 +27,9 @@ zbierającego dane albo czegoś, czego tu nie ma). Szczegóły Snipera: `sniper/
   zbieramy, bo do analizy niepotrzebne (nie zakaz). Dane i eksporty nadal NIE trafiają do repo. W eksportach z opisami
   dalej maskować e-mail/telefon/URL (`analyzer/sample.py: redact`).
 * Cena „sprzedaży” = ostatnia cena wystawienia (Vinted ma „Zaproponuj cenę”) → w raportach **górna granica**.
-* Nie tworzyć PR bez prośby. Commity na gałąź **`claude/hopeful-faraday-n33quh`** (w tym repo i w `unreachable_sniper`;
-  `main` jest stary - użytkownik na serwerze używa tej gałęzi), dawniej: `main` tego repo (repo było puste),
-  chyba że użytkownik powie inaczej. W commitach/kodzie nie wpisywać identyfikatora modelu AI.
+* Nie tworzyć PR bez prośby. Commity na gałąź z ustawień sesji (od 2026-10-27: **`claude/magical-bell-vdwpt1`**
+  w tym repo i w `unreachable_sniper` – zawiera całą wcześniejszą `claude/hopeful-faraday-n33quh`; `main` jest stary).
+  Użytkownik na serwerze aktualizuje: `git pull origin <gałąź>` w obu repo. W commitach/kodzie nie wpisywać identyfikatora modelu AI.
 
 ## Uruchomienie (u użytkownika)
 
