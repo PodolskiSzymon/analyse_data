@@ -1,12 +1,18 @@
-# STAN PROJEKTU – przekazanie do nowej rozmowy (2026-10-26)
+# STAN PROJEKTU – przekazanie do nowej rozmowy (2026-10-26, aktualizacja 2026-10-27)
 
 > **Dla Claude w nowej rozmowie („wykonaj md”):** przeczytaj CAŁY ten plik, potem `CLAUDE.md` (zasady),
 > a przy pracy nad kodem – pliki wskazane w sekcjach. Repo `unreachable_sniper` NIE jest w tej sesji domyślnie:
 > dodaj je narzędziem `add_repo` (owner `PodolskiSzymon`, repo `unreachable_sniper`, dostęp `push`), sklonuj i
 > przełącz na gałąź `claude/hopeful-faraday-n33quh`. **Potem przeczytaj CAŁY `PLAN_OCENY.md` – to główny plan
 > dalszej pracy** (ocena ofert: „AI rozpoznaje, dane wyceniają, program decyduje”; fazy F0–F5, dane i pytania do
-> użytkownika). Zacznij od jego F0: pytania §11 + dane D1 (`status`, `diag`). Sekcja 8 niżej = pozostałe
-> niedoskonałości i kontekst (część z nich plan już obejmuje).
+> użytkownika). Sekcja 8 niżej = pozostałe niedoskonałości i kontekst (część z nich plan już obejmuje).
+>
+> **PIERWSZY KROK w nowej rozmowie (stan 2026-10-27):** użytkownik NIE jest przekonany do całego `PLAN_OCENY.md`
+> i najpierw porównuje dwa sposoby oceny na danych (sekcja **6a**). Przyniesie Ci wyniki dwóch komend
+> (`python -m sniper.experiment mediany --last 50` i `... model --last 50`: tabele + podsumowania, ewentualnie pliki
+> `logs/experiment_mediany.jsonl` / `experiment_model.jsonl`). Jeśli ich nie wkleił – poproś o nie. Przeanalizuj je
+> wg 6a („Jak ocenić wyniki”), daj rekomendację, który sposób (albo połączenie) wdrożyć w Sniperze na stałe,
+> i dopiero potem F0/F1 planu. Przy okazji poproś o D1 (`status`, `diag`) i odpowiedzi na pytania §11 planu.
 
 ---
 
@@ -97,7 +103,7 @@ Stary rdzeń zbierania (crawl/watch/resolver/details/extract) opisany w `KONTEKS
   zniknięta) + fts5vocab; bez flag/relistów/uszkodzonych; kopiowany do Snipera. **Nieprzetestowany na prawdziwej bazie**.
 * **`find.py`** – `python -m analyzer szukaj ram ddr4 dimm 16 --max 200`: najtańsze aktywne oferty z linkami; RAM:
   forma/typ z kodu naklejki w opisie (PC4-…-U = PC, -S = laptop, PC3 = DDR3).
-* Testy: **242** (`python -m pytest analyzer/tests -q`), atrapa rynku `analyzer/tests/fake_market.py`.
+* Testy: **243** (`python -m pytest analyzer/tests -q`), atrapa rynku `analyzer/tests/fake_market.py`.
 
 ## 5. Sniper (`unreachable_sniper/sniper/`) – przepływ oferty
 
@@ -125,7 +131,10 @@ Stary rdzeń zbierania (crawl/watch/resolver/details/extract) opisany w `KONTEKS
    Kopia logów na Dysk Google: `SNIPER_MIRROR_DIR`.
 * Ustawienia `.env` – pełna lista z opisami: `unreachable_sniper/sniper/.env.example`, wzór serwera
   `analyse_data/ENV_SERWER.example`. Reguła w Sniperze: `SNIPER_RULE_MIN_PROFIT/_MIN_MARGIN/_PER_POINT/_COSTS`.
-* Testy: **208** (`python -m pytest sniper/tests -q`; nowe w `sniper/tests/test_categories.py`).
+* Testy: **215** + 1 pominięty (`python -m pytest sniper/tests -q`; `test_categories.py`, `test_experiment.py`).
+* `evaluator.Task` (2026-10-27): zapytanie do AI = schemat + instrukcja systemowa + polecenie + normalizacja JSON;
+  `DEFAULT_TASK` = zwykła ocena; backendy (`generate(..., task=)`), parsery (`normalize=`) i `_call_model(offer,
+  comps, hint=, task=)` to przyjmują – nowe tryby oceny bez kopiowania backendów.
 * Kontekst historyczny Snipera (API Vinted, sesja konta, auto-zakup): `unreachable_sniper/CLAUDE.md`.
 
 ## 6. Co wyszło w praktyce (26.10, `oceny.html` 366 ocen + `mails.csv`)
@@ -134,13 +143,45 @@ Stary rdzeń zbierania (crawl/watch/resolver/details/extract) opisany w `KONTEKS
   – stara reguła (wyjątek 150 zł, marża 20%) + **AI zmyślało ceny retro** (Wii 600–760 zł, GBC 850, C64 800).
   Przy nowych regułach zostałoby ~10.
 * Użytkownik **kupił 7 rzeczy (~2 650 zł)** z alertów: 2× Wii + Wii czarne bez pilota, iPhone 12 128 (bateria <80%),
-  Galaxy A17, Galaxy Tab A 10.1 (2019), „iPad Air 2022” (w parametrach **iPad 10.9 (2022)** = zwykły iPad 10 –
-  wysłano sprzedawcy pytanie o model po słowacku; jeśli iPad 10 – prośba o anulowanie). Szac. zysk łącznie
+  Galaxy A17, Galaxy Tab A 10.1 (2019), „iPad Air 2022” (w parametrach **iPad 10.9 (2022)**; 27.10 zrzut Ustawień
+  od sprzedawczyni = **iPad Air 4. gen. (2020) 64 GB, MYFQ2FD/A** – oba źródła w ogłoszeniu błędne; użytkownik
+  dostał wiadomość po słowacku z prośbą o anulowanie – wynik nieznany, zapytać). Szac. zysk łącznie
   ~600–1 100 zł, wszystko od zagranicznych sprzedawców (RO/SK/LT). Rada: Wii składać w zestawy, gry osobno.
 * S22 (8/10) sprzedany w 3 min, gdy użytkownik negocjował → zasada „kupuj od razu przy 8+”.
 * Burst 12 maili „NIEOCENIONA” (błąd API) → `SNIPER_AI_NOTIFY_FAILED=false`.
 * Duplikaty tej samej oferty (podbicia) → `SNIPER_AI_SKIP_SEEN`.
 * 209/366 ocen = 3/10 → bramka z podobnych ofert.
+
+## 6a. Eksperyment 2026-10-27: dwa sposoby oceny (`unreachable_sniper/sniper/experiment.py`)
+
+Użytkownik chce porównać na 50 ostatnich ocenach Snipera (z `logs/evaluations.jsonl`, bez maili, Sniper bez zmian):
+
+* **`mediany`** (pomysł użytkownika): słowa z tytułu → `Comparables.levels()` = kilka median z `comparables.db`
+  (model + liczby + wariant → 1. liczba → bez liczb → „cała rodzina” = pierwsze znaczące słowo tytułu, df ≤ 50%,
+  bez słów ogólnych `GENERIC`) → `<mediany>` + karta rynku + wytyczne kategorii + zdjęcia → AI SAMO wycenia
+  (`median_used`), może poprawić model, gdy parametry przeczą tytułowi (`corrected_model`, np. iPad Air 2022 →
+  starsza generacja, zła karta w laptopie, zły RAM w telefonie); `in_medians=false` → nie okazja, ocena ≤ 3. Program
+  potem `enforce_profit_rule` z wybraną medianą (przycięcie ×1,2) + premia PL.
+* **`model`** (wersja planu): AI tylko rozpoznaje – marka, model, `params` (wartość, pewność 0–100, źródło), `variants`
+  a)/b) gdy pewność < 80% (z `search_words`), stan (enum), flagi; BEZ cen. Program wycenia każdy wariant
+  (`comparables.lookup`, bez niego wiersz tabeli), cena S = najtańszy wariant × (1 − 0,08), reguła zysku, ocena wzorem
+  (`formula_score`: 10 = marża ≥ 45% i zysk ≥ 800; 9 = ≥ 45% i ≥ 500; 8 = ≥ 40% albo ≥ 35% i ≥ 500; 7 = reguła;
+  −1 przy stanie „nie_wiadomo” albo pewności modelu < 80%), uszkodzone/blokada ≤ 2, wariant bez danych → nie okazja,
+  `upside` = „jeśli to <lepszy wariant>, zarobisz ~X zł więcej”; premia PL.
+* Wyjście: tabela „stara → nowa ocena, tytuł, S, zysk (marża), ⇄ poprawiony model / = wyceniony wariant, upside,
+  ← INNA DECYZJA” + PODSUMOWANIE (okazje stare → nowe, oceny 8+, ta sama decyzja, brak w medianach / poprawione
+  modele albo warianty a/b / bez danych, koszt) + `logs/experiment_<tryb>.jsonl` (pełne odpowiedzi, `old` = stara
+  ocena, `levels` = użyte mediany).
+* **Jak ocenić wyniki:** (1) okazje 8+ w każdym trybie – przejrzeć ręcznie (link w `offer.url`): czy model i cena
+  sprzedaży są realne, czy to nie akcesorium / uszkodzony; (2) fałszywe okazje starego Snipera (wysoka stara ocena,
+  nowa niska) – kto ma rację; (3) `mediany`: czy poziom „cała rodzina” nie zawyża (iPad Pro w medianie zwykłych
+  iPadów), ile razy AI wycenia z rodziny zamiast z dokładnej mediany, czy `corrected_model` ma sens; (4) `model`: ile
+  ofert bez danych (słabe pokrycie `comparables.db` = argument za taksonomią z planu), czy warianty a/b są sensowne;
+  (5) koszt; (6) pierwszy test `comparables.db` na prawdziwej bazie – dziwne dopasowania zapisać. Wnioski do
+  dziennika `PLAN_OCENY.md` §15 i decyzja z użytkownikiem: który tryb wdrożyć w Sniperze (np. jako
+  `SNIPER_EVAL_MODE`), co z planu zostaje.
+* Warunek: `comparables.db` w `SNIPER_GUIDES_DIR` (robi go `python -m analyzer sniper-guide`); bez niego program
+  ostrzega i wynik nie ma sensu.
 
 ## 7. Zasady pracy (skrót `CLAUDE.md`)
 
@@ -154,6 +195,8 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
 `restart sniper`).
 
 ## 8. Do zrobienia / niedoskonałości (priorytety)
+
+00. **Najpierw: wyniki eksperymentu 6a** (użytkownik przyniesie) → rekomendacja i decyzja, potem plan.
 
 0. **GŁÓWNY PLAN: `PLAN_OCENY.md`** (2026-10-26) – taksonomia modeli, ceny S7 z danych (`prices.json`), AI tylko do
    rozpoznania i stanu (z cytatami jako dowodem), deterministyczna ocena, pętla zwrotna (flipy, wynik alertów,
@@ -194,6 +237,7 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
 | temat | plik |
 |---|---|
 | **plan dokładnej oceny (główny)** | `PLAN_OCENY.md` |
+| eksperyment mediany / model | `unreachable_sniper/sniper/experiment.py`, `sniper/comparables.py: levels`, `evaluator.Task` |
 | zasady pracy | `analyse_data/CLAUDE.md`, `unreachable_sniper/CLAUDE.md` |
 | historia analizatora, API Vinted | `KONTEKST_CATEGORY_ANALYZER.md`, `PLAN_ANALIZY.md` (dziennik wyników na końcu) |
 | serwer, pilot, uruchamianie | `PILOT.md`, `ENV_SERWER.example`, `remote.bat`, `watch.bat` |
