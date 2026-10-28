@@ -3,11 +3,10 @@
 
 Bez sieci, główna baza tylko do odczytu; flagi, relisty i stan z AI z `analysis.db` (najpierw `report`).
 
-Reguła zysku użytkownika (2026-10-26, zmiana z 2026-10-25): zysk = cena sprzedaży − koszt zakupu − koszty (Podbicie
-międzynarodowe 7 dni ~26 zł + wysyłka ~20 zł), marża = zysk / cena sprzedaży; zysk ZAWSZE ≥ 300 zł („zysk < 300 zł to
-za mało”), a przy niższej marży rośnie: ≥ 40% → 300 zł, 35% → 400, 30% → 500 (+20 zł na punkt), marża < 30% → nie
-kupujemy (2026-10-26 po ofercie S25 z marżą 19%: „dla sprzętu powyżej 1000 zł marża min. 30%” - poniżej 1000 zł
-zysk ≥ 300 zł i tak wymusza ≥ 30%). (Wcześniej: dopuszczalne 20–30% marży; 30% → 700 zł +40 zł/pkt; wyjątek 150 zł.)
+Reguła zysku użytkownika (2026-10-28): zysk = cena sprzedaży − koszt zakupu − koszty (Podbicie międzynarodowe 7 dni
+~26 zł + wysyłka ~20 zł), marża = zysk / cena sprzedaży; zysk ZAWSZE ≥ 300 zł, marża ≥ ~28% przy tanich (sprzedaż do
+1 000 zł) malejąco liniowo do ~25% przy drogich (od 2 500 zł); spełniona reguła = okazja na 8/10 (Sniper).
+(Wcześniej: 26.10 - ≥ 40% → 300 zł, 35% → 400, 30% → 500 (+20 zł/pkt), < 30% nigdy; 25.10 - 20–30% marży, 30% → 700 zł.)
 
 Grupy (tylko sprawne - stan z AI, inaczej z reguł; bez flag wykluczających i ofert z relistem):
 laptopy - karta graficzna (gamingowe), MacBooki - linia + chip + RAM, reszta - linia CPU + RAM; telefony / tablety -
@@ -33,8 +32,11 @@ MIN_GONE_FOR_S = 10
 PROMO, SHIP = 26.0, 20.0
 CAT_TITLE = {"laptop": "Laptopy", "phone": "Telefony", "tablet": "Tablety", "console": "Konsole",
              "gpu": "Karty graficzne", "ram": "Pamięci RAM", "storage": "Dyski SSD"}
-MIN_PROFIT, PROFIT_PER_POINT = 300.0, 20.0  # zysk ≥ 300 zł; +20 zł za każdy punkt marży poniżej 40%
-MIN_MARGIN = 0.30                            # marża poniżej 30% - nigdy
+MIN_PROFIT = 300.0                           # zysk ≥ 300 zł zawsze
+# Minimalna marża: tanie (sprzedaż ≤ CHEAP_SALE) 28%, drogie (≥ EXPENSIVE_SALE) 25%, pomiędzy liniowo - jak Sniper
+# (sniper/evaluator.py: rule_min_margin, SNIPER_RULE_MARGIN_*).
+MARGIN_CHEAP, MARGIN_EXPENSIVE, CHEAP_SALE, EXPENSIVE_SALE = 0.28, 0.25, 1000.0, 2500.0
+SNIPER_PRICE_FROM = 300            # catalogs.json: dolna granica ceny każdego katalogu (użytkownik 28.10)
 MIXED_BELOW = 0.10                 # > 10% aktywnych ofert już ≤ max zakup → grupa mieszana, cena sprzedaży niepewna
 TOP_ROWS = 80                      # wierszy tabeli na kategorię (koszt tokenów w zapytaniu Snipera)
 # Katalogi Vinted Snipera → nasze kategorie (jak sniper/categories.py; mieszane - kategoria z tytułu).
@@ -47,27 +49,25 @@ PRICE_TO_HEADROOM = 1.15           # do „Zaproponuj cenę”: oferta trochę p
 # ---------------------------------------------------------------------------------------------- reguła zysku
 
 
-def min_profit(margin):
-    """Minimalny zysk (zł) przy danej marży; None = za niska marża (< 30%)."""
-    if margin < MIN_MARGIN - 1e-9:
-        return None
-    return MIN_PROFIT if margin >= 0.40 else MIN_PROFIT + PROFIT_PER_POINT * 100 * (0.40 - margin)
+def min_margin(sale):
+    """Minimalna marża (ułamek) przy cenie sprzedaży `sale`."""
+    if not sale or sale <= CHEAP_SALE:
+        return MARGIN_CHEAP
+    if sale >= EXPENSIVE_SALE:
+        return MARGIN_EXPENSIVE
+    return MARGIN_CHEAP + (MARGIN_EXPENSIVE - MARGIN_CHEAP) * (sale - CHEAP_SALE) / (EXPENSIVE_SALE - CHEAP_SALE)
+
+
+def meets_rule(profit, sale):
+    return sale > 0 and profit >= MIN_PROFIT - 1e-9 and profit / sale >= min_margin(sale) - 1e-9
 
 
 def max_buy(sale, costs=PROMO + SHIP):
-    """Najwyższa cena zakupu, przy której flip spełnia regułę (zysk ≥ min_profit(marża)) → (cena, zysk, marża) albo
-    None, gdy przy tej cenie sprzedaży żaden zakup się nie opłaca.
-
-    Najmniejszy dopuszczalny zysk P*: w przedziale marży 30–40% warunek P ≥ 300 + 2000·(0,4 − P/S) daje
-    P ≥ 1100·S / (S + 2000) (i zawsze ≥ 300 zł, ≥ 30% S); przy marży ≥ 40% wystarcza P ≥ max(0,4·S, 300)."""
+    """Najwyższa cena zakupu, przy której flip spełnia regułę → (cena, zysk, marża) albo None, gdy przy tej cenie
+    sprzedaży żaden zakup się nie opłaca. Najmniejszy dopuszczalny zysk = max(300 zł, min_margin(S) · S)."""
     if not sale or sale <= 0:
         return None
-    k = PROFIT_PER_POINT * 100
-    candidates = [max(0.4 * sale, MIN_PROFIT)]
-    p2 = max(MIN_MARGIN * sale, MIN_PROFIT, (MIN_PROFIT + 0.4 * k) * sale / (sale + k))
-    if p2 < 0.4 * sale:
-        candidates.append(p2)
-    profit = min(candidates)
+    profit = max(MIN_PROFIT, min_margin(sale) * sale)
     buy = sale - costs - profit
     if buy <= 0:
         return None
@@ -234,7 +234,7 @@ def _zl(v):
 
 
 def header(category, costs, day, ai_count):
-    profit_table = " · ".join(f"{m}% → {_zl(min_profit(m / 100))} zł" for m in (40, 35, 30))
+    margin_table = " · ".join(f"sprzedaż {_zl(s)} zł → {min_margin(s) * 100:.1f}%" for s in (1000, 1750, 2500))
     return [
         f"# {CAT_TITLE[category]} – wytyczne oceny okazji (z danych rynku, {day})", "",
         "## Strategia kupującego",
@@ -243,7 +243,8 @@ def header(category, costs, day, ai_count):
         f"- Koszty jednej transakcji: Podbicie ~{PROMO:.0f} zł + wysyłka ~{SHIP:.0f} zł (PL ~15, z daleka do 50) = "
         f"**{costs:.0f} zł**. Opłatę Vinted (5% + 2,90 zł) i weryfikację elektroniki płaci kupujący.",
         "- **Zysk** = cena sprzedaży − cena zakupu − koszty; **marża** = zysk / cena sprzedaży.",
-        f"- Minimalny zysk zależy od marży: {profit_table}; marża < 30% – nie kupuję (także przy drogim sprzęcie).",
+        f"- Minimalna marża zależy od ceny sprzedaży: {margin_table} (tanie ~28%, drogie ~25%); poniżej – nie "
+        f"kupuję. Spełniona reguła = okazja (8/10).",
         f"- Zysk nigdy poniżej {_zl(MIN_PROFIT)} zł – mniejszy zysk nie jest wart zachodu.",
         "- Sprzedawca z Polski: paczka dochodzi w 1–2 dni zamiast ~5–10 z zagranicy – krócej mrożę gotówkę, szybciej "
         "obracam kapitałem. Program sam dodaje +1 do oceny okazji z Polski – oceniaj bez tej premii; w "
@@ -333,8 +334,9 @@ def build(conn, aconn, out, promo=PROMO, ship=SHIP, min_offers=8, progress=None)
 
 
 def catalogs(result):
-    """Zakresy cen katalogów dla Snipera (SNIPER_CATALOGS=auto): od = 60% najniższego „max zakup” wśród grup
-    z realną okazją (zaokrąglone w dół do 50), do = najwyższy „max zakup” × 1,15 (w górę do 100). Katalog bez
+    """Zakresy cen katalogów dla Snipera (SNIPER_CATALOGS=auto): od = SNIPER_PRICE_FROM (300 zł - decyzja
+    użytkownika 28.10; wcześniej 60% najniższego „max zakup”, co dawało 50-400 zł), do = najwyższy „max zakup” × 1,15
+    (w górę do 100). Katalog bez
     opłacalnych grup jest pomijany (Sniper go nie skanuje)."""
     out = []
     for catalog_id, cats in SNIPER_CATALOGS.items():
@@ -342,7 +344,7 @@ def catalogs(result):
         if not buys:
             continue
         out.append({"catalog_id": catalog_id, "categories": [c for c in cats if c in result],
-                    "price_from": max(50, int(math.floor(0.6 * min(buys) / 50) * 50)),
+                    "price_from": SNIPER_PRICE_FROM,
                     "price_to": int(math.ceil(max(buys) * PRICE_TO_HEADROOM / 100) * 100),
                     "weight": SNIPER_WEIGHTS.get(catalog_id, 1)})
     return out

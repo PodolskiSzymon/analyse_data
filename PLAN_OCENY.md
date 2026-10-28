@@ -427,3 +427,8 @@ z kodem.
   nie mógł zainstalować basal w swoim środowisku). Uwaga: „basal-2.0 pico” nie istnieje – najmniejsze są
   basal-omni-pico 0,8B (GGUF, CPU przez Ollama / llama.cpp) i basal-2.0-mini 1,5B (udokumentowane CPU:
   `--mode eager --device cpu`). Wynik → wybór: najlepszy / najtańszy / optymalny wariant.
+* **2026-10-28 – nowa reguła zysku (użytkownik):** okazja na 8 przy marży ≥ ~28% (tanie, sprzedaż ≤ 1 000 zł) →
+  ~25% (drogie, ≥ 2 500 zł), zysk ≥ 300 zł; koniec dopłaty „+20 zł/pkt poniżej 40%”. W §7 progi 8/9/10 odpowiednio:
+  8 = reguła, 9 = marża ~35%+ albo zysk ~600+, 10 = ≥ 45% i ≥ 800 zł. Katalogi Snipera od 300 zł (wcześniej
+  `catalogs.json` dawał 50–400 zł). Przykład z kopii bazy: iPhone 14 Pro 128 GB max zakup 1 051 → 1 112 zł,
+  PS5 1 695 → 1 819 zł; przy tanich (S < ~1 070 zł) decyduje zysk 300 zł.

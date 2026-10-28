@@ -99,8 +99,9 @@ def report(rows, today=None):
                      f"kapitału), mediana marży {_med([r['margin'] for r in sold]) * 100:.0f}%, mediana dni "
                      f"zakup→sprzedaż {_fmt(_med([r['days'] for r in sold]))}, wystawienie→sprzedaż "
                      f"{_fmt(_med([r['days_listed'] for r in sold]))}")
-        meets = sum(1 for r in sold if r["profit"] >= 300 and r["margin"] is not None and r["margin"] >= 0.30)
-        lines.append(f"  reguła (zysk ≥ 300 zł, marża ≥ 30%) spełniona w {meets}/{len(sold)}")
+        from .guide import meets_rule
+        meets = sum(1 for r in sold if meets_rule(r["profit"], r["got"]))
+        lines.append(f"  reguła (zysk ≥ 300 zł, marża ≥ 28% tanie / 25% drogie) spełniona w {meets}/{len(sold)}")
         deltas = [1 - r["got"] / r["ask"] for r in sold if r["ask"]]
         if deltas:
             lines.append(f"  δ (rabat od ceny wystawienia): mediana {_med(deltas) * 100:.1f}% z {len(deltas)} "

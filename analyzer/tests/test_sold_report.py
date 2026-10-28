@@ -59,7 +59,7 @@ def test_flips_template_and_report(tmp_path):
     assert "kupione 3, sprzedane 2, w toku 1 (zamrożone 900 zł)" in text
     # Wii: 420 - 140,5 - 46 = 233,5 (56%); iPhone: 1080 - 700 - 46 = 334 (30,9%) → razem 567,5 na 840,5
     assert "zysk 568 zł na 840 zł (68% kapitału)" in text
-    assert "reguła (zysk ≥ 300 zł, marża ≥ 30%) spełniona w 1/2" in text
+    assert "reguła (zysk ≥ 300 zł, marża ≥ 28% tanie / 25% drogie) spełniona w 1/2" in text
     assert "δ (rabat od ceny wystawienia): mediana 4.2% z 2" in text                # 6,7% i 1,8%
     assert "stan zgodny z ogłoszeniem: 1/2 (niezgodne: iPhone 12 128 GB)" in text
     assert "iPad Air 4 900 zł, 11 dni" in text

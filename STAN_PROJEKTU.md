@@ -107,7 +107,11 @@ Pilot (temat `pilot-…` w aplikacji ntfy; opcjonalnie PIN na początku): `statu
 
 * **Koszt zakupu** = cena + wysyłka + **opłata Vinted kupującego 5% + 2,90 zł** (`SNIPER_BUYER_FEE_*`).
 * **Koszty sprzedaży** 46 zł (Podbicie międzynarodowe 7 dni ~26 zł + wysyłka ~20 zł).
-* **Reguła zysku (2026-10-26, ostatnia wersja):** zysk = sprzedaż − koszt zakupu − 46 zł; marża = zysk / sprzedaż.
+* **Reguła zysku (2026-10-28, ostatnia wersja):** zysk ≥ 300 zł zawsze; marża ≥ ~28% przy tanich (sprzedaż
+  ≤ 1 000 zł) malejąco liniowo do ~25% przy drogich (≥ 2 500 zł); spełniona = okazja z oceną co najmniej 8 (program
+  podnosi). Wzory: `analyzer/guide.py: min_margin / max_buy`, `sniper/evaluator.py: rule_min_margin / rule_max_buy`,
+  `SNIPER_RULE_*`. Katalogi Snipera (auto) zawsze od 300 zł. Poniżej wersja z 26.10 (historia):
+* **Reguła zysku (2026-10-26):** zysk = sprzedaż − koszt zakupu − 46 zł; marża = zysk / sprzedaż.
   **Zysk ≥ 300 zł zawsze; 40%+ → 300 zł, 35% → 400, 30% → 500 (+20 zł/pkt); marża < 30% → nigdy** (także drogi sprzęt).
   Wzór max zakupu: `analyzer/guide.py: max_buy` (to samo w `sniper/evaluator.py: rule_max_buy`). Historia: 25.10
   40%→300 … 20%→1100 (+40/pkt) + wyjątek 30%/150 zł; 26.10 rano 30%→500, 20%→700; 26.10 po S25 (19%) – minimum 30%.
