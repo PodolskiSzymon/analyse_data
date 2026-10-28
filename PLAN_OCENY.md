@@ -409,3 +409,12 @@ z kodem.
   sniper.bench` (warianty: mediany, 3 zdjęcia, średnia / niska rozdzielczość zdjęć, krótsze myślenie,
   flash-lite + mediany, kaskada „tani model bez zdjęć → pełna ocena tylko ≥ 4/10”), miary: złoty zbiór (okazje
   trafione / przegapione / fałszywe, S w zakresie), zgodność z odniesieniem, $/ofertę. Równoległość AI 3 → 10.
+* **2026-10-28 – pytanie użytkownika: model decyzyjny zamiast LLM (basal-omni-1.0-ultra, Remek Kinas).** To model
+  „decyzyjny” (Gemma 4 31B + LoRA): stan (tekst/zdjęcia) + pytanie z listą dozwolonych odpowiedzi → skalibrowane
+  prawdopodobieństwa w jednym przebiegu (choice / tak-nie / score), bez cen i bez arytmetyki. Pasuje do etapów A/B
+  z §6 (wybór item_id z kandydatów taksonomii, flagi: uszkodzony / blokada / oszustwo / akcesorium), NIE do wyceny
+  (tę i tak robi program). Ultra: ~62 GB VRAM (bf16, 1× GPU 80 GB), FP8 tylko tekst; ~80 ms/pytanie na H200;
+  eksperymentalny, zdjęcia z telefonu słabsze (zero-shot). Na serwerze użytkownika (4 GB RAM, bez GPU) niewykonalny;
+  wynajem GPU 24/7 drożej niż Gemini po bramkach. Mniejsze: omni-mini 4B (16 GB VRAM, zdjęcia), basal-2.0 pico 0,8B
+  (tekst, GGUF 812 MB, CPU). Wniosek: wrócić po F1 (taksonomia = lista kandydatów) jako tani etap A tekstowy –
+  porównać w `sniper.bench` na złotym zbiorze.

@@ -13,13 +13,16 @@
 > (resolver nie blokuje cyklu, przejścia co 5–7 h). **Czekamy od użytkownika na (sprawdź, co już przyszło):**
 > 1. wynik `python -m sniper.bench` (tabela + `logs\bench_<czas>.txt`) → decyzja: `SNIPER_EVAL_MODE`, zdjęcia,
 >    rozdzielczość, model; potem uzupełnianie złotego zbioru prawdziwymi przypadkami,
-> 2. ~~summary.md~~ (przyszło 27.10), ~~odpowiedzi §11~~ (27.10; iPad Air 4 – użytkownik nie pamiętał, o który
->    chodzi: to „iPad Air 2022” kupiony 26.10 od Słowaczki, która prosiła o anulowanie – zapytać o wynik),
-> 3. — ,
-> 4. `flips.csv` (szablon: `python -m analyzer flips --szablon`), potem wynik `python -m analyzer flips`,
-> 5. log `watch` z 24–26.10 (pilot `log watch` albo `data\remote\watch.log`) – czemu `watch` stał większość dni,
-> 6. ile GB zostało w Evomi (watch 5–7 h ≈ 0,5–0,6 GB/dobę razem z resolverem i szczegółami), dzienny koszt AI
->    po zmianach (`log sniper` → „dziś ~$…”),
+> 2. (zamknięte 28.10: iPad anulowany; `flips.csv` pusty – Sniper jeszcze nic nie kupił, użytkownik nie chce
+>    o to dopytywania; `watch` 24–26.10 wyłączał sam; proxy: część ruchu analizatora idzie przez IPRoyal (stare .env),
+>    razem Evomi + IPRoyal ~25 GB – wystarczy na ~1,5 mies. przy ~0,5 GB/dobę),
+> 3. nowy `watch` (28.10, log): 1. cykl „zniknięć 761, pewnych sprzedaży 35 (4,6%), sprawdzone ≤ 24 h 99,5%, mediana
+>    zwłoki 11,3 h” – szybkie sprawdzanie działa; udział sprzedaży dalej niski ⇒ większość zniknięć to naprawdę
+>    usunięcia (relisty/podbicia). Uwaga: z 2 620 „zniknięć” 1 508 to `unlisted` (oferta żyje, przejście jej nie
+>    zobaczyło) – przy `ANALYZER_GONE_AFTER_RUNS=1` ~58% sprawdzeń resolvera jest zbędnych (do zbadania: dziury
+>    w pokryciu przejścia przy `newest_first`),
+> 4. — , 5. — ,
+> 6. dzienny koszt AI po zmianach (`log sniper` → „dziś ~$…”),
 > 7. po 2–3 dniach nowego `watch`: `python -m analyzer sold-report --od <data restartu>` (cel: ≥ 90% zniknięć ≤ 24 h).
 > Potem decyzja o trybie oceny i F1 (taksonomia). F0 zrobione na pełnej bazie (`sold-report`, `flips`).
 
