@@ -418,3 +418,12 @@ z kodem.
   wynajem GPU 24/7 drożej niż Gemini po bramkach. Mniejsze: omni-mini 4B (16 GB VRAM, zdjęcia), basal-2.0 pico 0,8B
   (tekst, GGUF 812 MB, CPU). Wniosek: wrócić po F1 (taksonomia = lista kandydatów) jako tani etap A tekstowy –
   porównać w `sniper.bench` na złotym zbiorze.
+* **2026-10-28 – dzień testowy (decyzja użytkownika; Sniper wyłączony, bo jeszcze nie działa dobrze).** Te same
+  oferty przez 12 wariantów: `mediany` / `model` / `basal` × gemini-3.8-flash / gemini-2.5-flash-lite (myślenie
+  medium; 2.5 przez thinking_budget) × 3 / 6 zdjęć – `python -m sniper.bench --warianty dzien_testowy --last 50
+  --bez-bramki`. Tryb `basal`: program dobiera kandydatów z tabeli wytycznych, basal (lokalny model decyzyjny – nie
+  generuje tekstu, tylko wybiera z podanych odpowiedzi) wybiera model + flagi tak/nie, z wybranego wiersza mediany
+  z bazy, Gemini ocenia (`unreachable_sniper/sniper/basal.py`, API wg dokumentacji, nieprzetestowane na żywo – Claude
+  nie mógł zainstalować basal w swoim środowisku). Uwaga: „basal-2.0 pico” nie istnieje – najmniejsze są
+  basal-omni-pico 0,8B (GGUF, CPU przez Ollama / llama.cpp) i basal-2.0-mini 1,5B (udokumentowane CPU:
+  `--mode eager --device cpu`). Wynik → wybór: najlepszy / najtańszy / optymalny wariant.
