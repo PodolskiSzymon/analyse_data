@@ -432,3 +432,18 @@ z kodem.
   8 = reguła, 9 = marża ~35%+ albo zysk ~600+, 10 = ≥ 45% i ≥ 800 zł. Katalogi Snipera od 300 zł (wcześniej
   `catalogs.json` dawał 50–400 zł). Przykład z kopii bazy: iPhone 14 Pro 128 GB max zakup 1 051 → 1 112 zł,
   PS5 1 695 → 1 819 zł; przy tanich (S < ~1 070 zł) decyduje zysk 300 zł.
+* **2026-10-29 – wynik dnia testowego (68 ofert = 50 ostatnich + złoty zbiór, bez bramki, $3,90).** Gemini 2.5 Flash
+  Lite: 404 „niedostępny dla nowych kont” (wszystkie 272 oceny = błąd; dlatego „błyskawicznie”); basal pominięty
+  (serwer nie uruchomiony). Gemini 3.8 Flash:
+  | wariant | $/ofertę | tok. we/wy | okazje | złote: trafione / fałszywe | S w zakresie |
+  | mediany 3 zdj. | 0,0156 | 12,9k / 1,6k | 3 | 1 / 1 (Wii 7/10, „bardzo tanio”) | 11/12 |
+  | **mediany 6 zdj.** | **0,0158** | 15,0k / 1,6k | **1** | **1 / 0** | 10/12 |
+  | model 3 zdj. | 0,0129 | 11,2k / 1,2k | 5 | 1 / 2 (iPhone 16 oszustwo 8/10 – wzięty za iPhone 15; iPad 2) | 8/11 |
+  | model 6 zdj. | 0,0130 | 13,0k / 1,2k | 4 | 1 / 1 (iPad 2) | 10/11 |
+  Najlepsza jakość: **mediany + 3.8 Flash + 6 zdjęć** (jedyna okazja = iPhone 14 Pro 850 zł; laptop Asus za 578 zł
+  odrzucony przy zysku 296 zł i nowym koncie; Wii wycenione realnie na 370 zł). `model` myli się na dopasowaniu słów
+  (Galaxy A25 wyceniony na 1 222 zł, iPad 2) i na oszustwach. 3 vs 6 zdjęć: tylko ~2 tys. tokenów (~0,2 centa) różnicy –
+  zdjęcia to mały koszt; ~11 tys. tokenów to tekst (prompt + pełna tabela wytycznych ~4–5 tys.), ~38% kosztu to
+  wyjście z myśleniem (1,6k × $3,75/M). Dalej: `dzien_testowy2` (tańsze modele 3.5 / 3.1 Flash Lite, myślenie low,
+  wytyczne tylko z pasującymi wierszami – `SNIPER_AI_GUIDE_ROWS=dopasowane`). Bramka (próg 300 zł + podobne oferty)
+  i tak odcina ~70% ofert przed AI.
