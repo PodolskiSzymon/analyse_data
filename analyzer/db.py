@@ -198,8 +198,18 @@ CREATE TABLE features (
 CREATE INDEX features_key ON features(category, config_key);
 """
 
+# v12 (2026-10-29, użytkownik): numeryczne ID sprzedawcy (z katalogu, pole user.id) - do sprawdzania szafy
+# (/api/v2/wardrobe/{id}/items), czy zniknięta oferta jest sprzedana / dalej wisi / konto zniknęło; gone_404 = ile razy
+# /services dało 404/104 dla zniknięcia (deleted dopiero po potwierdzeniu w kolejnym cyklu - strona oferty potrafi
+# chwilowo dawać 404: laptop 10573243219, 5× 404 i dopiero 6. odświeżenie zadziałało).
+SCHEMA_V12 = """
+ALTER TABLE listings ADD COLUMN seller_id INTEGER;
+ALTER TABLE listings ADD COLUMN gone_404 INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX listings_seller ON listings(seller_id);
+"""
+
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
-              SCHEMA_V10, SCHEMA_V11]
+              SCHEMA_V10, SCHEMA_V11, SCHEMA_V12]
 
 
 def utcnow():
@@ -319,12 +329,13 @@ def upsert_item(conn, item, run_id, seen_at, min_for=None):
         conn.execute(
             """INSERT INTO listings (id, catalog_id, title, brand, status_label, currency, photo_url, photo_ts,
                    first_seen, last_seen, last_run_id, state, state_at, seller_hash, favourite_count, view_count, model,
-                   price_now, total_now, seller_country, category, category_src, category_rule, category_check)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   price_now, total_now, seller_country, category, category_src, category_rule, category_check,
+                   seller_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (item.id, item.catalog_id, item.title, item.brand, item.status_label, item.currency, item.photo_url,
              item.photo_ts, seen_at, seen_at, run_id, state, seen_at, item.seller_hash, item.favourite_count,
              item.view_count, item.model, item.price, item.total_price, item.seller_country, category, src, rule,
-             check))
+             check, getattr(item, "seller_id", None)))
         if state == "ignored":
             return "ignored"
         conn.execute("INSERT INTO observations (listing_id, seen_at, price, total_price, is_reserved, favourite_count)"
@@ -343,14 +354,14 @@ def upsert_item(conn, item, run_id, seen_at, min_for=None):
         """UPDATE listings SET last_seen=?, last_run_id=?, missed_runs=0,
                title=COALESCE(?, title), brand=COALESCE(?, brand), status_label=COALESCE(?, status_label),
                currency=COALESCE(?, currency), photo_url=COALESCE(?, photo_url), photo_ts=COALESCE(photo_ts, ?),
-               seller_hash=COALESCE(seller_hash, ?),
+               seller_hash=COALESCE(seller_hash, ?), seller_id=COALESCE(seller_id, ?), gone_404=0,
                favourite_count=COALESCE(?, favourite_count), view_count=COALESCE(?, view_count),
                model=COALESCE(?, model), price_now=?, total_now=?, seller_country=COALESCE(?, seller_country),
                category=?, category_src=?, category_rule=?, category_check=COALESCE(category_check, ?),
                state_at=CASE WHEN state != ? THEN ? ELSE state_at END, state=?
            WHERE id=?""",
         (seen_at, run_id, item.title, item.brand, item.status_label, item.currency, item.photo_url, item.photo_ts,
-         item.seller_hash, item.favourite_count, item.view_count, item.model, item.price, item.total_price,
+         item.seller_hash, getattr(item, "seller_id", None), item.favourite_count, item.view_count, item.model, item.price, item.total_price,
          item.seller_country, category, src, rule, check, new_state, seen_at, new_state, item.id))
     if new_state == "ignored":
         return "ignored"

@@ -460,3 +460,10 @@ z kodem.
   6 zdjęć + myślenie medium + pełne wytyczne** (jakość priorytetem); myślenie low / krótkie wytyczne oszczędzają tylko
   4–7% (różnice w niejawnym cache Gemini są większe niż te oszczędności). Koszt i tak tnie bramka przed AI (~70%).
   Złoty zbiór +5 ofert z tego testu (23).
+* **2026-10-29 – zniknięcia: fałszywe 404 i szafa sprzedawcy (pomysł użytkownika).** Użytkownik trafił na
+  aktywną ofertę, której strona dała 5× 404 → resolver po jednym 404/104 z /services oznaczał `deleted`, co mogło
+  zawyżać usunięcia. Teraz: pierwsze 404 = `gone_404` + potwierdzenie w następnym cyklu (`ANALYZER_CONFIRM_404=2`);
+  404 → 200 liczone jako „fałszywe 404” w `[RESOLVE] Wynik` (to zmierzy skalę zjawiska). Migracja v12: `seller_id`
+  (z katalogu) i `gone_404`. `python -m analyzer szafa-test` – sprawdza w szafie sprzedawcy ostatnie zniknięcia
+  (sprzedana / aktywna / brak / konto usunięte) i ile kosztuje strona szafy; po wyniku decyzja, czy dołożyć szafę
+  do resolvera (koszt ~8 KB na pozycję – za drogo dla każdego zniknięcia, raczej dla `deleted` w ważnych grupach).

@@ -143,6 +143,9 @@ Stary rdzeń zbierania (crawl/watch/resolver/details/extract) opisany w `KONTEKS
   (zakresy cen katalogów: od 60% min max-zakupu, do max × 1,15; laptop waga 3) i **`comparables.db`**.
 * **`comparables.py`** (2026-10-26): `comparables.db` = SQLite FTS5 (słowa tytułu jak w Sniperze, kategoria, cena,
   zniknięta) + fts5vocab; bez flag/relistów/uszkodzonych; kopiowany do Snipera. **Nieprzetestowany na prawdziwej bazie**.
+* **Zniknięcia od 2026-10-29:** `deleted` dopiero po drugim 404/104 z /services w kolejnym cyklu
+  (`ANALYZER_CONFIRM_404`, licznik „fałszywe 404”); `listings.seller_id` (v12) + `szafa-test` (szafa sprzedawcy –
+  `analyzer/wardrobe.py`, endpoint z przeglądarki użytkownika, opis w `KONTEKST_CATEGORY_ANALYZER.md`).
 * **`watch` od 2026-10-27** (prośba użytkownika „podejrzanie mało sprzedaży”): dane pokazały, że resolver brał
   odstęp stron katalogu 2–6 s (~700 ofert/h) i w jednym wywołaniu robił też ~12 tys. ponownych sprawdzeń
   niewidocznych/ukrytych co 3 dni → resolve ~17 h, następne przejście czekało (przerwy 16–21 h, mediana zwłoki

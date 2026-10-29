@@ -110,3 +110,48 @@ def test_resolver_fresh_first_and_rechecks_until_deadline(tmp_path):
     assert counts == {}
     assert cfg.resolve_delay == (1.0, 2.5) and 1.0 <= cfg.pick_resolve_delay() <= 2.5
     conn.close()
+
+
+def test_wardrobe_find_sold_active_missing_and_gone_account():
+    import asyncio
+
+    import httpx
+
+    from analyzer import wardrobe
+    from sniper.session import VintedSession
+    from sniper.traffic import TrafficMeter
+
+    pages = {(1, 1): {"items": [{"id": 11, "item_closing_action": None}, {"id": 12, "item_closing_action": "sold"}],
+                      "pagination": {"total_pages": 2}},
+             (1, 2): {"items": [{"id": 13, "is_reserved": True}], "pagination": {"total_pages": 2}}}
+
+    def handler(request):
+        seller = int(request.url.path.split("/")[4])
+        if seller == 9:
+            return httpx.Response(404, json={"code": 404})
+        return httpx.Response(200, json=pages[(seller, int(request.url.params["page"]))])
+
+    async def go():
+        session = VintedSession(proxy_url=None)
+        await session.client.aclose()
+        session.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        session.traffic = getattr(session, "traffic", None) or TrafficMeter()
+
+        async def no_sleep(_s):
+            return None
+        rows = [{"id": 11, "seller_id": 1, "state": "deleted", "title": "a"},
+                {"id": 12, "seller_id": 1, "state": "deleted", "title": "b"},
+                {"id": 13, "seller_id": 1, "state": "deleted", "title": "c"},
+                {"id": 14, "seller_id": 1, "state": "deleted", "title": "d"},
+                {"id": 15, "seller_id": 9, "state": "deleted", "title": "e"}]
+        try:
+            return await wardrobe.run(session, rows, sleep=no_sleep)
+        finally:
+            await session.client.aclose()
+
+    out, summary, requests, size = asyncio.run(go())
+    assert [r for _row, r in out] == ["w szafie: aktywna", "w szafie: sold", "w szafie: zarezerwowana",
+                                      "brak w szafie", "szafa 404 - konto usunięte / zablokowane?"]
+    assert requests == 1 + 1 + 2 + 2 + 1 and size > 0
+    text = "\n".join(wardrobe.lines(out, summary, requests, size))
+    assert "deleted      → w szafie: sold: 1" in text and "https://www.vinted.pl/items/11" in text

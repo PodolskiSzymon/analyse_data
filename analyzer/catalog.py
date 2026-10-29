@@ -55,6 +55,7 @@ class CatalogItem:
     view_count: int = None
     seller_hash: str = None
     seller_country: str = None
+    seller_id: int = None               # numeryczne ID (v12) - do sprawdzania szafy sprzedawcy
     # Nasza kategoria przedmiotu (classify.py); None = z katalogu Vinted.
     category: str = None
     category_src: str = None
@@ -93,6 +94,15 @@ def parse_item_box(item):
 # „ofert na sprzedawcę” w analizie. Bez własnej soli (ANALYZER_SELLER_SALT) - stała poniżej (zmiana soli = nowe hashe,
 # stare oferty nie połączą się z nowymi, więc raz ustawionej nie zmieniać).
 DEFAULT_SELLER_SALT = "vinted-analyzer"
+
+
+def _seller_id(item):
+    user = item.get("user")
+    user_id = user.get("id") if isinstance(user, dict) else item.get("user_id")
+    try:
+        return int(user_id) if user_id is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _seller_hash(item, salt):
@@ -150,6 +160,7 @@ def parse_item(item, catalog_id, seller_salt=""):
         favourite_count=int(favourites) if isinstance(favourites, (int, float)) else None,
         view_count=int(views) if isinstance(views, (int, float)) else None,
         seller_hash=_seller_hash(item, seller_salt),
+        seller_id=_seller_id(item),
         seller_country=seller_country(item),
         raw=strip_personal(item),
     )

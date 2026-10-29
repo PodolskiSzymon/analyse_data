@@ -368,3 +368,14 @@ dalej w `unreachable_sniper`; zmiany w `sniper/` tutaj tylko, gdy analizator ich
   „requests count” w IPRoyal = połączenia, nie zapytania. Sniper działa równolegle na tym samym koncie IPRoyal.
 * **Serwer użytkownika** (od 2026-10-13): stary laptop i5-5200U, 4 GB RAM, SSD, Wi-Fi, `C:\Users\szymo\category_analyzer`
   (klon gałęzi `claude/focused-johnson-6ytqgt` – `main` ma tylko PR #1 z etapem 1!).
+
+## Szafa sprzedawcy (2026-10-29, z przeglądarki użytkownika)
+
+* `GET https://www.vinted.pl/api/v2/wardrobe/{seller_id}/items?page=1&per_page=20` → `{"items": [...], "pagination":
+  {"current_page", "total_pages", "total_entries", "per_page"}}`; pozycja jak w katalogu + `item_closing_action`,
+  `is_closed`, `is_reserved`, `is_hidden`, `user.id`, `user.profile_url`. ~8 KB na pozycję (miniatury zdjęć).
+* `seller_id` = `user.id` z pozycji katalogu (od migracji v12 zapisywany w `listings.seller_id`).
+* NIEPOTWIERDZONE: czy sprzedane oferty są w szafie (z `item_closing_action="sold"`) i co zwraca szafa usuniętego /
+  zablokowanego konta → `python -m analyzer szafa-test`.
+* Obserwacja użytkownika 29.10: strona aktywnej oferty (laptop 10573243219) dała 5× 404, 6. odświeżenie OK →
+  resolver potwierdza 404 w kolejnym cyklu (`ANALYZER_CONFIRM_404=2`), licznik „fałszywe 404” w logu `[RESOLVE] Wynik`.

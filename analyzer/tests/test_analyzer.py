@@ -19,6 +19,7 @@ def make_cfg(**kw):
     cfg.per_page, cfg.max_results, cfg.partition_fill = 96, 960, 0.9
     cfg.price_min, cfg.price_max, cfg.initial_partitions = 0.0, 20000.0, 4
     cfg.page_delay, cfg.gone_after_runs, cfg.seller_salt = (0.0, 0.0), 2, ""
+    cfg.resolve_delay, cfg.confirm_404 = (0.0, 0.0), 1
     cfg.details_catalogs = None
     for k, v in kw.items():
         setattr(cfg, k, v)
@@ -1356,3 +1357,49 @@ def test_extract_vram_vs_ram_and_form_errors():
     assert f["ram_gb"] == {"value": 8, "source": "description"}
     assert f["storage_gb"] == {"value": 256, "source": "description"}
     assert "platform_field_errors" in f
+
+
+def test_resolver_confirms_404_next_cycle_and_counts_false_404():
+    """2026-10-29: strona oferty chwilowo daje 404 - deleted dopiero po drugim 404 (kolejny cykl); 404 → 200 =
+    „fałszywe 404”. Do tego ID sprzedawcy z katalogu (v12) do sprawdzania szafy."""
+    from sniper.session import VintedSession
+    from analyzer.resolver import resolve
+
+    market = FakeMarket(market_prices(3000, seed=5))
+    conn, _, _, _ = crawl(make_cfg(), market)
+    for item_id in (1000, 1001):
+        del market.items[item_id]
+    crawl(make_cfg(), market, conn)
+    crawl(make_cfg(), market, conn)
+    services = {1000: [(404, DELETED_BODY), (404, DELETED_BODY)], 1001: [(404, DELETED_BODY), (200, {"x": 1})]}
+
+    def handler(request):
+        item_id = int(request.url.path.split("/")[4])
+        if request.url.path.endswith("/services"):
+            status, body = services[item_id].pop(0)
+            return httpx.Response(status, json=body)
+        return httpx.Response(200, json=SNIPER_FIXTURES["sidebar_active"])
+
+    async def go():
+        session = VintedSession(proxy_url=None)
+        await session.client.aclose()
+        session.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            first = await resolve(make_cfg(confirm_404=2), session, conn, sleep=no_sleep)
+            second = await resolve(make_cfg(confirm_404=2), session, conn, sleep=no_sleep)
+            return first, second
+        finally:
+            await session.client.aclose()
+
+    first, second = asyncio.run(go())
+    assert first == {"404 - potwierdzę": 2}
+    assert second == {"deleted": 1, "unlisted": 1, "fałszywe 404": 1}     # 1000: 404 dwa razy, 1001: 404 → 200
+    states = dict(conn.execute("SELECT id, state FROM listings WHERE id IN (1000, 1001)").fetchall())
+    assert states == {1000: "deleted", 1001: "unlisted"}
+
+
+def test_catalog_keeps_numeric_seller_id():
+    from analyzer.catalog import parse_item
+    item = parse_item({"id": 5, "title": "x", "price": {"amount": "500", "currency_code": "PLN"},
+                       "user": {"id": 165282118, "login": "nick"}}, 3661)
+    assert item.seller_id == 165282118 and "login" not in str(item.raw)

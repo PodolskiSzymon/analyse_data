@@ -200,6 +200,13 @@ def candidates(conn, recheck_days, limit=None, only=None):
     return conn.execute(sql, params).fetchall()
 
 
+def _col(row, name, default=0):
+    try:
+        return row[name] or default
+    except (IndexError, KeyError):
+        return default
+
+
 def _below_min(cfg, row, res):
     """Aktywna, ale niewidoczna w katalogu, bo potaniała poniżej progu kategorii → below_min."""
     state, reason = res.state, res.reason
@@ -276,6 +283,18 @@ async def _run(cfg, session, conn, rows, tag, sleep=asyncio.sleep, verbose=True,
             continue
         result, reason = _below_min(cfg, row, res)
         status_code, body = res.sidebar if res.sidebar else (None, None)
+        seen_404 = _col(row, "gone_404")
+        if result == "deleted" and row["state"] == "gone_pending" and seen_404 + 1 < getattr(cfg, "confirm_404", 1):
+            # Pierwsze 404 - strona oferty potrafi chwilowo nie istnieć; potwierdzenie w następnym cyklu.
+            with conn:
+                conn.execute("UPDATE listings SET gone_404=gone_404+1 WHERE id=?", (row["id"],))
+                db.put_raw(conn, row["id"], "services", {"_status": res.services[0], "body": res.services[1]},
+                           db.utcnow())
+            counts["404 - potwierdzę"] = counts.get("404 - potwierdzę", 0) + 1
+            continue
+        if seen_404 and result != "deleted" and result is not None:
+            counts["fałszywe 404"] = counts.get("fałszywe 404", 0) + 1
+            log.info("[%s] %s: wcześniej 404, teraz %s - fałszywe 404.", tag, row["id"], result)
         with conn:
             apply_result(conn, row, result, status_code, body, db.utcnow(), res.services)
         if result == "unlisted" and row["missed_runs"] == 0:
