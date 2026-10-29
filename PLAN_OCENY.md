@@ -447,3 +447,16 @@ z kodem.
   wyjście z myśleniem (1,6k × $3,75/M). Dalej: `dzien_testowy2` (tańsze modele 3.5 / 3.1 Flash Lite, myślenie low,
   wytyczne tylko z pasującymi wierszami – `SNIPER_AI_GUIDE_ROWS=dopasowane`). Bramka (próg 300 zł + podobne oferty)
   i tak odcina ~70% ofert przed AI.
+* **2026-10-29 – dzień testowy 2 (mediany, 6 zdjęć, 68 ofert, $3,88):**
+  | wariant | $/ofertę | tok. we/wy | okazje | złote fałszywe | S w zakr. | zgodność z 3.8 (decyzja / ±1) |
+  | **3.8 Flash** | 0,0135 | 15,3k / 1,6k | 1 | 0 | 12/13 | odniesienie |
+  | 3.8 myślenie low | 0,0130 | 15,3k / 0,4k | 2 | 1 (Wii 7) | 12/13 | 99% / 88% |
+  | 3.8 krótkie wytyczne | 0,0126 | 9,7k / 1,7k | 2 | 1 (Wii 7) | 10/11 | 99% / 96% |
+  | 3.5 Flash Lite | 0,0086 | 15,3k / 1,6k | 6 | 0 (ale 5 okazji 8-9 spoza złotych) | 11/13 | 93% / 72% |
+  | 3.5 Lite krótkie | 0,0067 | 9,8k / 1,7k | 8 | 1 | 10/12 | 90% / 68% |
+  | 3.1 Flash Lite | 0,0029 | 15,3k / 0,6k | 4 | 0 (3 fałszywe spoza złotych) | 10/13 | 96% / 66% |
+  Tanie modele „łykają” błędy sprzedawców: „Steam Deck OLED 256 GB” (nie istnieje – LCD) 9/10, iPhone XR 375 zł 9/10,
+  iPad Pro 11 2018 9/10 – 3.8 Flash wszystkie odrzucił z uzasadnieniem. **Decyzja: mediany + gemini-3.8-flash +
+  6 zdjęć + myślenie medium + pełne wytyczne** (jakość priorytetem); myślenie low / krótkie wytyczne oszczędzają tylko
+  4–7% (różnice w niejawnym cache Gemini są większe niż te oszczędności). Koszt i tak tnie bramka przed AI (~70%).
+  Złoty zbiór +5 ofert z tego testu (23).
