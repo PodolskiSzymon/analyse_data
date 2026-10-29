@@ -288,6 +288,21 @@ z kodem.
 > mediana r = cena sprzedanych / R, mediana dni do sprzedaży; (5) grupy mieszane (szeroki rozkład ceny – czemu).
 > Wynik: pliki JSON + krótki `wnioski_<X>.md` z liczbami. Nie podawaj cen z własnej wiedzy – tylko z danych.”
 
+## 12a. Na przyszłość (odłożone): ceny NOWYCH produktów jako sufit wyceny
+
+* Pomysł (2026-10-29): cena nowego w sklepie = górna granica ceny używanego (używany nie sprzeda się drożej niż nowy
+  w promocji) → analizator co kilka dni pobiera ceny nowych dla modeli z wytycznych / taksonomii, Sniper przycina
+  wycenę do ~80–85% ceny nowego, raport pokazuje „używany / nowy”.
+* Źródło sprawdzone przez użytkownika: **x-kom `mobileapi.x-kom.pl/api/v1/xkom/products`** (lista produktów z
+  filtrami, np. `criteria.alternativeGroupIds=…`, `criteria.expand=Features,…`, `pagination.pageSize`): JSON z
+  `Items[].Price`, `PromotionInfo.DiscountedPrice` (+ kod, daty), `ProducerCode`, `FeatureSummary` (moc, standard,
+  certyfikat…), `CommentsRating`, `WebUrl`. Wymaga nagłówków ze strony (klucz API, `Authorization: Bearer …` –
+  wklejony link w pasku adresu = `InvalidApiKey`); cURL z F12 („Copy as cURL (cmd)”) **działa poza przeglądarką**
+  (test użytkownika 2026-10-29). Do sprawdzenia: jak długo żyje token Bearer, endpoint szczegółów produktu (pełna
+  specyfikacja, np. złącza zasilacza) – tylko z ruchu przeglądarki, bez zgadywania.
+* Zasady, gdy wrócimy: klucz i token TYLKO w `.env`; mało zapytań (raz dziennie, dziesiątki produktów); x-kom ma
+  część asortymentu – docelowo kilka źródeł. **Na razie pominięte** – najpierw eksperyment §15 i plan F0–F2.
+
 ## 13. Odrzucone / czego nie robić
 
 * **YOLO / ramki na zdjęciach** (cofnięte 26.10, commity revert w obu repo): wykrycie „konsola + 2 pady” nie zastąpi
