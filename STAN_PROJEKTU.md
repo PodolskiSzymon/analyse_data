@@ -14,7 +14,7 @@
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
 3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (253), w `unreachable_sniper`
-   `python -m pytest sniper/tests -q` (240 + 1 pominięty). Oba przed każdym pushem.
+   `python -m pytest sniper/tests -q` (245 + 1 pominięty). Oba przed każdym pushem.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
 
@@ -59,8 +59,8 @@ startu (5–7 h) równolegle: ponowne sprawdzenia (`only="due"`), szczegóły of
 `listings.seller_id` (migracja v12).
 
 **Sniper – jedna oferta:** skan katalogów (`SNIPER_CATALOGS=auto` → `catalogs.json`, każdy od `SNIPER_PRICE_FLOOR`
-300 zł, przeplot wagami; od 30.10 osobna pętla i sesja na każde proxy z `SNIPER_PROXY_ROUTES`; na stronie 1 brak
-każdej z 5 ofert poprzedniego skanu = przepełnienie → strona 2 + szybszy skan tej pętli) → nowe ID → sidebar + shipping (proxy) → `Offer` (kategoria z katalogu/tytułu; wysyłka
+300 zł, przeplot wagami; od 30.10 osobna pętla i sesja na każde proxy (`SNIPER_PROXY_<N>_KATEGORIE`); na stronie 1
+brak każdej z 5 ofert poprzedniego skanu = przepełnienie → strona 2 + ta kategoria co `SNIPER_POLL_MIN`) → nowe ID → sidebar + shipping (proxy) → `Offer` (kategoria z katalogu/tytułu; wysyłka
 przeliczona z waluty sprzedawcy `FX_TO_PLN`; kraj z waluty wysyłki, EUR = nieznany) → `submit`: już widziana →
 słowa wykluczone → **bramka** (koszt > max zakup z tabeli × 1,25 albo „za drogo” wg podobnych ofert – odcina ~70%)
 → dzienny limit $ → **AI w trybie `mediany`**: kilka median z `comparables.db` (od dokładnej do rodziny) + karta
@@ -87,9 +87,10 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
   („Steam Deck OLED 256 GB” 9/10) – odrzucone; `gemini-2.5-flash-lite` = 404 dla nowych kont.
 * Skan (propozycja dla użytkownika, nie wiadomo, czy wpisał): `SNIPER_CATALOG_WEIGHTS=phone:4,console:4,laptop:1,
   tablet:1`, `SNIPER_POLL_INTERVAL=7`, `SNIPER_PER_PAGE=6` („/N!” w heartbeat = N przepełnień strony).
-* Kilka proxy / przyspieszanie (30.10, użytkownik kupuje 2 proxy residential): `SNIPER_PROXY_ROUTES=phone:x,…`,
-  `SNIPER_PROXY_<X>_HOST/_AUTH` (albo `_URL`), `_POLL` (s); `SNIPER_OVERLAP_IDS=5`, `SNIPER_GAP_PAGES=1`,
-  `SNIPER_POLL_FAST=3`, `SNIPER_FAST_MINUTES=10`. Automat (mediany) co 2 dni (`ANALYZER_AUTO_DAYS=2`).
+* Kilka proxy / przyspieszanie (30.10, użytkownik kupuje 2 proxy residential): `SNIPER_PROXY_2_HOST/_AUTH/
+  _KATEGORIE/_POLL` (numery 2..9); `SNIPER_OVERLAP_IDS=5`, `SNIPER_GAP_PAGES=1`, `SNIPER_POLL_MIN=3`,
+  `SNIPER_FAST_MINUTES=10`; kursy walut na żywo (`sniper/fx.py`, `SNIPER_FX_REFRESH_H=12`); brak `shipping_details`
+  = ocena ≤ 7; laptopy bez danych też ≤ 7 (bez zwolnienia). Automat (mediany) co 2 dni (`ANALYZER_AUTO_DAYS=2`).
 * `watch`: `ANALYZER_WATCH_HOURS=5-7`, `ANALYZER_GONE_AFTER_RUNS=1`, `ANALYZER_RESOLVE_DELAY_S=1-2.5`,
   `ANALYZER_CONFIRM_404=2`. Do decyzji: `ANALYZER_PRICE_MIN_3580=300` (dziś brak danych o laptopach < 700 zł, a
   Sniper je ocenia).
@@ -126,7 +127,7 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
 3. Linie `[RESOLVE] Wynik` z `watch.log` – ile „fałszywych 404” (404 → potem 200).
 4. Po 2–3 dniach nowego `watch`: `python -m analyzer sold-report --od 2026-10-28` (cel ≥ 90% zniknięć ≤ 24 h).
 5. Decyzja `ANALYZER_PRICE_MIN_3580=300`; czy wpisał ustawienia §4; dzienny koszt AI (`log sniper` → „dziś ~$…”).
-6. Po zakupie proxy: wpisy `SNIPER_PROXY_ROUTES` itd. (§4) + log startu Snipera (`[SCOUT] proxy …: skan co …`)
+6. Po zakupie proxy: wpisy `SNIPER_PROXY_2_*` itd. (§4) + log startu Snipera (`[SCOUT] proxy …: skan co …`)
    i heartbeat `Proxy (tempo skanu)` / `traffic_<nazwa>.csv` – błędy, 403/429, transfer na proxy.
 7. Decyzja w sprawie propozycji „brak danych w medianach” (HISTORIA B, 30.10: klasy pewności, druga próba po
    modelu z AI, laptopy 300–700 zł) – kodu jeszcze nie ma, na prośbę użytkownika.

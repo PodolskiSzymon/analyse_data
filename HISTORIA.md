@@ -509,3 +509,12 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
   (`corrected_model` / `laptop_model`) – bez dodatkowego wywołania AI, (d) mała grupa ściągana do rodzica
   (n / (n + 8)), (e) sufit z ceny nowego (x-kom, PLAN_OCENY §12a), (f) progi dobrać na `alert-outcomes` / `sniper.bench`
   (złoty zbiór nie może stracić prawdziwej okazji iPhone 14 Pro 850 zł).
+* **2026-10-30 (wieczór) – poprawki po uwagach użytkownika.** Kilka proxy prościej: zamiast `SNIPER_PROXY_ROUTES`
+  numerowane `SNIPER_PROXY_2_HOST` / `_AUTH` / `_KATEGORIE` (także po polsku: telefony, konsole…) / `_POLL`, 2..9.
+  Przyspieszanie dotyczy tylko kategorii z przepełnioną stroną (wysyp telefonów nie przyspiesza RAM-u): dodatkowe
+  skany tego katalogu co `SNIPER_POLL_MIN` (minimalny odstęp jednego proxy, domyślnie 3 s; zastępuje `SNIPER_POLL_FAST`).
+  Laptopy bez danych rynku też najwyżej 7 (zwolnienie usunięte – watch zbiera laptopy od 300 zł). Wysyłka: była
+  już w koszcie (`shipping_details` → zł), ale kursy stałe – teraz `sniper/fx.py` z pliku prebid, którego używa
+  Vinted (adres od użytkownika; co 12 h, bez proxy, podejrzane kursy odrzucane), a brak `shipping_details` = jedna
+  ponowna próba, potem ocena ≤ 7 z flagą. `szafa-test` u użytkownika nie ruszył – uruchomiony w starym folderze
+  `category_analyzer` (stary kod i stary `.env` z błędami parsowania); trzeba w `analyse_data`.

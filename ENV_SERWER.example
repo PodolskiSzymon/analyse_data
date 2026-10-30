@@ -10,17 +10,19 @@
 SNIPER_PROXY_HOST=<host:port proxy>
 SNIPER_PROXY_AUTH=<login:hasło proxy>
 SNIPER_REQUIRE_PROXY=true
-# Kilka proxy (30.10): kategoria:nazwa_proxy po przecinku. Każde proxy = osobna sesja Vinted i osobna pętla skanu
-# z własnym tempem; katalogi z wpisu skanuje TYLKO to proxy, reszta idzie przez główne (wyżej). Nazwa dowolna
-# (litery / cyfry), np. di, web. Kategorie: laptop, phone, tablet, console, gpu, ram, storage (albo numer katalogu).
-# SNIPER_PROXY_ROUTES=phone:di,console:web
-# SNIPER_PROXY_DI_HOST=<host:port drugiego proxy>
-# SNIPER_PROXY_DI_AUTH=<login:hasło drugiego proxy>
-# Skan co tyle s w pętli tego proxy (bez wpisu = SNIPER_POLL_INTERVAL).
-# SNIPER_PROXY_DI_POLL=3
-# Albo gotowy URL zamiast _HOST + _AUTH:
-# SNIPER_PROXY_WEB_URL=http://<login>:<hasło>@<host:port>
-# SNIPER_PROXY_WEB_POLL=3
+# Dodatkowe proxy (30.10) - do 8 sztuk, numery 2..9. Każde: adres, login:hasło i KATEGORIE, które ma przejąć
+# (laptop, phone, tablet, console, gpu, ram, storage albo po polsku: laptopy, telefony, tablety, konsole, karty,
+# pamieci, dyski; albo numer katalogu). Te kategorie skanuje TYLKO to proxy - osobna sesja Vinted i osobne tempo;
+# reszta jak dotąd przez główne proxy (wyżej). Odstęp skanów tego proxy: SNIPER_PROXY_2_POLL (bez wpisu =
+# SNIPER_POLL_INTERVAL).
+# SNIPER_PROXY_2_HOST=host:port
+# SNIPER_PROXY_2_AUTH=login:hasło
+# SNIPER_PROXY_2_KATEGORIE=telefony
+# SNIPER_PROXY_2_POLL=3
+# SNIPER_PROXY_3_HOST=host:port
+# SNIPER_PROXY_3_AUTH=login:hasło
+# SNIPER_PROXY_3_KATEGORIE=konsole
+# SNIPER_PROXY_3_POLL=3
 
 # ---------------------------------------------------------------- mail (opcjonalnie)
 SNIPER_SMTP_HOST=<smtp>
@@ -46,18 +48,21 @@ SNIPER_GUIDES_DIR=C:\Users\szymo\unreachable_sniper\sniper\guides
 # Katalogi skanowane PO KOLEI: co 7 s jeden skan (krócej = szybciej widać okazje, ale więcej transferu proxy).
 SNIPER_POLL_INTERVAL=7
 SNIPER_POLL_JITTER=1
-# Przyspieszanie (30.10): gdy w skanie katalogu nie ma ŻADNEJ z SNIPER_OVERLAP_IDS najnowszych ofert poprzedniego skanu
-# (przyszło więcej, niż mieści strona), Sniper od razu dociąga SNIPER_GAP_PAGES kolejnych stron (nic nie umyka), a pętla
-# tego proxy skanuje co SNIPER_POLL_FAST s przez SNIPER_FAST_MINUTES min (0 = połowa zwykłego odstępu).
+# Przyspieszanie (30.10): gdy w skanie kategorii nie ma ŻADNEJ z SNIPER_OVERLAP_IDS najnowszych ofert poprzedniego
+# skanu (przyszło więcej, niż mieści strona), Sniper od razu dociąga SNIPER_GAP_PAGES kolejnych stron (nic nie umyka),
+# a TA kategoria (inne bez zmian) dostaje dodatkowe skany co SNIPER_POLL_MIN s przez SNIPER_FAST_MINUTES min.
+# SNIPER_POLL_MIN = minimalny odstęp między dwoma skanami jednego proxy (nigdy częściej).
 SNIPER_OVERLAP_IDS=5
 SNIPER_GAP_PAGES=1
-SNIPER_POLL_FAST=3
+SNIPER_POLL_MIN=3
 SNIPER_FAST_MINUTES=10
+# Kursy walut do wysyłki z zagranicy - z pliku, którego używa Vinted, co tyle godzin (0 = stałe kursy).
+SNIPER_FX_REFRESH_H=12
 # Dolny próg ceny każdego katalogu (2026-10-27): bez ofert < 300 zł - catalogs.json zaczynał od 50-100 zł.
 SNIPER_PRICE_FLOOR=300
 # Ofert na skan: przy progu 300 zł wystarcza ~6 (dane 26.10: telefony ≥ 300 zł ~1,8 nowej/min, konsole ~0,8/min,
 # laptopy ≥ 700 zł ~0,3/min). „/N!” przy katalogu w heartbeat = N przepełnień (cała strona nowa - Sniper sam dociągnął
-# stronę 2 i przyspieszył); gdy pojawia się często → zwiększ.
+# stronę 2 i przyspieszył tę kategorię); gdy pojawia się często → zwiększ.
 SNIPER_PER_PAGE=6
 SNIPER_DEDUP_SIZE=100
 # Używane tylko, gdy SNIPER_CATALOGS jest puste (stary tryb: jeden katalog)
