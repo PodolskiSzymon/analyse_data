@@ -1,5 +1,8 @@
 # PLAN_ANALIZY – co robić dalej i jak analizować dane
 
+> **ARCHIWUM (2026-10-30):** części A–E zrobione; aktualny stan i kroki – `STAN_PROJEKTU.md`. Czytaj tylko
+> po szczegóły zbierania danych / dziennik wyników do 25.10.
+
 Ten plik wykonuje nowy czat po komendzie „wykonaj md”. Kroki A1–A6 to **kod**, który piszesz Ty (Claude): bez sieci,
 z testami na atrapie. Kroki B1–B4 uruchamia **użytkownik** na serwerze; Ty dajesz mu gotowe komendy (Windows `cmd`)
 i czekasz na wklejony wynik / plik. Kroki C1–C5 to **analiza** wyników, które przyśle użytkownik.

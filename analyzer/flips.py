@@ -15,7 +15,7 @@ from pathlib import Path
 COLUMNS = ["data_zakupu", "id_oferty", "kategoria", "model", "koszt_zakupu_lacznie", "kraj_sprzedawcy",
            "data_dostawy", "stan_zgodny", "problemy", "cena_wystawienia", "data_wystawienia", "data_sprzedazy",
            "cena_otrzymana", "koszty_sprzedazy", "ocena_alertu", "notatki"]
-# Zakupy z alertów 26.10 (STAN_PROJEKTU.md §6) – kwoty i daty uzupełnia użytkownik.
+# Zakupy z alertów 26.10 (HISTORIA.md, część A §6) – kwoty i daty uzupełnia użytkownik.
 FIRST_PURCHASES = [("console", "Nintendo Wii"), ("console", "Nintendo Wii"), ("console", "Nintendo Wii czarne bez pilota"),
                    ("phone", "iPhone 12 128 GB (bateria < 80%)"), ("phone", "Samsung Galaxy A17"),
                    ("tablet", "Samsung Galaxy Tab A 10.1 (2019)"), ("tablet", "iPad Air 4 64 GB (anulowanie?)")]

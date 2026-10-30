@@ -28,12 +28,12 @@ SNIPER_CATALOGS=auto
 #   gpu     - karty graficzne (3582 / 3584)   ram     - pamięci RAM (3582 / 3584)
 #   storage - dyski SSD (3582 / 3583 / 3584)
 SNIPER_CATEGORIES=laptop,phone,tablet,console,gpu,ram,storage
-# Jak często skanować kategorie względem siebie (waga 3 = 3× częściej niż kategoria bez wpisu, czyli z wagą 1).
-# Kategoria albo numer katalogu. Dobre okazje na laptopy i telefony znikają w kilka minut.
-SNIPER_CATALOG_WEIGHTS=laptop:3,phone:3
+# Jak często skanować kategorie względem siebie (waga 4 = 4× częściej niż kategoria z wagą 1 / bez wpisu).
+# Kategoria albo numer katalogu. 29.10: najwięcej polujących na telefony i konsole, laptopy mogą rzadziej.
+SNIPER_CATALOG_WEIGHTS=phone:4,console:4,laptop:1,tablet:1
 SNIPER_GUIDES_DIR=C:\Users\szymo\unreachable_sniper\sniper\guides
-# Katalogi skanowane PO KOLEI: co 10 s jeden skan; laptopy co ~30 s, reszta co ~90 s. Transfer proxy jak dotąd.
-SNIPER_POLL_INTERVAL=10
+# Katalogi skanowane PO KOLEI: co 7 s jeden skan (krócej = szybciej widać okazje, ale więcej transferu proxy).
+SNIPER_POLL_INTERVAL=7
 SNIPER_POLL_JITTER=1
 # Dolny próg ceny każdego katalogu (2026-10-27): bez ofert < 300 zł - catalogs.json zaczynał od 50-100 zł.
 SNIPER_PRICE_FLOOR=300
@@ -63,19 +63,23 @@ SNIPER_AI_PROVIDER=gemini
 SNIPER_AI_API_KEY=<klucz Gemini>
 SNIPER_AI_MODEL=
 SNIPER_AI_EFFORT=medium
+# Tryb oceny (decyzja 29.10 po dniach testowych): mediany z comparables.db + wytyczne → AI wycenia, program pilnuje
+# reguły zysku. Laptopy i tak zwykłym trybem. Model pusty = gemini-3.8-flash (tańsze Flash Lite halucynowały okazje).
+SNIPER_EVAL_MODE=mediany
 SNIPER_AI_FALLBACK=true
 # Limit odpowiedzi (było 800000 - Gemini i tak przyjmuje najwyżej ~65 tys.; 8000 wystarcza z zapasem)
 SNIPER_AI_MAX_TOKENS=8000
-# Jak dotąd 12. Przy 7 kategoriach ocen będzie więcej - 6 zdjęć obniży koszt ~o połowę, jeśli zechcesz.
-SNIPER_AI_MAX_PHOTOS=12
+# 6 zdjęć (dni testowe 29.10: najlepsza jakość; 3 vs 6 zdjęć to tylko ~0,2 centa różnicy na ofertę).
+SNIPER_AI_MAX_PHOTOS=6
 SNIPER_AI_PHOTOS=url
-SNIPER_AI_MIN_SCORE=5
+# Okazja wg reguły zysku = co najmniej 8.
+SNIPER_AI_MIN_SCORE=8
 SNIPER_AI_NOTIFY_ALL=false
 SNIPER_MAIL_ONLY_PURCHASES=true
 SNIPER_AI_REPORT_ABOVE=2
 # Kopia oceny.html (i logów) na Dysk Google co SNIPER_MIRROR_INTERVAL_MIN minut (NOWE - było wyłączone)
 SNIPER_MIRROR_DIR=G:\Mój dysk\sniper
-SNIPER_AI_MAX_CONCURRENT=3
+SNIPER_AI_MAX_CONCURRENT=10
 SNIPER_AI_TIMEOUT=120
 SNIPER_AI_RETRIES=2
 SNIPER_AI_RETRY_DELAY=5
@@ -102,7 +106,7 @@ SNIPER_AI_EXCLUDE_KEYWORDS_GPU=na części, artefakty
 
 # ---------------------------------------------------------------- powiadomienia o OKAZJACH (stary temat)
 SNIPER_NTFY_TOPIC=<stary temat okazji>
-SNIPER_NTFY_MIN_SCORE=5
+SNIPER_NTFY_MIN_SCORE=8
 SNIPER_NTFY_PRIORITY=5
 SNIPER_NTFY_PHOTO=true
 # Sprzęt do testów, który JUŻ MASZ (powiadomienie o okazji: „✓ masz sprzęt” albo „⚠ BRAK SPRZĘTU – potrzebujesz …”).

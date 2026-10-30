@@ -1,5 +1,8 @@
 # Category Analyzer – kontekst projektu (dla nowej rozmowy z Claude)
 
+> **ARCHIWUM / ŹRÓDŁO (2026-10-30):** historia analizatora i ustalenia o API Vinted (dalej aktualne). Aktualny
+> stan – `STAN_PROJEKTU.md`. Czytaj, gdy dotykasz kodu zbierającego dane.
+
 Stan na 2026-10-11. **Etap 0 zrobiony u użytkownika (probe), etap 1 (crawler) i resolver z etapu 2 napisane
 i przetestowane na atrapie – czeka na pierwsze pełne `crawl` u użytkownika.** To repo jest kopią
 `PodolskiSzymon/unreachable_sniper` (gałąź `claude/epic-darwin-evl0s1`, commit `1ddb11b`), żeby nowy program mógł
