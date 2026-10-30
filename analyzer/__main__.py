@@ -94,6 +94,9 @@ async def cmd_watch(cfg, catalogs, resolve_limit, with_details=True):
     from .sold_report import cycle_line
 
     while True:
+        # Zaległy automat (mediany / wytyczne Snipera) od razu - restart albo przerwane przejście nie mogą odsuwać go
+        # o kolejne ~3 h przejścia (prośba użytkownika 2026-10-30: mediany co 2 dni niezależnie od przerw).
+        await auto_if_due(cfg)
         started = datetime.now(timezone.utc)
         next_start = started + timedelta(hours=random.uniform(*cfg.watch_hours))
         conn = db.connect(cfg.db_path)
@@ -136,9 +139,20 @@ async def cmd_watch(cfg, catalogs, resolve_limit, with_details=True):
             await asyncio.sleep(wait)
 
 
+async def auto_if_due(cfg):
+    """Automat (AI stanu nowych ofert, raport, wytyczne i mediany Snipera), gdy minęło ANALYZER_AUTO_DAYS od ostatniego
+    udanego (termin w analysis.db - przeżywa restart). Błąd nie przerywa watch - ponowna próba w następnym cyklu."""
+    from . import auto
+
+    try:
+        await auto.run(cfg)
+    except Exception:
+        log.exception("[AUTO] Automat przerwany błędem - spróbuję w następnym cyklu.")
+
+
 async def watch_extras(cfg, conn):
-    """Po resolve w każdym cyklu watch: ekstrakcja, alarm „brak sprzedaży”, automat (2× w tygodniu: AI stanu nowych
-    ofert, raport, wytyczne Snipera). Błąd żadnego z nich nie przerywa watch."""
+    """Po resolve w każdym cyklu watch: ekstrakcja, alarm „brak sprzedaży”, automat (co ANALYZER_AUTO_DAYS: AI stanu
+    nowych ofert, raport, wytyczne Snipera). Błąd żadnego z nich nie przerywa watch."""
     from . import analysis, auto
 
     try:
@@ -154,10 +168,7 @@ async def watch_extras(cfg, conn):
             aconn.close()
     except Exception:
         log.exception("[ALARM] Błąd sprawdzania sprzedaży.")
-    try:
-        await auto.run(cfg)
-    except Exception:
-        log.exception("[AUTO] Automat przerwany błędem - spróbuję w następnym cyklu.")
+    await auto_if_due(cfg)
 
 
 async def run_ai_classify(cfg, conn, limit=None, retry_failed=False):

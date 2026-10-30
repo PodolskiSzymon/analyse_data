@@ -10,6 +10,17 @@
 SNIPER_PROXY_HOST=<host:port proxy>
 SNIPER_PROXY_AUTH=<login:hasło proxy>
 SNIPER_REQUIRE_PROXY=true
+# Kilka proxy (30.10): kategoria:nazwa_proxy po przecinku. Każde proxy = osobna sesja Vinted i osobna pętla skanu
+# z własnym tempem; katalogi z wpisu skanuje TYLKO to proxy, reszta idzie przez główne (wyżej). Nazwa dowolna
+# (litery / cyfry), np. di, web. Kategorie: laptop, phone, tablet, console, gpu, ram, storage (albo numer katalogu).
+# SNIPER_PROXY_ROUTES=phone:di,console:web
+# SNIPER_PROXY_DI_HOST=<host:port drugiego proxy>
+# SNIPER_PROXY_DI_AUTH=<login:hasło drugiego proxy>
+# Skan co tyle s w pętli tego proxy (bez wpisu = SNIPER_POLL_INTERVAL).
+# SNIPER_PROXY_DI_POLL=3
+# Albo gotowy URL zamiast _HOST + _AUTH:
+# SNIPER_PROXY_WEB_URL=http://<login>:<hasło>@<host:port>
+# SNIPER_PROXY_WEB_POLL=3
 
 # ---------------------------------------------------------------- mail (opcjonalnie)
 SNIPER_SMTP_HOST=<smtp>
@@ -20,7 +31,7 @@ SNIPER_EMAIL_TO=
 
 # ---------------------------------------------------------------- CO SKANUJE SNIPER (NOWE - D5)
 # auto = 7 kategorii (laptopy, telefony, tablety, konsole, podzespoły / nośniki / akcesoria = karty, RAM, dyski)
-# z zakresami cen z analizy rynku - plik sniper\guides\catalogs.json, który analizator odświeża 2x w tygodniu.
+# z zakresami cen z analizy rynku - plik sniper\guides\catalogs.json, który analizator odświeża co 2 dni.
 SNIPER_CATALOGS=auto
 # Które kategorie Sniper ocenia - usuń z listy, czego nie chcesz (puste = wszystkie). Działa po restarcie Snipera.
 #   laptop  - laptopy (katalog 3580)          phone   - telefony (3661)
@@ -35,10 +46,18 @@ SNIPER_GUIDES_DIR=C:\Users\szymo\unreachable_sniper\sniper\guides
 # Katalogi skanowane PO KOLEI: co 7 s jeden skan (krócej = szybciej widać okazje, ale więcej transferu proxy).
 SNIPER_POLL_INTERVAL=7
 SNIPER_POLL_JITTER=1
+# Przyspieszanie (30.10): gdy w skanie katalogu nie ma ŻADNEJ z SNIPER_OVERLAP_IDS najnowszych ofert poprzedniego skanu
+# (przyszło więcej, niż mieści strona), Sniper od razu dociąga SNIPER_GAP_PAGES kolejnych stron (nic nie umyka), a pętla
+# tego proxy skanuje co SNIPER_POLL_FAST s przez SNIPER_FAST_MINUTES min (0 = połowa zwykłego odstępu).
+SNIPER_OVERLAP_IDS=5
+SNIPER_GAP_PAGES=1
+SNIPER_POLL_FAST=3
+SNIPER_FAST_MINUTES=10
 # Dolny próg ceny każdego katalogu (2026-10-27): bez ofert < 300 zł - catalogs.json zaczynał od 50-100 zł.
 SNIPER_PRICE_FLOOR=300
 # Ofert na skan: przy progu 300 zł wystarcza ~6 (dane 26.10: telefony ≥ 300 zł ~1,8 nowej/min, konsole ~0,8/min,
-# laptopy ≥ 700 zł ~0,3/min). „/N!” przy katalogu w heartbeat = cała strona nowa → zwiększ.
+# laptopy ≥ 700 zł ~0,3/min). „/N!” przy katalogu w heartbeat = N przepełnień (cała strona nowa - Sniper sam dociągnął
+# stronę 2 i przyspieszył); gdy pojawia się często → zwiększ.
 SNIPER_PER_PAGE=6
 SNIPER_DEDUP_SIZE=100
 # Używane tylko, gdy SNIPER_CATALOGS jest puste (stary tryb: jeden katalog)
@@ -154,7 +173,10 @@ ANALYZER_GONE_AFTER_RUNS=1
 # Odstęp resolvera między ofertami (s). Do 27.10 brał 2-6 s (odstęp stron katalogu) → ~700 ofert/h, resolve trwał
 # kilkanaście godzin i blokował następne przejście. Przy 429 w logu [RESOLVE] podnieś np. do 2-4.
 ANALYZER_RESOLVE_DELAY_S=1-2.5
-# Automat 2x w tygodniu kopiuje wytyczne per kategoria + catalogs.json prosto do Snipera (NOWE):
+# Automat (mediany = comparables.db, wytyczne, raport) co tyle dni - liczone od ostatniego udanego automatu, więc
+# restart / przerwanie watch nie przesuwa terminu; zaległy rusza na starcie cyklu watch (30.10: 2, było 3,5).
+ANALYZER_AUTO_DAYS=2
+# Automat kopiuje wytyczne per kategoria + catalogs.json + comparables.db prosto do Snipera:
 ANALYZER_SNIPER_GUIDES_DIR=C:\Users\szymo\unreachable_sniper\sniper\guides
 # PUSTE: Twój ręczny sniper\guidelines.md zostaje nietknięty (Sniper bierze laptop.md z guides).
 ANALYZER_SNIPER_GUIDELINES_FILE=

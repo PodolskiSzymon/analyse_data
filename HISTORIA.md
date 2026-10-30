@@ -483,3 +483,29 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
   (z katalogu) i `gone_404`. `python -m analyzer szafa-test` – sprawdza w szafie sprzedawcy ostatnie zniknięcia
   (sprzedana / aktywna / brak / konto usunięte) i ile kosztuje strona szafy; po wyniku decyzja, czy dołożyć szafę
   do resolvera (koszt ~8 KB na pozycję – za drogo dla każdego zniknięcia, raczej dla `deleted` w ważnych grupach).
+* **2026-10-30 – pięć próśb użytkownika (mediany co 2 dni, szybszy skan, szafa, kilka proxy, brak danych).**
+  1) Automat (mediany = `comparables.db` + wytyczne) co 2 dni (`ANALYZER_AUTO_DAYS`, było 3,5). Termin i tak był w
+  `analysis.db` (`meta.auto_at`), ale `watch` sprawdzał go dopiero PO przejściu (~3,1 h) – każdy restart w trakcie
+  przejścia odsuwał mediany. Teraz sprawdzenie także na starcie cyklu (`__main__.auto_if_due`), test
+  `test_watch_runs_overdue_auto_before_crawl`. 2) Sniper: pamięta 5 najnowszych ID z poprzedniego skanu katalogu
+  (`SNIPER_OVERLAP_IDS`); gdy na stronie 1 nie ma żadnego = przyszło więcej, niż mieści strona → od razu strona 2
+  (`SNIPER_GAP_PAGES=1`, do pierwszej znanej oferty) i pętla tego proxy co `SNIPER_POLL_FAST` (3 s) przez
+  `SNIPER_FAST_MINUTES` (10). „/N!” w heartbeat liczy teraz te przepełnienia. 3) Szafa: `watch` jej NIE używa –
+  `szafa-test` tylko czyta i niczego nie zapisuje, więc stany sold/deleted od szafy się nie zmieniły; efekt pokaże
+  `szafa-test --limit 50` (tabela „nasz stan → w szafie”). Mediany nie trzeba przeliczać przed tą oceną – S w
+  wytycznych i `comparables.db` liczy wszystkie zniknięcia razem (sold + blocked + deleted). 4) Kilka proxy:
+  `SNIPER_PROXY_ROUTES=phone:x,console:y` + `SNIPER_PROXY_<X>_HOST/_AUTH` (albo `_URL`) i `_POLL`; każde proxy =
+  osobna sesja (`logs/session_<x>.json`), osobna pętla (`scout.Lane`), szczegóły oferty przez to samo proxy co katalog,
+  ruch w `traffic_<x>.csv`, przeglądarki (odświeżanie sesji) po kolei – 4 GB RAM. Szacunek (pomiary z 10.2026: skan ≈
+  6 KB, szczegóły ≈ 15 KB): pętla co 3 s ≈ 190 MB/dobę skanów + ~60 MB szczegółów telefonów i konsol ≈ 7–8 GB/mies.
+  Tanie residential poza IPRoyal / Evomi (ceny z blogów dostawców, 10.2026 – sprawdzić przed zakupem): DataImpulse
+  ~1 $/GB pay-as-you-go, transfer nie wygasa, kraj gratis; Decodo ~2–4 $/GB; Webshare ~3 $/GB; Rayobyte pay-as-you-go
+  3,5 $/GB, nie wygasa. Najpierw najmniejszy pakiet i dzień testu (403 / odświeżenia sesji w logu).
+  5) „Brak danych w medianach” – propozycje bez kodu (prośba): (a) dane o laptopach 300–700 zł
+  (`ANALYZER_PRICE_MIN_3580=300`; dziś laptopy omijają limit `cap_without_market_data` i nie mają danych < 700 zł),
+  (b) klasy pewności jak PLAN_OCENY §4.6 – dokładna grupa = jak dziś; tylko rodzina / mało ofert = okazja, gdy reguła
+  spełniona też przy p25 aktywnych × (1 − δ), ocena −1; brak danych = zamiast alertu „okazja” cichsze powiadomienie
+  „do ręcznej oceny” tylko przy dużej marży wg AI, (c) druga próba median po modelu rozpoznanym przez AI
+  (`corrected_model` / `laptop_model`) – bez dodatkowego wywołania AI, (d) mała grupa ściągana do rodzica
+  (n / (n + 8)), (e) sufit z ceny nowego (x-kom, PLAN_OCENY §12a), (f) progi dobrać na `alert-outcomes` / `sniper.bench`
+  (złoty zbiór nie może stracić prawdziwej okazji iPhone 14 Pro 850 zł).

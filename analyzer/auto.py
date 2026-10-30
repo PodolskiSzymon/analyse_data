@@ -1,6 +1,9 @@
 """Automat w `watch` (PLAN_ANALIZY.md, E3) i alarm „brak sprzedaży”.
 
-Automat - co `ANALYZER_AUTO_DAYS` (domyślnie 3,5 dnia = 2× w tygodniu, prośba użytkownika 2026-10-25):
+Automat - co `ANALYZER_AUTO_DAYS` (domyślnie 2 dni - prośba użytkownika 2026-10-30, wcześniej 3,5 dnia). Termin
+liczy się od ostatniego UDANEGO automatu (`meta.auto_at` w analysis.db, zapis dopiero na końcu), więc restart albo
+przerwanie watch go nie przesuwa; watch sprawdza go na starcie każdego cyklu (też zaraz po uruchomieniu - nie czeka
+~3 h na koniec przejścia) i po resolve:
   1. flagi podejrzanych + relisty (analysis.db),
   2. stan techniczny przez AI tylko dla NOWYCH ofert ze wzmianką o usterce (najwyżej `ANALYZER_AUTO_AI_LIMIT`,
      3 zdjęcia - z archiwum na dysku, jeśli są), bez pytania o zgodę - koszt w powiadomieniu,

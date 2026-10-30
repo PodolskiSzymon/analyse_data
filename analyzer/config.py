@@ -134,8 +134,10 @@ class AnalyzerConfig:
     photos: bool = _env_bool("ANALYZER_PHOTOS", True)
     photos_dir: str = _env("ANALYZER_PHOTOS_DIR")                       # puste = <folder bazy>/photos
     photos_concurrency: int = _env_int("ANALYZER_PHOTOS_CONCURRENCY", 4)
-    # Automat w watch (auto.py): co tyle dni AI stanu dla nowych ofert + raport + wytyczne Snipera (2× w tygodniu).
-    auto_days: float = _env_float("ANALYZER_AUTO_DAYS", 3.5)
+    # Automat w watch (auto.py): co tyle dni AI stanu dla nowych ofert + raport + wytyczne i mediany Snipera
+    # (comparables.db). 2026-10-30, prośba użytkownika: co 2 dni (było 3,5). Termin liczony od ostatniego udanego
+    # automatu zapisanego w analysis.db - restart / przerwanie watch go nie przesuwa.
+    auto_days: float = _env_float("ANALYZER_AUTO_DAYS", 2.0)
     auto_ai_limit: int = _env_int("ANALYZER_AUTO_AI_LIMIT", 3000)      # najwyżej tyle ofert do AI w jednym automacie
     sniper_guides_dir: str = _env("ANALYZER_SNIPER_GUIDES_DIR")         # tu kopiować guides/*.md (np. folder Snipera)
     sniper_guidelines_file: str = _env("ANALYZER_SNIPER_GUIDELINES_FILE")  # do D5: laptop.md → ten plik (z kopią .bak)

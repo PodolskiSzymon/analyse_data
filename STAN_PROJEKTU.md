@@ -1,4 +1,4 @@
-# STAN PROJEKTU – punkt startowy nowej rozmowy (2026-10-30)
+# STAN PROJEKTU – punkt startowy nowej rozmowy (2026-10-30, wieczór)
 
 > **„wykonaj md” = przeczytaj CAŁY ten plik i działaj wg §6–§7.** `CLAUDE.md` wczytuje się sam. Innych plików nie
 > czytaj na zapas – mapa w §9 mówi, co otworzyć przy danym temacie. Archiwum decyzji z liczbami: `HISTORIA.md`
@@ -8,12 +8,13 @@
 
 1. Drugie repo: `add_repo` (owner `PodolskiSzymon`, repo `unreachable_sniper`, access `push`) → sklonuj do
    `/home/user/unreachable_sniper` → `register_repo_root`.
-2. Gałąź w OBU repo: cała praca jest na `claude/magical-bell-vdwpt1` (`main` stary). Jeśli sesja ma inną gałąź:
-   `git fetch origin claude/magical-bell-vdwpt1 && git checkout -B <gałąź sesji> origin/claude/magical-bell-vdwpt1`
+2. Gałąź w OBU repo: cała praca jest na `claude/gifted-volta-x1764p` (od 30.10; wcześniej `claude/magical-bell-vdwpt1`,
+   `main` stary). Jeśli sesja ma inną gałąź:
+   `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
-   (potem `git pull origin <gałąź>`). Serwer stoi teraz na `claude/magical-bell-vdwpt1`.
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (252), w `unreachable_sniper`
-   `python -m pytest sniper/tests -q` (234 + 1 pominięty). Oba przed każdym pushem.
+   (potem `git pull origin <gałąź>`).
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (253), w `unreachable_sniper`
+   `python -m pytest sniper/tests -q` (240 + 1 pominięty). Oba przed każdym pushem.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
 
@@ -52,12 +53,14 @@ Serwer: Windows, i5-5200U, **4 GB RAM**, Python 3.12, `cmd`. Ścieżki: `C:\User
 
 **`watch` (analizator):** przejście katalogów (~3,1 h, ~85 MB proxy) → `resolve(only="fresh")` świeżych zniknięć
 (`/api/v2/items/{id}/services`: sprzedana / zarezerwowana / żyje; 404/104 = `gone_404`, `deleted` dopiero po drugim
-404 w kolejnym cyklu) → log „Cykl: zniknięć N, pewnych sprzedaży X (%), ≤ 24 h %, mediana zwłoki” → `auto` (co 3,5
-dnia: flagi, relisty, AI stanu, raport, `sniper-guide` → kopia do Snipera) → do następnego startu (5–7 h) równolegle:
-ponowne sprawdzenia (`only="due"`), szczegóły ofert, zdjęcia. Od 29.10 zapisuje `listings.seller_id` (migracja v12).
+404 w kolejnym cyklu) → log „Cykl: zniknięć N, pewnych sprzedaży X (%), ≤ 24 h %, mediana zwłoki” → `auto` (co 2
+dni, też zaraz po restarcie: flagi, relisty, AI stanu, raport, `sniper-guide` → kopia do Snipera) → do następnego
+startu (5–7 h) równolegle: ponowne sprawdzenia (`only="due"`), szczegóły ofert, zdjęcia. Od 29.10 zapisuje
+`listings.seller_id` (migracja v12).
 
 **Sniper – jedna oferta:** skan katalogów (`SNIPER_CATALOGS=auto` → `catalogs.json`, każdy od `SNIPER_PRICE_FLOOR`
-300 zł, przeplot wagami) → nowe ID → sidebar + shipping (proxy) → `Offer` (kategoria z katalogu/tytułu; wysyłka
+300 zł, przeplot wagami; od 30.10 osobna pętla i sesja na każde proxy z `SNIPER_PROXY_ROUTES`; na stronie 1 brak
+każdej z 5 ofert poprzedniego skanu = przepełnienie → strona 2 + szybszy skan tej pętli) → nowe ID → sidebar + shipping (proxy) → `Offer` (kategoria z katalogu/tytułu; wysyłka
 przeliczona z waluty sprzedawcy `FX_TO_PLN`; kraj z waluty wysyłki, EUR = nieznany) → `submit`: już widziana →
 słowa wykluczone → **bramka** (koszt > max zakup z tabeli × 1,25 albo „za drogo” wg podobnych ofert – odcina ~70%)
 → dzienny limit $ → **AI w trybie `mediany`**: kilka median z `comparables.db` (od dokładnej do rodziny) + karta
@@ -83,7 +86,10 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
   Koszt ~$0,014–0,016 za ocenioną ofertę (po bramce). Tańsze modele (3.5 / 3.1 Flash Lite) halucynują okazje
   („Steam Deck OLED 256 GB” 9/10) – odrzucone; `gemini-2.5-flash-lite` = 404 dla nowych kont.
 * Skan (propozycja dla użytkownika, nie wiadomo, czy wpisał): `SNIPER_CATALOG_WEIGHTS=phone:4,console:4,laptop:1,
-  tablet:1`, `SNIPER_POLL_INTERVAL=7`, `SNIPER_PER_PAGE=6` („/N!” w heartbeat = pełna strona nowych → zwiększ).
+  tablet:1`, `SNIPER_POLL_INTERVAL=7`, `SNIPER_PER_PAGE=6` („/N!” w heartbeat = N przepełnień strony).
+* Kilka proxy / przyspieszanie (30.10, użytkownik kupuje 2 proxy residential): `SNIPER_PROXY_ROUTES=phone:x,…`,
+  `SNIPER_PROXY_<X>_HOST/_AUTH` (albo `_URL`), `_POLL` (s); `SNIPER_OVERLAP_IDS=5`, `SNIPER_GAP_PAGES=1`,
+  `SNIPER_POLL_FAST=3`, `SNIPER_FAST_MINUTES=10`. Automat (mediany) co 2 dni (`ANALYZER_AUTO_DAYS=2`).
 * `watch`: `ANALYZER_WATCH_HOURS=5-7`, `ANALYZER_GONE_AFTER_RUNS=1`, `ANALYZER_RESOLVE_DELAY_S=1-2.5`,
   `ANALYZER_CONFIRM_404=2`. Do decyzji: `ANALYZER_PRICE_MIN_3580=300` (dziś brak danych o laptopach < 700 zł, a
   Sniper je ocenia).
@@ -120,7 +126,11 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
 3. Linie `[RESOLVE] Wynik` z `watch.log` – ile „fałszywych 404” (404 → potem 200).
 4. Po 2–3 dniach nowego `watch`: `python -m analyzer sold-report --od 2026-10-28` (cel ≥ 90% zniknięć ≤ 24 h).
 5. Decyzja `ANALYZER_PRICE_MIN_3580=300`; czy wpisał ustawienia §4; dzienny koszt AI (`log sniper` → „dziś ~$…”).
-6. (Opcjonalnie) serwer basal do testu trybu `basal`: `basal-serve --model Remek/basal-2.0-mini --mode eager
+6. Po zakupie proxy: wpisy `SNIPER_PROXY_ROUTES` itd. (§4) + log startu Snipera (`[SCOUT] proxy …: skan co …`)
+   i heartbeat `Proxy (tempo skanu)` / `traffic_<nazwa>.csv` – błędy, 403/429, transfer na proxy.
+7. Decyzja w sprawie propozycji „brak danych w medianach” (HISTORIA B, 30.10: klasy pewności, druga próba po
+   modelu z AI, laptopy 300–700 zł) – kodu jeszcze nie ma, na prośbę użytkownika.
+8. (Opcjonalnie) serwer basal do testu trybu `basal`: `basal-serve --model Remek/basal-2.0-mini --mode eager
    --device cpu --port 8000`, potem `python -m sniper.bench --warianty bas_38_z6 --last 50 --bez-bramki`
    (`sniper/basal.py` napisany wg dokumentacji, nigdy nie uruchomiony na żywo).
 

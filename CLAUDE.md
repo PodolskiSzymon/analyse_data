@@ -18,6 +18,6 @@ zbierającym dane. Nie pytaj o rzeczy, które te pliki rozstrzygają.
   linki do Dysku). W eksportach z opisami maskować e-mail/telefon/URL (`analyzer/sample.py: redact`).
 * Sprzedawca w bazie jako stały hash (`seller_hash`) + liczbowe `seller_id` (od 29.10, do szafy); nicków nie zbieramy.
 * Cena „sprzedaży” = ostatnia cena wystawienia → w raportach **górna granica**; `deleted` ≠ sprzedaż.
-* Bez PR bez prośby. Commit + push na gałąź sesji w OBU repo (stan: `claude/magical-bell-vdwpt1`; nowa gałąź sesji →
+* Bez PR bez prośby. Commit + push na gałąź sesji w OBU repo (stan: `claude/gifted-volta-x1764p`; nowa gałąź sesji →
   oprzeć na niej, `STAN_PROJEKTU.md` „Start sesji”). W commitach/kodzie nie wpisywać identyfikatora modelu AI.
 * Testy (bez sieci): `python -m pytest analyzer/tests -q`; w `unreachable_sniper`: `python -m pytest sniper/tests -q`.

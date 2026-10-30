@@ -62,7 +62,7 @@ Potem:
    python -m analyzer sniper-guide
    ```
    Kopiuje `laptop.md`, `phone.md`, … i `catalogs.json` do `unreachable_sniper\sniper\guides` (z
-   `ANALYZER_SNIPER_GUIDES_DIR`). Potem automat robi to sam 2× w tygodniu; Sniper łapie zmiany bez restartu.
+   `ANALYZER_SNIPER_GUIDES_DIR`). Potem automat robi to sam co 2 dni; Sniper łapie zmiany bez restartu.
 3. Telefon: `restart sniper`. W `log sniper` na starcie: `ZWIADOWCA START | 3580 (laptopy) … ×3; 3661 (telefony) …`
    i `[AI] Wytyczne per kategoria (...): laptop, phone, …`.
 

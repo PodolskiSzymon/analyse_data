@@ -859,6 +859,61 @@ def test_auto_pipeline_publishes_guides(market, tmp_path):
     assert again is not None and again["ai"]["done"] == 20                    # następne 20 nowych ofert
 
 
+def test_watch_runs_overdue_auto_before_crawl(tmp_path, monkeypatch):
+    """Zaległy automat (mediany, wytyczne Snipera) rusza na STARCIE cyklu watch - restart w trakcie ~3 h przejścia nie
+    odsuwa median (prośba użytkownika 2026-10-30) - i jeszcze raz po resolve."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from analyzer import __main__ as cli
+    from analyzer import auto, crawler, details, resolver, sold_report
+
+    calls = []
+
+    class StopWatch(Exception):
+        pass
+
+    async def fake_auto(cfg, **kw):
+        calls.append("auto")
+
+    class FakeCrawler:
+        def __init__(self, *args, **kw):
+            pass
+
+        async def run(self, catalog_id):
+            calls.append(f"crawl {catalog_id}")
+
+    async def fake_resolve(cfg, session, conn, limit, only=None, deadline=None):
+        calls.append(f"resolve {only}")
+
+    async def nothing(*args, **kw):
+        return 0
+
+    real_sleep = asyncio.sleep
+
+    async def fake_sleep(seconds, *args, **kw):
+        if seconds > 60:                                  # czekanie do następnego przejścia = koniec testu
+            raise StopWatch
+        await real_sleep(0)
+
+    session = SimpleNamespace(close=nothing, traffic=SimpleNamespace(window_report=lambda: ("", {})))
+    monkeypatch.setattr(auto, "run", fake_auto)
+    monkeypatch.setattr(crawler, "Crawler", FakeCrawler)
+    monkeypatch.setattr(resolver, "resolve", fake_resolve)
+    monkeypatch.setattr(details, "fetch_details", nothing)
+    monkeypatch.setattr(sold_report, "cycle_line", lambda conn, since: "Cykl: test")
+    monkeypatch.setattr(cli, "build_session", lambda: session)
+    monkeypatch.setattr(cli, "run_ai_classify", nothing)
+    monkeypatch.setattr(cli, "status_lines", lambda conn: [])
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    cfg = SimpleNamespace(db_path=str(tmp_path / "analyzer.db"), watch_hours=(5.0, 7.0), photos=False,
+                          sold_alarm_hours=72.0, sold_alarm_min=300)
+    with pytest.raises(StopWatch):
+        asyncio.run(cli.cmd_watch(cfg, [3580], None, with_details=False))
+    assert calls[:2] == ["auto", "crawl 3580"]                     # automat PRZED przejściem
+    assert "resolve fresh" in calls and calls.count("auto") == 2   # i po resolve (watch_extras)
+
+
 def test_ai_condition_uses_archived_photos(market, tmp_path):
     import asyncio
     from types import SimpleNamespace
