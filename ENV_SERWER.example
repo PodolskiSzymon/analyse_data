@@ -48,21 +48,21 @@ SNIPER_GUIDES_DIR=C:\Users\szymo\unreachable_sniper\sniper\guides
 # Katalogi skanowane PO KOLEI: co 7 s jeden skan (krócej = szybciej widać okazje, ale więcej transferu proxy).
 SNIPER_POLL_INTERVAL=7
 SNIPER_POLL_JITTER=1
-# Przyspieszanie (30.10): gdy w skanie kategorii nie ma ŻADNEJ z SNIPER_OVERLAP_IDS najnowszych ofert poprzedniego
-# skanu (przyszło więcej, niż mieści strona), Sniper od razu dociąga SNIPER_GAP_PAGES kolejnych stron (nic nie umyka),
-# a TA kategoria (inne bez zmian) dostaje dodatkowe skany co SNIPER_POLL_MIN s przez SNIPER_FAST_MINUTES min.
-# SNIPER_POLL_MIN = minimalny odstęp między dwoma skanami jednego proxy (nigdy częściej).
+# Przyspieszanie (31.10): gdy w skanie kategorii nie ma ŻADNEJ z SNIPER_OVERLAP_IDS najnowszych ofert poprzedniego
+# skanu (przyszło więcej, niż mieści strona = odświeżamy za wolno), odstęp TEJ kategorii skraca się o SNIPER_POLL_STEP s
+# (od zwykłego, najwyżej do SNIPER_POLL_MIN - minimalny odstęp dwóch skanów jednego proxy). Po SNIPER_FAST_MINUTES min
+# bez przepełnienia wraca o krok w górę, aż do zwykłego. Inne kategorie bez zmian.
 SNIPER_OVERLAP_IDS=5
-SNIPER_GAP_PAGES=1
 SNIPER_POLL_MIN=3
+SNIPER_POLL_STEP=3
 SNIPER_FAST_MINUTES=10
 # Kursy walut do wysyłki z zagranicy - z pliku, którego używa Vinted, co tyle godzin (0 = stałe kursy).
 SNIPER_FX_REFRESH_H=12
 # Dolny próg ceny każdego katalogu (2026-10-27): bez ofert < 300 zł - catalogs.json zaczynał od 50-100 zł.
 SNIPER_PRICE_FLOOR=300
 # Ofert na skan: przy progu 300 zł wystarcza ~6 (dane 26.10: telefony ≥ 300 zł ~1,8 nowej/min, konsole ~0,8/min,
-# laptopy ≥ 700 zł ~0,3/min). „/N!” przy katalogu w heartbeat = N przepełnień (cała strona nowa - Sniper sam dociągnął
-# stronę 2 i przyspieszył tę kategorię); gdy pojawia się często → zwiększ.
+# laptopy ≥ 700 zł ~0,3/min). „/N!” przy katalogu w heartbeat = N przepełnień (cała strona nowa - Sniper przyspieszył
+# tę kategorię); gdy pojawia się często → zwiększ.
 SNIPER_PER_PAGE=6
 SNIPER_DEDUP_SIZE=100
 # Używane tylko, gdy SNIPER_CATALOGS jest puste (stary tryb: jeden katalog)

@@ -69,11 +69,13 @@ async def find(session, seller_id, item_id, pages=3, per_page=20, sleep=asyncio.
     return f"brak na {pages} stronach (szafa większa)", requests, size
 
 
-def candidates(conn, limit):
+def candidates(conn, limit, states=("deleted",)):
+    """Ostatnie zniknięcia w danych stanach (domyślnie deleted - pytanie użytkownika: tylko ~5% zniknięć to pewne
+    sprzedaże; 31.10 próbka bez filtra wzięła same `unlisted`, z czego 46/50 dalej wisi w szafie)."""
+    marks = ",".join("?" * len(states))
     return conn.execute(
-        "SELECT id, seller_id, state, title, category, price_now FROM listings WHERE seller_id IS NOT NULL "
-        "AND state IN ('deleted', 'sold', 'blocked', 'gone_pending', 'unlisted') ORDER BY state_at DESC LIMIT ?",
-        (limit,)).fetchall()
+        f"SELECT id, seller_id, state, title, category, price_now FROM listings WHERE seller_id IS NOT NULL "
+        f"AND state IN ({marks}) ORDER BY state_at DESC LIMIT ?", (*states, limit)).fetchall()
 
 
 def short(result):

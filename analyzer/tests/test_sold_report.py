@@ -215,3 +215,18 @@ def test_wardrobe_progress_bar_and_session_refresh(monkeypatch):
 def test_disable_quickedit_is_harmless_outside_windows():
     from analyzer.progress import disable_quickedit
     assert disable_quickedit() is False
+
+
+def test_wardrobe_candidates_by_state():
+    """szafa-test domyślnie bierze `deleted` (31.10: bez filtra próbka składała się z samych `unlisted`)."""
+    import sqlite3
+
+    from analyzer import wardrobe
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE listings (id, seller_id, state, state_at, title, category, price_now)")
+    conn.executemany("INSERT INTO listings VALUES (?, ?, ?, ?, 't', 'phone', 1)", [
+        (1, 10, "unlisted", "2026-10-31"), (2, 11, "deleted", "2026-10-30"), (3, None, "deleted", "2026-10-31"),
+        (4, 12, "deleted", "2026-10-29")])
+    assert [r["id"] for r in wardrobe.candidates(conn, 10)] == [2, 4]
+    assert [r["id"] for r in wardrobe.candidates(conn, 10, ("deleted", "unlisted"))] == [1, 2, 4]

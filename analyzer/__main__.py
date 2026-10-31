@@ -491,6 +491,8 @@ def main(argv=None):
                                                   "aktywna / brak / konto usunięte) - przez proxy, bazy nie zmienia")
     p_szafa.add_argument("--limit", type=int, default=20, help="ile ostatnich zniknięć z seller_id (domyślnie 20)")
     p_szafa.add_argument("--pages", type=int, default=3, help="najwyżej tyle stron szafy na ofertę")
+    p_szafa.add_argument("--stany", default="deleted",
+                         help="stany ofert po przecinku (domyślnie deleted; np. deleted,unlisted,gone_pending)")
     p_flips = sub.add_parser("flips", help="rejestr flipów (flips.csv obok bazy): realny zysk, marża, dni, rabat δ")
     p_flips.add_argument("--szablon", action="store_true", help="zapisz flips.csv z nagłówkiem i zakupami z 26.10")
     p_flips.add_argument("--plik", default=None, help="inny plik niż <folder bazy>/flips.csv")
@@ -854,10 +856,10 @@ def main(argv=None):
             from .progress import ConsoleBar
             print("Szukam ostatnich zniknięć z seller_id w bazie (duża baza - do minuty)...", flush=True)
             conn = analysis.open_ro(cfg.db_path)
-            rows = wardrobe.candidates(conn, args.limit)
+            rows = wardrobe.candidates(conn, args.limit, tuple(s.strip() for s in args.stany.split(",") if s.strip()))
             conn.close()
             if not rows:
-                print("Brak zniknięć z zapisanym seller_id - zbierane od migracji v12 (29.10); poczekaj na cykl watch.")
+                print(f"Brak ofert w stanach {args.stany} z zapisanym seller_id (zbierane od migracji v12, 29.10).")
                 return
             print(f"Sprawdzam szafy {len(rows)} sprzedawców przez proxy (sesja Vinted może najpierw otworzyć "
                   f"przeglądarkę ~1 min)...", flush=True)

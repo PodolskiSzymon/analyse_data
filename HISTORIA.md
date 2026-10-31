@@ -518,3 +518,10 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
   Vinted (adres od użytkownika; co 12 h, bez proxy, podejrzane kursy odrzucane), a brak `shipping_details` = jedna
   ponowna próba, potem ocena ≤ 7 z flagą. `szafa-test` u użytkownika nie ruszył – uruchomiony w starym folderze
   `category_analyzer` (stary kod i stary `.env` z błędami parsowania); trzeba w `analyse_data`.
+* **2026-10-31 – szafa i tempo Snipera.** `szafa-test --limit 50` (nowa wersja, sesja odświeżona po 401): próbka
+  wzięła same `unlisted` → 46/50 dalej aktywne w szafie (= dziury w pokryciu przejścia, nie zniknięcia), 4 brak;
+  strona szafy ~97 KB (nie ~8 KB) – szafa w resolverze byłaby droga. Wcześniejsze „konta usunięte” użytkownika =
+  sprawdzanie /member/<numer OFERTY> (pomyłka), nie dowód. `szafa-test --stany` (domyślnie deleted) – właściwe
+  pytanie o 5% sprzedanych. Sniper (prośba): bez dociągania strony 2; przepełnienie = odstęp tej kategorii krótszy o
+  `SNIPER_POLL_STEP` (3 s) od zwykłego, najwyżej do `SNIPER_POLL_MIN`; po `SNIPER_FAST_MINUTES` spokoju o krok dłuższy.
+  Kredyty Gemini wyczerpane (402 w auto) – Sniper bez oceny AI do doładowania.

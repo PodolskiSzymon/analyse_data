@@ -13,7 +13,7 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (257), w `unreachable_sniper`
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (258), w `unreachable_sniper`
    `python -m pytest sniper/tests -q` (245 + 1 pominięty). Oba przed każdym pushem.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
@@ -60,7 +60,7 @@ startu (5–7 h) równolegle: ponowne sprawdzenia (`only="due"`), szczegóły of
 
 **Sniper – jedna oferta:** skan katalogów (`SNIPER_CATALOGS=auto` → `catalogs.json`, każdy od `SNIPER_PRICE_FLOOR`
 300 zł, przeplot wagami; od 30.10 osobna pętla i sesja na każde proxy (`SNIPER_PROXY_<N>_KATEGORIE`); na stronie 1
-brak każdej z 5 ofert poprzedniego skanu = przepełnienie → strona 2 + ta kategoria co `SNIPER_POLL_MIN`) → nowe ID → sidebar + shipping (proxy) → `Offer` (kategoria z katalogu/tytułu; wysyłka
+brak każdej z 5 ofert poprzedniego skanu = przepełnienie → ta kategoria o `SNIPER_POLL_STEP` s częściej, do `SNIPER_POLL_MIN`) → nowe ID → sidebar + shipping (proxy) → `Offer` (kategoria z katalogu/tytułu; wysyłka
 przeliczona z waluty sprzedawcy `FX_TO_PLN`; kraj z waluty wysyłki, EUR = nieznany) → `submit`: już widziana →
 słowa wykluczone → **bramka** (koszt > max zakup z tabeli × 1,25 albo „za drogo” wg podobnych ofert – odcina ~70%)
 → dzienny limit $ → **AI w trybie `mediany`**: kilka median z `comparables.db` (od dokładnej do rodziny) + karta
@@ -88,7 +88,7 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
 * Skan (propozycja dla użytkownika, nie wiadomo, czy wpisał): `SNIPER_CATALOG_WEIGHTS=phone:4,console:4,laptop:1,
   tablet:1`, `SNIPER_POLL_INTERVAL=7`, `SNIPER_PER_PAGE=6` („/N!” w heartbeat = N przepełnień strony).
 * Kilka proxy / przyspieszanie (30.10, użytkownik kupuje 2 proxy residential): `SNIPER_PROXY_2_HOST/_AUTH/
-  _KATEGORIE/_POLL` (numery 2..9); `SNIPER_OVERLAP_IDS=5`, `SNIPER_GAP_PAGES=1`, `SNIPER_POLL_MIN=3`,
+  _KATEGORIE/_POLL` (numery 2..9); `SNIPER_OVERLAP_IDS=5`, `SNIPER_POLL_STEP=3`, `SNIPER_POLL_MIN=3`,
   `SNIPER_FAST_MINUTES=10`; kursy walut na żywo (`sniper/fx.py`, `SNIPER_FX_REFRESH_H=12`); brak `shipping_details`
   = ocena ≤ 7; laptopy bez danych też ≤ 7 (bez zwolnienia). Automat (mediany) co 2 dni (`ANALYZER_AUTO_DAYS=2`).
 * `watch`: `ANALYZER_WATCH_HOURS=5-7`, `ANALYZER_GONE_AFTER_RUNS=1`, `ANALYZER_RESOLVE_DELAY_S=1-2.5`,
