@@ -1256,3 +1256,26 @@ def test_auto_reports_each_stage(market, tmp_path):
     for stage in ("flagi podejrzanych", "flagi cenowe", "relisty: laptop", "par z", "AI stan", "raport (statystyki rynku)", "wytyczne Snipera",
                   "porównywalne oferty dla Snipera", "gotowe"):
         assert stage in text, stage
+
+
+def test_connection_reset_is_quiet(caplog):
+    """WinError 10054 przy zamykaniu gniazda (szafa-test 31.10) - bez tracebacku na konsoli; inne błędy jak dotąd."""
+    import logging
+
+    from analyzer.__main__ import _quiet_connection_resets, run_async
+
+    seen = []
+
+    class Loop:
+        def default_exception_handler(self, context):
+            seen.append(context)
+
+    with caplog.at_level(logging.WARNING):
+        _quiet_connection_resets(Loop(), {"exception": ConnectionResetError(10054, "zerwane")})
+    assert seen == [] and "zerwane" not in caplog.text
+    _quiet_connection_resets(Loop(), {"exception": ValueError("inny")})
+    assert len(seen) == 1
+
+    async def answer():
+        return 42
+    assert run_async(answer()) == 42

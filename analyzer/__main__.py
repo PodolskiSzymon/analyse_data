@@ -49,6 +49,25 @@ from .config import AnalyzerConfig, build_session, catalog_label
 log = logging.getLogger("analyzer")
 
 
+def _quiet_connection_resets(loop, context):
+    """Zerwane połączenie od proxy (WinError 10054 na Windowsie) to nie błąd programu - pętla Proactor loguje je jako
+    ERROR z tracebackiem przy zamykaniu gniazda (szafa-test 31.10), choć zapytanie i tak jest ponawiane. Jak w Sniperze:
+    tylko DEBUG."""
+    exc = context.get("exception")
+    if isinstance(exc, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
+        logging.getLogger("analyzer.net").debug("[NET] Zdalna strona zerwała połączenie: %r", exc)
+        return
+    loop.default_exception_handler(context)
+
+
+def run_async(coro):
+    """asyncio.run z wyciszonymi zerwanymi połączeniami (_quiet_connection_resets)."""
+    async def main():
+        asyncio.get_running_loop().set_exception_handler(_quiet_connection_resets)
+        return await coro
+    return asyncio.run(main())
+
+
 def setup_logging(db_path):
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     console = logging.StreamHandler()
@@ -578,17 +597,17 @@ def main(argv=None):
     disable_quickedit()                     # kliknięcie w okno cmd nie wstrzymuje już programu
     setup_logging(cfg.db_path)
     if args.command == "crawl":
-        asyncio.run(cmd_crawl(cfg, args.catalog or list(cfg.catalogs)))
+        run_async(cmd_crawl(cfg, args.catalog or list(cfg.catalogs)))
     elif args.command == "watch":
-        asyncio.run(cmd_watch(cfg, args.catalog or list(cfg.catalogs), args.resolve_limit, not args.no_details))
+        run_async(cmd_watch(cfg, args.catalog or list(cfg.catalogs), args.resolve_limit, not args.no_details))
     elif args.command == "classify-ai":
-        asyncio.run(cmd_classify_ai(cfg, args.limit, args.retry_failed))
+        run_async(cmd_classify_ai(cfg, args.limit, args.retry_failed))
     elif args.command == "details":
-        asyncio.run(cmd_details(cfg, args.limit))
+        run_async(cmd_details(cfg, args.limit))
     elif args.command == "resolve":
-        asyncio.run(cmd_resolve(cfg, args.limit))
+        run_async(cmd_resolve(cfg, args.limit))
     elif args.command == "probe":
-        asyncio.run(cmd_probe(cfg, args.catalog or cfg.catalogs[0], args.item))
+        run_async(cmd_probe(cfg, args.catalog or cfg.catalogs[0], args.item))
     elif args.command == "probe-show":
         from .probe import show
         show(args.folder)
@@ -619,14 +638,14 @@ def main(argv=None):
             print("\n".join(recheck_links(conn, "", show, per_state=200)) or "Brak wyników recheck w tych stanach.")
             conn.close()
             return
-        asyncio.run(cmd_recheck(cfg, states, args.limit, args.again, human=args.pauses, delay=delay, show=show))
+        run_async(cmd_recheck(cfg, states, args.limit, args.again, human=args.pauses, delay=delay, show=show))
     elif args.command == "html-details":
         from .config import parse_range
         states = tuple(x.strip() for x in args.states.split(",") if x.strip())
         if args.dump:
-            asyncio.run(cmd_html_dump(cfg, args.dump))
+            run_async(cmd_html_dump(cfg, args.dump))
         else:
-            asyncio.run(cmd_html_details(cfg, states, args.limit, parse_range(args.delay, (0.6, 1.5)), args.random))
+            run_async(cmd_html_details(cfg, states, args.limit, parse_range(args.delay, (0.6, 1.5)), args.random))
     elif args.command in ("extract", "extract-report"):
         from . import extract
         print(f"Otwieram bazę {cfg.db_path} ...", flush=True)
@@ -637,11 +656,11 @@ def main(argv=None):
         conn.close()
     elif args.command == "ntfy-test":
         from . import notify
-        ok = asyncio.run(notify.send("Analyzer: test powiadomienia", ["Tak będzie wyglądać powiadomienie o końcu "
+        ok = run_async(notify.send("Analyzer: test powiadomienia", ["Tak będzie wyglądać powiadomienie o końcu "
                                                                      "pracy recheck."]))
         print("Wysłano - sprawdź telefon." if ok else "Nie wysłano - patrz komunikat wyżej.")
     elif args.command == "check":
-        asyncio.run(cmd_check(cfg, args.items))
+        run_async(cmd_check(cfg, args.items))
     elif args.command == "resolve-report":
         from .resolve_diag import report
         print(f"Otwieram bazę {cfg.db_path} ...", flush=True)
@@ -751,7 +770,7 @@ def main(argv=None):
                                 tpm=ai_condition.TPM if args.tpm is None else args.tpm)
                         finally:
                             await backend.close()
-                    st = asyncio.run(call())
+                    st = run_async(call())
                     price = ai_condition.prices(ai_cfg, model)
                     cost = (f", koszt ~${(st['tokens_in'] * price[0] + st['tokens_out'] * price[1]) / 1e6:.2f}"
                             if price else "")
@@ -802,17 +821,17 @@ def main(argv=None):
         print("\n".join(find.lines(found, med, total, args.kategoria)))
     elif args.command == "auto":
         from . import auto
-        result = asyncio.run(auto.run(cfg, force=args.force, progress=lambda t: print(t, flush=True)))
+        result = run_async(auto.run(cfg, force=args.force, progress=lambda t: print(t, flush=True)))
         print("Nie minęło jeszcze ANALYZER_AUTO_DAYS - użyj --force." if result is None else "Gotowe.")
     elif args.command == "photos":
         from .photos import archive, status_line
         conn = db.connect(cfg.db_path)
-        asyncio.run(archive(cfg, conn, limit=args.limit))
+        run_async(archive(cfg, conn, limit=args.limit))
         conn.close()
         print(status_line(cfg))
     elif args.command == "remote":
         from . import remote
-        asyncio.run(remote.main(cfg))
+        run_async(remote.main(cfg))
     elif args.command == "sample":
         from .sample import export
         print(f"Otwieram bazę {cfg.db_path} ...", flush=True)
@@ -851,7 +870,7 @@ def main(argv=None):
                 await session.close()
             print("\n".join(wardrobe.lines(out, summary, requests, size)))
 
-        asyncio.run(szafa())
+        run_async(szafa())
     elif args.command == "flips":
         from . import flips
         path = Path(args.plik) if args.plik else flips.path_for(cfg.db_path)
