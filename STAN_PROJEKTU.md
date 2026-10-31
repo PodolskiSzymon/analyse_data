@@ -13,7 +13,7 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (258), w `unreachable_sniper`
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (255), w `unreachable_sniper`
    `python -m pytest sniper/tests -q` (245 + 1 pominięty). Oba przed każdym pushem.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
@@ -122,8 +122,8 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
 
 1. `evaluations.csv`/`.jsonl` z serwera – **czemu Xiaomi 12T i Asus dostały alert** (wysłany `oceny.html` był
    identyczny jak z 28.10 → kopia na Dysk (`mirror.py`) albo `report.py` przestała się odświeżać – też do zbadania).
-2. Wynik `python -m analyzer szafa-test` (po ~1 dniu zbierania `seller_id`) – czy sprzedane oferty są w szafie
-   sprzedawcy (`www.vinted.pl/api/v2/wardrobe/{seller_id}/items`, ~8 KB/stronę; niepotwierdzone).
+2. (Zamknięte 31.10) Szafa sprzedawcy: 50/50 `deleted` → brak w szafie, strona szafy ~92 KB – nic nie daje
+   resolverowi, test usunięty (HISTORIA B 31.10). `seller_id` zostaje (relisty, handlarze).
 3. Linie `[RESOLVE] Wynik` z `watch.log` – ile „fałszywych 404” (404 → potem 200).
 4. Po 2–3 dniach nowego `watch`: `python -m analyzer sold-report --od 2026-10-28` (cel ≥ 90% zniknięć ≤ 24 h).
 5. Decyzja `ANALYZER_PRICE_MIN_3580=300`; czy wpisał ustawienia §4; dzienny koszt AI (`log sniper` → „dziś ~$…”).
@@ -139,8 +139,8 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
 
 1. Po (1): znaleźć, którędy alert przeszedł mimo niespełnionej reguły / braku danych (ścieżka `evaluate` → `_finish`
    → `push.notify_deal`, tryb laptopów zwykły, `cap_without_market_data` – laptopy wyjątek) i naprawić z testem.
-2. Po (2)/(3): szafa w resolverze tylko tam, gdzie się opłaca (np. `deleted` w ważnych grupach); dziury w pokryciu
-   przejścia (`unlisted` 58%) – sprawdzić `newest_first`, głębokość stron, zakresy cen.
+2. Dziury w pokryciu przejścia (`unlisted` 58%; 31.10: 46/50 `unlisted` dalej aktywne w szafie sprzedawcy)
+   – sprawdzić `newest_first`, głębokość stron, zakresy cen.
 3. **F4 `alert-outcomes`** (PLAN_OCENY §8.2): co stało się z ofertami z alertów (sprzedana? po ilu godzinach? za
    ile wg bazy) – automatyczna miara trafności bez pracy użytkownika; potem `backtest`.
 4. Dane o tanich laptopach (próg 300 zł) – Sniper ocenia laptopy 300–700 zł bez danych.
@@ -174,7 +174,7 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
 | reguła zysku, wytyczne | `analyzer/guide.py`, `sniper/evaluator.py`, `sniper/guides.py`, `sniper/guidelines.md` (laptopy, ręczne) |
 | mediany / podobne oferty | `analyzer/comparables.py`, `sniper/comparables.py` (`levels`), `sniper/experiment.py` (`MEDIANS_TASK`, `finish_medians`, `cheap_guard`) |
 | porównanie wariantów oceny | `sniper/bench.py`, `sniper/bench_golden.json`, `sniper/basal.py` |
-| zniknięcia, sprzedaże | `analyzer/resolver.py`, `analyzer/sold_report.py`, `analyzer/wardrobe.py` |
+| zniknięcia, sprzedaże | `analyzer/resolver.py`, `analyzer/sold_report.py` |
 | katalogi, wagi, próg ceny | `sniper/categories.py`, `sniper/scout.py`, `sniper/config.py` |
 | rejestr flipów | `analyzer/flips.py` (`flips.csv` obok bazy) |
 | sprzęt do testów | `SPRZET_DO_TESTOW.md` (`SNIPER_TEST_HAVE`) |
@@ -182,7 +182,7 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
 **Ściąga komend (serwer):**
 ```bat
 cd C:\Users\szymo\analyse_data
-python -m analyzer status | sold-report [--od DATA] | szafa-test [--limit 20] | flips | sniper-guide | auto --force
+python -m analyzer status | sold-report [--od DATA] | flips | sniper-guide | auto --force
 python -m analyzer szukaj <kategoria> [słowa] [--max N] | slim-db | report
 cd C:\Users\szymo\unreachable_sniper
 .venv\Scripts\python -m sniper.bench [--warianty A,B] [--last 50] [--bez-bramki] [--lista]

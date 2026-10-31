@@ -525,3 +525,15 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
   pytanie o 5% sprzedanych. Sniper (prośba): bez dociągania strony 2; przepełnienie = odstęp tej kategorii krótszy o
   `SNIPER_POLL_STEP` (3 s) od zwykłego, najwyżej do `SNIPER_POLL_MIN`; po `SNIPER_FAST_MINUTES` spokoju o krok dłuższy.
   Kredyty Gemini wyczerpane (402 w auto) – Sniper bez oceny AI do doładowania.
+* **2026-10-31 – szafa: wniosek i koniec testu.** `szafa-test --stany deleted --limit 50`: 50/50 brak w szafie
+  (45 „brak”, 5 „brak na 3 stronach”), strona szafy ~92 KB. Szafa pokazuje aktywne oferty (unlisted: 46/50
+  znalezione), a `deleted` w niej nie ma – albo to faktycznie usunięcia, albo szafa nie pokazuje sprzedanych;
+  w obu przypadkach nie przerobi `deleted` na `sold`, a kosztowałaby ~0,1 MB proxy na zniknięcie. Test i
+  `analyzer/wardrobe.py` usunięte; `seller_id` zostaje. Niski udział sprzedanych (~5%) traktujemy jako prawdziwy
+  obraz: większość zniknięć to usunięcia / relisty. Przy okazji: `unlisted` to dziury pokrycia przejścia.
+* **2026-10-31 – koszty AI (zrzuty AI Studio użytkownika, 25–31.10):** 356 zł przed rabatem (211 zł po), prawie
+  całość Gemini 3.8 Flash; 26.10 ~10 tys. zapytań i ~33 mln tokenów wejścia (pierwszy przebieg AI stanu w
+  analizatorze – 10 589 ofert ma stan z AI – i Sniper bez działającej bramki), 30.10 ~2,2 tys. zapytań i ~15 mln
+  tokenów (~7 tys. tokenów na ocenę: pełna tabela wytycznych + 6 zdjęć + myślenie). Analizator też woła 3.8 Flash
+  (`ai_classify.DEFAULT_MODELS`): AI stanu w automacie (do 3 000 ofert) i `classify-ai` w każdym cyklu watch.
+  Kredyty wyczerpane 31.10. Restrukturyzacja oceny (prośba użytkownika) – po otrzymaniu bazy.

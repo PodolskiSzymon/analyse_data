@@ -32,7 +32,6 @@
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
   sold-report [--od ISO]                  F0: ciągłość watch, zwłoka resolvera, sold vs deleted wg zwłoki, tempo
-  szafa-test [--limit 20] [--pages 3]     test: zniknięte oferty w szafie sprzedawcy (sprzedana / brak / konto)
   flips [--szablon] [--plik P]            rejestr flipów (flips.csv obok bazy): realny zysk, marża, dni, rabat δ
   slim-db                                 lekka kopia bazy dla Claude (bez raw) -> export/<data>/analyzer_slim.zip
   status                                  podsumowanie bazy (oferty, stany, partycje, przejścia, transfer)
@@ -51,7 +50,7 @@ log = logging.getLogger("analyzer")
 
 def _quiet_connection_resets(loop, context):
     """Zerwane połączenie od proxy (WinError 10054 na Windowsie) to nie błąd programu - pętla Proactor loguje je jako
-    ERROR z tracebackiem przy zamykaniu gniazda (szafa-test 31.10), choć zapytanie i tak jest ponawiane. Jak w Sniperze:
+    ERROR z tracebackiem przy zamykaniu gniazda (31.10), choć zapytanie i tak jest ponawiane. Jak w Sniperze:
     tylko DEBUG."""
     exc = context.get("exception")
     if isinstance(exc, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
@@ -487,12 +486,6 @@ def main(argv=None):
     p_sold = sub.add_parser("sold-report", help="F0: zdrowie danych o sprzedaży (ciągłość watch, zwłoka resolvera, "
                                                  "sold vs deleted wg zwłoki, tempo sprzedaży) - bez sieci")
     p_sold.add_argument("--od", default=None, help="od kiedy (ISO, domyślnie 2026-10-24T12:00 - po recheck)")
-    p_szafa = sub.add_parser("szafa-test", help="test: czy zniknięte oferty są w szafie sprzedawcy (sprzedana / "
-                                                  "aktywna / brak / konto usunięte) - przez proxy, bazy nie zmienia")
-    p_szafa.add_argument("--limit", type=int, default=20, help="ile ostatnich zniknięć z seller_id (domyślnie 20)")
-    p_szafa.add_argument("--pages", type=int, default=3, help="najwyżej tyle stron szafy na ofertę")
-    p_szafa.add_argument("--stany", default="deleted",
-                         help="stany ofert po przecinku (domyślnie deleted; np. deleted,unlisted,gone_pending)")
     p_flips = sub.add_parser("flips", help="rejestr flipów (flips.csv obok bazy): realny zysk, marża, dni, rabat δ")
     p_flips.add_argument("--szablon", action="store_true", help="zapisz flips.csv z nagłówkiem i zakupami z 26.10")
     p_flips.add_argument("--plik", default=None, help="inny plik niż <folder bazy>/flips.csv")
@@ -849,30 +842,6 @@ def main(argv=None):
         conn = analysis.open_ro(cfg.db_path)
         print("\n".join(sold_report.report(conn, args.od or sold_report.DEFAULT_SINCE)))
         conn.close()
-    elif args.command == "szafa-test":
-        from . import analysis, wardrobe
-
-        async def szafa():
-            from .progress import ConsoleBar
-            print("Szukam ostatnich zniknięć z seller_id w bazie (duża baza - do minuty)...", flush=True)
-            conn = analysis.open_ro(cfg.db_path)
-            rows = wardrobe.candidates(conn, args.limit, tuple(s.strip() for s in args.stany.split(",") if s.strip()))
-            conn.close()
-            if not rows:
-                print(f"Brak ofert w stanach {args.stany} z zapisanym seller_id (zbierane od migracji v12, 29.10).")
-                return
-            print(f"Sprawdzam szafy {len(rows)} sprzedawców przez proxy (sesja Vinted może najpierw otworzyć "
-                  f"przeglądarkę ~1 min)...", flush=True)
-            session = build_session()
-            bar = ConsoleBar()
-            try:
-                out, summary, requests, size = await wardrobe.run(session, rows, args.pages, bar=bar)
-            finally:
-                bar.finish()
-                await session.close()
-            print("\n".join(wardrobe.lines(out, summary, requests, size)))
-
-        run_async(szafa())
     elif args.command == "flips":
         from . import flips
         path = Path(args.plik) if args.plik else flips.path_for(cfg.db_path)
