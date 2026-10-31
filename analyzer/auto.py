@@ -149,17 +149,20 @@ async def run(cfg, backend=None, now=None, send=None, force=False, progress=None
                 if backend is not None:
                     say(f"AI stan dla {len(items)} nowych ofert...")
                     try:
-                        st = await ai_condition.run(aconn, items, backend, progress=False)
+                        st = await ai_condition.run(aconn, items, backend, progress=progress is not None)
                     finally:
                         if own:
                             await backend.close()
                     ai.update({k: st[k] for k in ("done", "failed", "tokens_in", "tokens_out")})
                     if price:
                         ai["cost"] = (st["tokens_in"] * price[0] + st["tokens_out"] * price[1]) / 1e6
-            say("raport i wytyczne...")
+            # 31.10: „raport i wytyczne…” stało bez znaku życia (duża baza, 4 GB RAM) - teraz każdy etap pisze, co robi;
+            # z linii poleceń (auto --force) także pasek postępu statystyk.
             out = analysis.out_dir(cfg.db_path)
-            paths, lines, _ = report.build(conn, aconn, out, recompute=False, bar=False)
-            guides = guide.build(conn, aconn, out / "guides")
+            say("raport (statystyki rynku)...")
+            paths, lines, _ = report.build(conn, aconn, out, recompute=False, progress=say, bar=progress is not None)
+            say("wytyczne Snipera i mediany (comparables.db)...")
+            guides = guide.build(conn, aconn, out / "guides", progress=say)
             copied = publish(cfg, guides)
         finally:
             conn.close()

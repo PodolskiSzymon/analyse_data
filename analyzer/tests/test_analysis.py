@@ -1236,3 +1236,23 @@ def test_slim_db_copies_without_raw(market, tmp_path, flagged):
     assert conn.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='index'").fetchone()[0] > 0
     conn.close()
     assert zipfile.ZipFile(out.with_suffix(".zip")).namelist() == ["analyzer_slim.db"]
+
+
+def test_auto_reports_each_stage(market, tmp_path):
+    """auto --force (31.10: „raport i wytyczne…” bez znaku życia) - każdy etap i porównywalne oferty w postępie."""
+    import asyncio
+
+    from analyzer import auto
+    path, _truth = _copy_market(market, tmp_path)
+    cfg = _photo_cfg(path, auto_ai_limit=5)
+    said = []
+
+    async def send(title, lines, **kw):
+        return True
+
+    asyncio.run(auto.run(cfg, backend=FakeConditionBackend(), now=fake_market.NOW, send=send, force=True,
+                         progress=said.append))
+    text = "\n".join(said)
+    for stage in ("flagi podejrzanych", "AI stan", "raport (statystyki rynku)", "wytyczne Snipera",
+                  "porównywalne oferty dla Snipera", "gotowe"):
+        assert stage in text, stage

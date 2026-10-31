@@ -13,7 +13,7 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (255), w `unreachable_sniper`
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (256), w `unreachable_sniper`
    `python -m pytest sniper/tests -q` (245 + 1 pominięty). Oba przed każdym pushem.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
