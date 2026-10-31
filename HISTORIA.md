@@ -537,3 +537,26 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
   tokenów (~7 tys. tokenów na ocenę: pełna tabela wytycznych + 6 zdjęć + myślenie). Analizator też woła 3.8 Flash
   (`ai_classify.DEFAULT_MODELS`): AI stanu w automacie (do 3 000 ofert) i `classify-ai` w każdym cyklu watch.
   Kredyty wyczerpane 31.10. Restrukturyzacja oceny (prośba użytkownika) – po otrzymaniu bazy.
+* **2026-10-31 – restrukturyzacja kosztów AI + katalogi podzespołów (prośba użytkownika, kopia bazy z 31.10).**
+  Katalogi: podzespoły z własnych katalogów Vinted (lista użytkownika: RAM 3603, dyski 3607, karty 3602, procesory
+  3599, płyty 3600, zestawy 3601) zamiast ogólnych 3582 / 3584 (wycofane na prośbę) i 3583 (nośniki – też ogólny,
+  usunięty z tej samej zasady). Analizator: nowe kategorie `cpu` / `motherboard` / `bundle` (reguły: procesor
+  desktopowy 65% tytułów, chipset 32%), oferta widziana w nowym katalogu przechodzi tam (`upsert_item`), niewidziane z
+  wycofanych katalogów idą do resolvera. Sniper pomija 3582/3583/3584 także ze starego `catalogs.json`.
+  Koszt (pomiar na bazie): Sniper ~1 040 wywołań AI/dobę × ~13,1 tys. tokenów wejścia + 1,6 tys. wyjścia (myślenie)
+  ≈ $16,5/dobę (bez cache) – więcej niż `SNIPER_AI_DAILY_LIMIT_USD=10`. Zmiany: (1) **rodziny** – do AI tylko wiersze
+  tabeli dla TEJ oferty (model + warianty, z opisu, rodzina / marka, sąsiednie kategorie: iPad w telefonach →
+  tablety, „Huawei” bez modelu → telefony i tablety, „Huawei tab” → tablety), stała legenda w instrukcji systemowej
+  zamiast nagłówka analizatora; telefony: ~0,5 tys. tokenów zamiast ~13 tys. (analizator zapisuje teraz wszystkie
+  opłacalne grupy, `TOP_ROWS=2000`; stary tryb `wszystkie` ucina do 80); laptopy: z ręcznego `guidelines.md` tylko
+  „Zasady dodatkowe” + notatki pasującej karty (stara reguła 26.10 z marżą 40/35/30% była sprzeczna z obecną);
+  (2) **ocena dwuetapowa** – szybka (myślenie low, zdjęcia medium ~560 tok.), pełna tylko dla okazji / ≥ 6 (dzień
+  testowy 29.10: myślenie low zgodne w 99% decyzji); (3) **bramka podobnych wg reguły zysku** – max zakup przy
+  wycenie = szacunek × 1,2 (tak przycina program), zamiast 0,9 × szacunku (szacunek 500 zł → 254 zł zamiast 450);
+  (4) **bez AI bez danych** – tryb mediany bez żadnej mediany (program i tak daje ≤ 3) i zwykły, gdy limit braku
+  danych < próg powiadomień; (5) schemat bez pól liczonych przez program (max zakup, zysk, marża, reguła), krótsze
+  reasoning. Symulacja na 1 200 z 9 029 nowych ofert 28–30.10: wywołań 1 038 → 765/dobę (bramka: +86 odciętych,
+  brak danych: 23), $0,0158 → $0,0081 na ofertę (przy 15% ofert z pełną oceną), **~$16,5 → ~$6,2/dobę (−63%)**.
+  Dopasowanie rodzin: tytuł-model 56%, numer modelu 7%, opis 7%, rodzina 11%, marka 6%, nic 13%. Watch: AI stanu
+  w automacie bez zdjęć (`ANALYZER_AUTO_AI_PHOTOS=0`, ~$5 → ~$1 na automat), `classify-ai` bez nowych ofert (czyste
+  katalogi). Do sprawdzenia u użytkownika: `python -m sniper.bench --warianty koszty --last 50` (jakość przed / po).

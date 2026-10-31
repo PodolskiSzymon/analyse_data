@@ -1,4 +1,4 @@
-# STAN PROJEKTU – punkt startowy nowej rozmowy (2026-10-30, wieczór)
+# STAN PROJEKTU – punkt startowy nowej rozmowy (2026-10-31)
 
 > **„wykonaj md” = przeczytaj CAŁY ten plik i działaj wg §6–§7.** `CLAUDE.md` wczytuje się sam. Innych plików nie
 > czytaj na zapas – mapa w §9 mówi, co otworzyć przy danym temacie. Archiwum decyzji z liczbami: `HISTORIA.md`
@@ -13,8 +13,8 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (255), w `unreachable_sniper`
-   `python -m pytest sniper/tests -q` (245 + 1 pominięty). Oba przed każdym pushem.
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (258), w `unreachable_sniper`
+   `python -m pytest sniper/tests -q` (259 + 1 pominięty). Oba przed każdym pushem.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
 
@@ -35,7 +35,9 @@ ograniczony kapitał i czas. Kupuje głównie od Polaków (szybka dostawa), sprz
 międzynarodowe), wystawia drożej i schodzi „o kilka set zł”. **Twoje zadanie: rozwijać oba programy** (nie dopytywać
 o jego prywatne zakupy/flipy; trzymać się jego planu testów, nie wybiegać naprzód).
 
-* **Analizator** (`analyse_data/analyzer/`) – cały rynek 7 kategorii Vinted → SQLite; ceny, sprzedaże, relisty,
+* **Analizator** (`analyse_data/analyzer/`) – cały rynek 10 katalogów Vinted (laptopy, telefony, tablety, konsole +
+  od 31.10 podzespoły z własnych katalogów: RAM 3603, dyski 3607, karty 3602, procesory 3599, płyty 3600, zestawy
+  3601; ogólne 3582/3583/3584 wycofane) → SQLite; ceny, sprzedaże, relisty,
   oszustwa; generuje **wytyczne** dla Snipera (`guides/<kat>.md`, `catalogs.json`, `comparables.db`).
 * **Sniper** (`unreachable_sniper/sniper/`) – co kilka sekund nowe oferty → ocena AI (Gemini) → ntfy + mail.
   Auto-zakup istnieje, ale **wyłączony na stałe** (Vinted wylogowuje bota; nie obchodzić wykrywania).
@@ -59,15 +61,19 @@ startu (5–7 h) równolegle: ponowne sprawdzenia (`only="due"`), szczegóły of
 `listings.seller_id` (migracja v12).
 
 **Sniper – jedna oferta:** skan katalogów (`SNIPER_CATALOGS=auto` → `catalogs.json`, każdy od `SNIPER_PRICE_FLOOR`
-300 zł, przeplot wagami; od 30.10 osobna pętla i sesja na każde proxy (`SNIPER_PROXY_<N>_KATEGORIE`); na stronie 1
-brak każdej z 5 ofert poprzedniego skanu = przepełnienie → ta kategoria o `SNIPER_POLL_STEP` s częściej, do `SNIPER_POLL_MIN`) → nowe ID → sidebar + shipping (proxy) → `Offer` (kategoria z katalogu/tytułu; wysyłka
-przeliczona z waluty sprzedawcy `FX_TO_PLN`; kraj z waluty wysyłki, EUR = nieznany) → `submit`: już widziana →
-słowa wykluczone → **bramka** (koszt > max zakup z tabeli × 1,25 albo „za drogo” wg podobnych ofert – odcina ~70%)
-→ dzienny limit $ → **AI w trybie `mediany`**: kilka median z `comparables.db` (od dokładnej do rodziny) + karta
-rynku + pełne wytyczne kategorii + 6 zdjęć → AI wycenia sama, może poprawić model; laptopy oceniane zwykłym trybem →
-**program**: `enforce_profit_rule` (przelicza zysk/marżę, przycina wartość > szacunek × 1,2, spełniona reguła →
-ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie okazja, inaczej ≤ 7), PL +1 → 
-`evaluations.jsonl/.csv`, `oceny.html` (+ kopia na Dysk `SNIPER_MIRROR_DIR`), ntfy (`SNIPER_NTFY_MIN_SCORE`), mail.
+300 zł, przeplot wagami; osobna pętla i sesja na każde proxy (`SNIPER_PROXY_<N>_KATEGORIE`); na stronie 1 brak każdej
+z 5 ofert poprzedniego skanu = przepełnienie → ta kategoria o `SNIPER_POLL_STEP` s częściej, do `SNIPER_POLL_MIN`) →
+nowe ID → sidebar + shipping (proxy) → `Offer` (kategoria z katalogu; wysyłka z waluty sprzedawcy `FX_TO_PLN`) →
+`submit`: **`route`** (31.10: wiersze tabeli dla TEJ oferty – model + warianty, z opisu, rodzina / marka; oferta
+z innej kategorii w tytule, np. iPad w telefonach, dostaje kategorię z tytułu) → już widziana → słowa wykluczone →
+**bramka** (koszt > max zakup z tabeli × 1,25; koszt > max zakup wg reguły zysku przy wycenie = szacunek podobnych
+× 1,2; tryb mediany bez żadnej mediany – AI i tak dałoby ≤ 3) → dzienny limit $ → **AI dwuetapowo**: szybka ocena
+(myślenie low, zdjęcia medium), pełna (myślenie medium, zdjęcia domyślne) tylko dla okazji / ≥ 6; w zapytaniu:
+stała legenda tabeli (instrukcja systemowa) + wiersze rodziny + mediany z `comparables.db` (tryb `mediany`; laptopy
+zwykłym trybem z podobnymi ofertami) + 6 zdjęć → **program**: `enforce_profit_rule` (przelicza zysk/marżę, przycina
+wartość > szacunek × 1,2, spełniona reguła → ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii →
+nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/2), `oceny.html` (+ kopia na Dysk
+`SNIPER_MIRROR_DIR`), ntfy (`SNIPER_NTFY_MIN_SCORE`), mail.
 
 ## 3. Reguły biznesowe (aktualne, 28.10)
 
@@ -82,7 +88,8 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
 ## 4. Ustawienia produkcyjne (decyzje 29.10)
 
 * Ocena: `SNIPER_EVAL_MODE=mediany`, `SNIPER_AI_MODEL=gemini-3.8-flash`, `SNIPER_AI_MAX_PHOTOS=6`,
-  `SNIPER_AI_EFFORT=medium`, pełne wytyczne (`SNIPER_AI_GUIDE_ROWS=wszystkie`), `SNIPER_AI_MAX_CONCURRENT=10`.
+  `SNIPER_AI_EFFORT=medium` (pełna ocena), od 31.10 wiersze rodziny zamiast pełnych wytycznych (niżej),
+  `SNIPER_AI_MAX_CONCURRENT=10`.
   Koszt ~$0,014–0,016 za ocenioną ofertę (po bramce). Tańsze modele (3.5 / 3.1 Flash Lite) halucynują okazje
   („Steam Deck OLED 256 GB” 9/10) – odrzucone; `gemini-2.5-flash-lite` = 404 dla nowych kont.
 * Skan (propozycja dla użytkownika, nie wiadomo, czy wpisał): `SNIPER_CATALOG_WEIGHTS=phone:4,console:4,laptop:1,
@@ -91,6 +98,10 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
   _KATEGORIE/_POLL` (numery 2..9); `SNIPER_OVERLAP_IDS=5`, `SNIPER_POLL_STEP=3`, `SNIPER_POLL_MIN=3`,
   `SNIPER_FAST_MINUTES=10`; kursy walut na żywo (`sniper/fx.py`, `SNIPER_FX_REFRESH_H=12`); brak `shipping_details`
   = ocena ≤ 7; laptopy bez danych też ≤ 7 (bez zwolnienia). Automat (mediany) co 2 dni (`ANALYZER_AUTO_DAYS=2`).
+* Koszty AI (31.10, domyślne): `SNIPER_AI_GUIDE_ROWS=rodzina`, `SNIPER_AI_TWO_STAGE=true`
+  (`SNIPER_AI_QUICK_EFFORT=low`, `SNIPER_AI_QUICK_MEDIA_RESOLUTION=medium`, `SNIPER_AI_CONFIRM_FROM=6`),
+  `SNIPER_AI_SKIP_NO_DATA=true`; analizator `ANALYZER_AUTO_AI_PHOTOS=0` (AI stanu bez zdjęć). `SNIPER_CATEGORIES`
+  musi zawierać `cpu,motherboard,bundle` (albo być puste), żeby Sniper skanował nowe katalogi podzespołów.
 * `watch`: `ANALYZER_WATCH_HOURS=5-7`, `ANALYZER_GONE_AFTER_RUNS=1`, `ANALYZER_RESOLVE_DELAY_S=1-2.5`,
   `ANALYZER_CONFIRM_404=2`. Do decyzji: `ANALYZER_PRICE_MIN_3580=300` (dziś brak danych o laptopach < 700 zł, a
   Sniper je ocenia).
@@ -118,7 +129,16 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
   (~982 → 1 300–1 400, na styk), **Xiaomi 12T 256 HR (~391 → 550–600, zysk ~110–160 – reguła NIE spełniona)**,
   **Asus Laptop 15 i3-10 gen 10/500 RO (~457 → 750–850, brak danych < 700 zł)**. `flips.csv` pusty.
 
+* **Koszty AI 31.10** (HISTORIA B 31.10): Sniper ~1 040 wywołań/dobę × $0,0158 ≈ $16,5/dobę (ponad limit $10) →
+  po zmianach (rodziny, dwa etapy, bramka wg reguły, bez AI bez danych) symulacja na bazie: 765/dobę × $0,0081 ≈
+  $6,2/dobę (−63%, bez cache). Watch: AI stanu bez zdjęć ~$5 → ~$1 na automat; `classify-ai` znika (czyste katalogi).
+
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
+
+0. (31.10) Po aktualizacji: log startu Snipera (`[AI] … ocena dwuetapowa …`), dzienny koszt z heartbeat
+   („dziś ~$…”), kilka linii `[AI] … etap 1/2 | 2/2` i opcjonalnie `python -m sniper.bench --warianty koszty --last 50`
+   (jakość przed / po na złotym zbiorze). Pierwsze przejście `watch` nowych katalogów podzespołów → czy
+   `catalogs.json` po automacie ma procesory / płyty / zestawy (tylko gdy są opłacalne grupy).
 
 1. `evaluations.csv`/`.jsonl` z serwera – **czemu Xiaomi 12T i Asus dostały alert** (wysłany `oceny.html` był
    identyczny jak z 28.10 → kopia na Dysk (`mirror.py`) albo `report.py` przestała się odświeżać – też do zbadania).
@@ -171,7 +191,8 @@ ocena ≥ 8), `cheap_guard` (koszt < 45% wartości: konto bez opinii → nie oka
 | zbieranie danych, API Vinted, schemat bazy | `KONTEKST_CATEGORY_ANALYZER.md`, `analyzer/db.py` (v1–v12), `PLAN_ANALIZY.md` |
 | Sniper: moduły, API, sesja konta, auto-zakup | `unreachable_sniper/CLAUDE.md` → `sniper/HISTORIA_SNIPERA.md` |
 | serwer, pilot, `.env` | `PILOT.md`, `ENV_SERWER.example`, `unreachable_sniper/sniper/.env.example` |
-| reguła zysku, wytyczne | `analyzer/guide.py`, `sniper/evaluator.py`, `sniper/guides.py`, `sniper/guidelines.md` (laptopy, ręczne) |
+| reguła zysku, wytyczne | `analyzer/guide.py`, `sniper/evaluator.py`, `sniper/guides.py` (`route` – rodziny wierszy, `rules_text`), `sniper/guidelines.md` (laptopy, ręczne) |
+| koszty AI (rodziny, dwa etapy, bramka, bez danych) | `sniper/guides.py`, `sniper/evaluator.py` (`gate`, `no_data_reason`, `_staged`), `sniper/tests/test_cost.py` |
 | mediany / podobne oferty | `analyzer/comparables.py`, `sniper/comparables.py` (`levels`), `sniper/experiment.py` (`MEDIANS_TASK`, `finish_medians`, `cheap_guard`) |
 | porównanie wariantów oceny | `sniper/bench.py`, `sniper/bench_golden.json`, `sniper/basal.py` |
 | zniknięcia, sprzedaże | `analyzer/resolver.py`, `analyzer/sold_report.py` |

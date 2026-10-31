@@ -32,15 +32,17 @@ SNIPER_SMTP_PASSWORD=<hasło>
 SNIPER_EMAIL_TO=
 
 # ---------------------------------------------------------------- CO SKANUJE SNIPER (NOWE - D5)
-# auto = 7 kategorii (laptopy, telefony, tablety, konsole, podzespoły / nośniki / akcesoria = karty, RAM, dyski)
-# z zakresami cen z analizy rynku - plik sniper\guides\catalogs.json, który analizator odświeża co 2 dni.
+# auto = kategorie z opłacalnymi grupami (laptopy, telefony, tablety, konsole i podzespoły z WŁASNYCH katalogów -
+# 31.10, lista użytkownika) z zakresami cen z analizy rynku - plik sniper\guides\catalogs.json (analizator co 2 dni).
+# Dawne ogólne katalogi 3582 / 3583 / 3584 Sniper pomija, nawet gdy są jeszcze w starym catalogs.json.
 SNIPER_CATALOGS=auto
 # Które kategorie Sniper ocenia - usuń z listy, czego nie chcesz (puste = wszystkie). Działa po restarcie Snipera.
 #   laptop  - laptopy (katalog 3580)          phone   - telefony (3661)
 #   tablet  - tablety (3728)                  console - konsole (3025)
-#   gpu     - karty graficzne (3582 / 3584)   ram     - pamięci RAM (3582 / 3584)
-#   storage - dyski SSD (3582 / 3583 / 3584)
-SNIPER_CATEGORIES=laptop,phone,tablet,console,gpu,ram,storage
+#   gpu     - karty graficzne (3602)          ram     - pamięci RAM (3603)
+#   storage - dyski wewnętrzne (3607)         cpu     - procesory (3599)
+#   motherboard - płyty główne (3600)         bundle  - zestawy płyta + procesor (3601)
+SNIPER_CATEGORIES=laptop,phone,tablet,console,gpu,ram,storage,cpu,motherboard,bundle
 # Jak często skanować kategorie względem siebie (waga 4 = 4× częściej niż kategoria z wagą 1 / bez wpisu).
 # Kategoria albo numer katalogu. 29.10: najwięcej polujących na telefony i konsole, laptopy mogą rzadziej.
 SNIPER_CATALOG_WEIGHTS=phone:4,console:4,laptop:1,tablet:1
@@ -90,6 +92,18 @@ SNIPER_AI_EFFORT=medium
 # Tryb oceny (decyzja 29.10 po dniach testowych): mediany z comparables.db + wytyczne → AI wycenia, program pilnuje
 # reguły zysku. Laptopy i tak zwykłym trybem. Model pusty = gemini-3.8-flash (tańsze Flash Lite halucynowały okazje).
 SNIPER_EVAL_MODE=mediany
+# KOSZTY (31.10, NOWE - to są też wartości domyślne, wpis tylko dla jasności):
+# rodzina = do AI tylko wiersze tabeli dla TEJ oferty (model i warianty, z opisu, rodzina / marka, sąsiednie
+# kategorie: iPad w telefonach → tablety) zamiast całej tabeli kategorii (telefony ~13 tys. tokenów).
+SNIPER_AI_GUIDE_ROWS=rodzina
+# Ocena dwuetapowa: szybka (myślenie low + zdjęcia medium, ~2× taniej), pełna (EFFORT=medium, zdjęcia domyślne)
+# tylko dla okazji i ocen >= 6. false = zawsze jedna pełna ocena.
+SNIPER_AI_TWO_STAGE=true
+SNIPER_AI_QUICK_EFFORT=low
+SNIPER_AI_QUICK_MEDIA_RESOLUTION=medium
+SNIPER_AI_CONFIRM_FROM=6
+# Bez AI, gdy z braku danych rynku ocena i tak nie dałaby powiadomienia (mediany: żadnej mediany = najwyżej 3).
+SNIPER_AI_SKIP_NO_DATA=true
 SNIPER_AI_FALLBACK=true
 # Limit odpowiedzi (było 800000 - Gemini i tak przyjmuje najwyżej ~65 tys.; 8000 wystarcza z zapasem)
 SNIPER_AI_MAX_TOKENS=8000
@@ -169,6 +183,10 @@ SNIPER_BUY_MIN_SCORE=7
 # ---------------------------------------------------------------- analizator (watch, automat)
 ANALYZER_DB=C:\Users\szymo\category_analyzer\data\analyzer.db
 ANALYZER_DETAILS_CATALOGS=all
+# NIE ustawiaj ANALYZER_CATALOGS (domyślnie 10 katalogów: laptopy, telefony, tablety, konsole, RAM 3603, dyski 3607,
+# karty 3602, procesory 3599, płyty 3600, zestawy 3601; od 31.10 bez ogólnych 3582 / 3583 / 3584).
+# AI stanu w automacie: zdjęć na ofertę (31.10: 0 = sam opis - zdjęcia to ~80% tokenów, ~5× taniej).
+ANALYZER_AUTO_AI_PHOTOS=0
 # Odstęp między startami pełnych przejść (h, losowo z zakresu). 2026-10-27: 5-7 (było 10-14) - sprzedane oferty
 # znikają z Vinted po kilku dniach, więc im szybciej resolver je sprawdzi, tym więcej pewnych sprzedaży.
 # Przejście ≈ 3,1 h i ≈ 85 MB proxy; 5-7 h ≈ 340 MB/dobę. Oszczędniej: 8-10.
