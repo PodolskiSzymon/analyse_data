@@ -349,9 +349,10 @@ def upsert_item(conn, item, run_id, seen_at, min_for=None):
         log.info("[DB] %s (%s) znów w katalogu - był stan %s, teraz %s.", item.id, (item.title or "")[:40],
                  row["state"], new_state)
         conn.execute("UPDATE listings SET sold_price=NULL, days_to_sell=NULL WHERE id=?", (item.id,))
-    # Dane „stałe” uzupełniamy (COALESCE) - brak w nowej odpowiedzi nie kasuje tego, co już wiemy.
+    # Dane „stałe” uzupełniamy (COALESCE) - brak w nowej odpowiedzi nie kasuje tego, co już wiemy. catalog_id - zawsze
+    # bieżący: oferta z dawnego katalogu mieszanego (3582…) widziana w nowym (3603…) przechodzi do niego (31.10).
     conn.execute(
-        """UPDATE listings SET last_seen=?, last_run_id=?, missed_runs=0,
+        """UPDATE listings SET last_seen=?, last_run_id=?, missed_runs=0, catalog_id=?,
                title=COALESCE(?, title), brand=COALESCE(?, brand), status_label=COALESCE(?, status_label),
                currency=COALESCE(?, currency), photo_url=COALESCE(?, photo_url), photo_ts=COALESCE(photo_ts, ?),
                seller_hash=COALESCE(seller_hash, ?), seller_id=COALESCE(seller_id, ?), gone_404=0,
@@ -360,7 +361,7 @@ def upsert_item(conn, item, run_id, seen_at, min_for=None):
                category=?, category_src=?, category_rule=?, category_check=COALESCE(category_check, ?),
                state_at=CASE WHEN state != ? THEN ? ELSE state_at END, state=?
            WHERE id=?""",
-        (seen_at, run_id, item.title, item.brand, item.status_label, item.currency, item.photo_url, item.photo_ts,
+        (seen_at, run_id, item.catalog_id, item.title, item.brand, item.status_label, item.currency, item.photo_url, item.photo_ts,
          item.seller_hash, getattr(item, "seller_id", None), item.favourite_count, item.view_count, item.model, item.price, item.total_price,
          item.seller_country, category, src, rule, check, new_state, seen_at, new_state, item.id))
     if new_state == "ignored":

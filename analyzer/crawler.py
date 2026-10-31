@@ -221,7 +221,10 @@ class Crawler:
         if self._pending_partitions(catalog_id, run_id):
             log.warning("[CRAWL] Przejście #%d niepełne - uruchom crawl ponownie, żeby je dokończyć.", run_id)
             return run_id, False
-        gone = finish_snapshot(self.conn, catalog_id, run_id, self.cfg.gone_after_runs, self.cfg.category_min)
+        from .config import RETIRED_CATALOGS
+        retired = tuple(c for c in RETIRED_CATALOGS if c not in getattr(self.cfg, "catalogs", ()))
+        gone = finish_snapshot(self.conn, catalog_id, run_id, self.cfg.gone_after_runs, self.cfg.category_min,
+                               retired)
         with self.conn:
             self.conn.execute("UPDATE crawl_runs SET finished_at=?, gone=? WHERE id=?", (db.utcnow(), gone, run_id))
         self.stats["gone"] = gone

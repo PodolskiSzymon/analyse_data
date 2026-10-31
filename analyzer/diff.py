@@ -18,20 +18,29 @@ def _in_ranges(price, ranges):
     return any(lo <= p and (hi is None or p <= hi) for lo, hi in ranges)
 
 
-def finish_snapshot(conn, catalog_id, run_id, gone_after, price_min=0.0):
+def finish_snapshot(conn, catalog_id, run_id, gone_after, price_min=0.0, retired=()):
     """Zwraca liczbę ofert przeniesionych do gone_pending w tym przejściu.
 
     Oferty z ostatnią ceną poniżej progu (poza zakresem crawla) dostają stan below_min - nie sprawdzamy ich.
     price_min: liczba albo funkcja kategoria → próg (AnalyzerConfig.category_min).
+    retired: dawne katalogi (już nie przeglądane, 31.10: mieszane 3582/3583/3584) - ich żywe oferty tej samej
+    kategorii co ten katalog, niewidziane w nowym katalogu, idą tą samą drogą (missed → gone_pending → resolver),
+    zamiast wisieć jako aktywne na zawsze.
     """
+    from .classify import CATEGORY_BY_CATALOG
+
+    category = CATEGORY_BY_CATALOG.get(int(catalog_id))
+    retired = tuple(retired) if category else ()
+    extra = f" OR (l.catalog_id IN ({','.join('?' * len(retired))}) AND l.category = ?)" if retired else ""
     min_for = price_min if callable(price_min) else (lambda _category: price_min)
     oversize = [(to_grosze(r["price_from"]), to_grosze(r["price_to"])) for r in conn.execute(
         "SELECT price_from, price_to FROM partitions WHERE catalog_id=? AND active=1 AND oversize=1", (catalog_id,))]
     rows = conn.execute(
         f"""SELECT l.id, l.missed_runs, l.price_now AS price, l.category
             FROM listings l
-            WHERE l.catalog_id=? AND l.state IN {LIVE_STATES} AND (l.last_run_id IS NULL OR l.last_run_id != ?)""",
-        (catalog_id, run_id)).fetchall()
+            WHERE (l.catalog_id=?{extra}) AND l.state IN {LIVE_STATES}
+              AND (l.last_run_id IS NULL OR l.last_run_id != ?)""",
+        (catalog_id, *((*retired, category) if retired else ()), run_id)).fetchall()
     now, gone = utcnow(), 0
     with conn:
         for row in rows:

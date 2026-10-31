@@ -20,7 +20,7 @@ COLUMNS = ("level", "category", "key", "market", "cond", "n_active", "active_p25
            "st_low_not_dropped", "fav_active_med", "fav_sold_med", "views_active_med", "views_sold_med", "spread",
            "low_data")
 CAT_PL = {"laptop": "laptopy", "phone": "telefony", "tablet": "tablety", "console": "konsole", "gpu": "karty graf.",
-          "ram": "RAM", "storage": "dyski SSD"}
+          "ram": "RAM", "storage": "dyski SSD", "cpu": "procesory", "motherboard": "płyty gł.", "bundle": "zestawy"}
 TOP_CONFIGS, TOP_PARENTS = 6, 3
 HTML_MIN_OFFERS = 10            # report.html: tylko grupy z co najmniej tyloma ofertami (CSV - wszystkie)
 

@@ -18,7 +18,9 @@ stacjonarne, gry; reszta → unknown.
 import re
 import unicodedata
 
-CATEGORY_BY_CATALOG = {3580: "laptop", 3661: "phone", 3025: "console", 3728: "tablet"}
+CATEGORY_BY_CATALOG = {3580: "laptop", 3661: "phone", 3025: "console", 3728: "tablet",
+                       # 2026-10-31: podzespoły z własnych katalogów - kategoria z katalogu, bez reguł i AI
+                       3603: "ram", 3607: "storage", 3602: "gpu", 3599: "cpu", 3600: "motherboard", 3601: "bundle"}
 MIXED_CATALOGS = (3582, 3583, 3584)
 WANTED = ("laptop", "phone", "console", "tablet", "gpu", "ram", "storage")
 

@@ -21,8 +21,9 @@ LAPTOP_START = datetime(2026, 10, 11, 8, tzinfo=UTC)
 OTHER_START = datetime(2026, 10, 12, 8, tzinfo=UTC)
 NOW = datetime(2026, 10, 24, 8, tzinfo=UTC)          # ostatnie przejście = „teraz” raportu
 RUN_HOURS = 4                                        # przejście trwa 4 h → initial_until = start + 4 h
-CATALOG = {"laptop": 3580, "phone": 3661, "console": 3025, "tablet": 3728, "gpu": 3582, "ram": 3584,
-           "storage": 3583}
+# 31.10: podzespoły z własnych katalogów Vinted (wcześniej mieszane 3582 / 3583 / 3584).
+CATALOG = {"laptop": 3580, "phone": 3661, "console": 3025, "tablet": 3728, "gpu": 3602, "ram": 3603,
+           "storage": 3607, "cpu": 3599, "motherboard": 3600, "bundle": 3601}
 
 
 def iso(ts):
@@ -75,6 +76,15 @@ BULK = {
     ],
     "storage": [
         ("nvme|1000", "1000", 250, 200, dict(storage_gb=1000), "Dysk SSD NVMe 1TB", "Samsung"),
+    ],
+    "cpu": [
+        ("ryzen 5 5600x", "ryzen 5", 450, 120, dict(cpu="ryzen 5 5600x"), "AMD Ryzen 5 5600X", "AMD"),
+    ],
+    "motherboard": [
+        ("b550", "am4", 380, 100, dict(), "Płyta główna MSI B550-A PRO", "MSI"),
+    ],
+    "bundle": [
+        ("i5-9600kf", "lga1151", 750, 60, dict(cpu="i5-9600kf"), "Zestaw i5-9600KF + MSI Z390-A PRO", "MSI"),
     ],
 }
 
@@ -374,7 +384,7 @@ class Builder:
         self.add("laptop", "Laptop 15,6 i5 8GB 256GB", 1000.0, first_seen=d(17), brand="Asus", name="n_brand_new")
 
     def crawl_runs(self):
-        for category in ("laptop", "phone", "console", "tablet", "gpu", "ram", "storage"):
+        for category in CATALOG:
             for ts in run_times(category):
                 self.conn.execute("INSERT INTO crawl_runs (started_at, finished_at, kind, catalog_id) "
                                   "VALUES (?, ?, 'crawl', ?)",

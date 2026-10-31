@@ -429,6 +429,95 @@ def storage_key(f):
     return f"{f.get('storage_type') or '?'}|{f.get('storage_gb')}" if f.get("storage_gb") else None
 
 
+# ---------------------------------------------------------------------------------------------- procesory, płyty, zestawy
+# 2026-10-31: własne katalogi Vinted (3599 procesory, 3600 płyty główne, 3601 zestawy płyta + procesor) - wcześniej
+# te oferty trafiały z ogólnego katalogu podzespołów do „ignored”. Wzory z prawdziwych tytułów (i5-9400F, Ryzen 5
+# 1600AF, Xeon E5-2680 v4, Gigabyte B450 Aorus, ASRock H110M-HDV, „Kit i5-9600KF + MSI Z390-A PRO”).
+
+DESKTOP_CPU = (
+    re.compile(r"\b(?:intel\s*)?(?:core\s*)?ultra\s*([579])\s*-?\s*(\d{3}[a-z]{0,2})\b"),
+    re.compile(r"\b(?:intel\s*)?(?:core\s*)?(i[3579])\s*-?\s*(\d{4,5})\s*([a-z]{0,2})\b"),
+    re.compile(r"\b(?:amd\s*)?ryzen\s*([3579])\s*(?:pro\s*)?-?\s*(\d{4})\s*(x3d|xt|x|ge|g|af|f)?\b"),
+    re.compile(r"\bxeon\s*(?:([ew][357]?)\s*-?\s*)?(\d{4})\s*(v\d)?\b"),
+    re.compile(r"\b(pentium|celeron)\s*(g\d{3,4}|[gj]?\d{4}[a-z]?)\b"),
+)
+# Chipset → gniazdo procesora (płyta bez chipsetu w tytule nie trafia do żadnej grupy cen).
+CHIPSET_SOCKET = {
+    **dict.fromkeys(("a320", "b350", "x370", "b450", "x470", "a520", "b550", "x570"), "AM4"),
+    **dict.fromkeys(("a620", "b650", "x670", "b850", "x870"), "AM5"),
+    **dict.fromkeys(("h610", "b660", "h670", "z690", "b760", "z790"), "LGA1700"),
+    **dict.fromkeys(("h410", "b460", "h470", "z490", "h510", "b560", "z590"), "LGA1200"),
+    **dict.fromkeys(("h110", "b150", "h170", "z170", "b250", "h270", "z270", "h310", "b360", "b365", "h370", "z370",
+                     "z390"), "LGA1151"),
+    **dict.fromkeys(("h81", "b85", "h87", "z87", "h97", "z97"), "LGA1150"),
+    **dict.fromkeys(("h61", "b75", "h77", "z77", "z68", "p67"), "LGA1155"),
+    "x99": "LGA2011-3", "x299": "LGA2066", "x79": "LGA2011",
+}
+CHIPSET = re.compile(r"(?<![a-z0-9])(?:ga-?)?(" + "|".join(sorted(CHIPSET_SOCKET, key=len, reverse=True)) +
+                     r")(?:m|n|i)?(?![0-9])")
+
+
+def desktop_cpu(text):
+    """Model procesora („i5-9400f”, „ryzen 5 2600x”, „xeon e5-2680 v4”, „pentium g4600”) albo None."""
+    text = norm(text)
+    for n, pattern in enumerate(DESKTOP_CPU):
+        match = pattern.search(text)
+        if not match:
+            continue
+        g = match.groups()
+        if n == 0:
+            return f"ultra {g[0]} {g[1]}"
+        if n == 1:
+            return f"{g[0]}-{g[1]}{g[2] or ''}"
+        if n == 2:
+            return f"ryzen {g[0]} {g[1]}{g[2] or ''}"
+        if n == 3:
+            return " ".join(x for x in ("xeon", f"{g[0]}-{g[1]}" if g[0] else g[1], g[2]) if x)
+        return f"{g[0]} {g[1]}"
+    return None
+
+
+def chipset(text):
+    match = CHIPSET.search(norm(text))
+    return match.group(1) if match else None
+
+
+def cpu_part(f, title, desc, attrs, listing):
+    f.put("cpu", desktop_cpu(title), "title")
+    f.put("cpu", desktop_cpu(desc), "description")
+    f.put("segment", "for_parts" if f.get("for_parts") else "working", "rule")
+
+
+def cpu_key(f):
+    return f.get("cpu")
+
+
+def motherboard_part(f, title, desc, attrs, listing):
+    for source, text in (("title", title), ("description", desc)):
+        chip = chipset(text)
+        if chip:
+            f.put("chipset", chip, source)
+            f.put("socket", CHIPSET_SOCKET[chip], source)
+    f.put("segment", "for_parts" if f.get("for_parts") else "working", "rule")
+
+
+def motherboard_key(f):
+    return f.get("chipset")
+
+
+def bundle_part(f, title, desc, attrs, listing):
+    """Zestaw płyta + procesor (+ RAM): grupa ceny wg procesora (to on głównie wyznacza cenę), chipset pomocniczo."""
+    cpu_part(f, title, desc, attrs, listing)
+    motherboard_part(f, title, desc, attrs, listing)
+    match = re.search(r"\b(\d{1,2})\s*gb\b", norm(title))
+    if match and int(match.group(1)) in (4, 8, 12, 16, 24, 32, 48, 64):
+        f.put("ram_gb", int(match.group(1)), "title")
+
+
+def bundle_key(f):
+    return f.get("cpu")
+
+
 # ---------------------------------------------------------------------------------------------- całość
 
 EXTRACTORS = {
@@ -439,6 +528,9 @@ EXTRACTORS = {
     "gpu": (gpu_part, gpu_key),
     "ram": (ram_part, ram_key),
     "storage": (storage_part, storage_key),
+    "cpu": (cpu_part, cpu_key),
+    "motherboard": (motherboard_part, motherboard_key),
+    "bundle": (bundle_part, bundle_key),
 }
 COLUMNS = ("model", "cpu", "cpu_line", "gpu", "ram_gb", "storage_gb", "screen_in", "refresh_hz", "battery_pct",
            "condition_grade", "for_parts", "locked", "cracked", "segment")

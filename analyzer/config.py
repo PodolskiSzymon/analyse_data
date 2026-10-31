@@ -41,20 +41,29 @@ def parse_range(text, default):
 
 # Kategorie Vinted (catalog_id z cURL użytkownika 2026-10-12).
 CATALOG_NAMES = {3580: "laptopy", 3661: "telefony", 3025: "konsole", 3728: "tablety",
-                 # 2026-10-14: kategorie „mieszane” (klasyfikacja ofert regułami - analyzer/classify.py) i gry
-                 3582: "podzespoły komputerowe", 3583: "puste nośniki", 3584: "akcesoria komputerowe"}
+                 # 2026-10-31 (lista użytkownika): podzespoły z WŁASNYCH katalogów Vinted zamiast ogólnych „mieszanych”
+                 # 3582 (podzespoły), 3583 (nośniki), 3584 (akcesoria), w których kategorię zgadywały reguły / AI.
+                 3603: "pamięci RAM", 3607: "dyski wewnętrzne", 3602: "karty graficzne", 3599: "procesory",
+                 3600: "płyty główne", 3601: "zestawy płyta + procesor"}
+# Dawne katalogi mieszane - już nie przeglądane; ich żywe oferty domyka migawka katalogu tej samej kategorii
+# (diff.finish_snapshot), a oferta widziana w nowym katalogu przechodzi do niego (db.upsert_item).
+RETIRED_CATALOGS = (3582, 3583, 3584)
 # Gry (3026) odpuszczone 2026-10-14 (użytkownik: pole „platforma” wypełniane bez ładu) - wrócimy kiedy indziej.
 # Domyślna cena minimalna per kategoria (zł). Laptopy: decyzja użytkownika 2026-10-11 (< 700 zł = starocie).
 # Telefony / konsole / tablety: 300 zł - propozycja Claude (poniżej głównie akcesoria, zepsute i bardzo stare modele);
 # zmiana: ANALYZER_PRICE_MIN_<catalog_id>=..., np. ANALYZER_PRICE_MIN_3025=150.
 DEFAULT_PRICE_MIN = {3580: 700.0, 3661: 300.0, 3025: 300.0, 3728: 300.0,
-                     # kategorie mieszane: dolna granica crawla (próg każdej NASZEJ kategorii sprawdzamy osobno)
+                     # podzespoły (2026-10-31): progi jak dawne progi kategorii z katalogów mieszanych
+                     3603: 100.0, 3607: 100.0, 3602: 150.0, 3599: 100.0, 3600: 100.0, 3601: 150.0,
+                     # dawne mieszane (gdyby ktoś wpisał je w ANALYZER_CATALOGS): dolna granica crawla
                      3582: 100.0, 3583: 100.0, 3584: 100.0}
 # Nasze kategorie przedmiotu: te z własnym katalogiem Vinted biorą próg z katalogu, pozostałe - ANALYZER_PRICE_MIN_<NAZWA>.
-CATEGORY_CATALOG = {"laptop": 3580, "phone": 3661, "console": 3025, "tablet": 3728}
+CATEGORY_CATALOG = {"laptop": 3580, "phone": 3661, "console": 3025, "tablet": 3728, "ram": 3603, "storage": 3607,
+                    "gpu": 3602, "cpu": 3599, "motherboard": 3600, "bundle": 3601}
 DEFAULT_CATEGORY_MIN = {"gpu": 150.0, "ram": 100.0, "storage": 100.0}
 # Szczegóły (details/sidebar) każdej oferty - domyślnie wszystkie nasze kategorie.
-DEFAULT_DETAILS_CATEGORIES = ("laptop", "phone", "console", "tablet", "gpu", "ram", "storage")
+DEFAULT_DETAILS_CATEGORIES = ("laptop", "phone", "console", "tablet", "gpu", "ram", "storage", "cpu", "motherboard",
+                              "bundle")
 
 
 def catalog_label(catalog_id):
@@ -139,6 +148,9 @@ class AnalyzerConfig:
     # automatu zapisanego w analysis.db - restart / przerwanie watch go nie przesuwa.
     auto_days: float = _env_float("ANALYZER_AUTO_DAYS", 2.0)
     auto_ai_limit: int = _env_int("ANALYZER_AUTO_AI_LIMIT", 3000)      # najwyżej tyle ofert do AI w jednym automacie
+    # Zdjęć na ofertę przy AI stanu w automacie. 31.10: 0 = sam opis - zdjęcia to ~80% tokenów (śr. 2,6 zdjęcia
+    # ≈ 2,8 tys. z ~3,4 tys. tokenów na ofertę; ~1,7 tys. ofert ≈ $5 na automat), a sprawdzamy słowa o usterce z opisu.
+    auto_ai_photos: int = _env_int("ANALYZER_AUTO_AI_PHOTOS", 0)
     sniper_guides_dir: str = _env("ANALYZER_SNIPER_GUIDES_DIR")         # tu kopiować guides/*.md (np. folder Snipera)
     sniper_guidelines_file: str = _env("ANALYZER_SNIPER_GUIDELINES_FILE")  # do D5: laptop.md → ten plik (z kopią .bak)
     # Alarm „brak sprzedaży”: wśród co najmniej tylu sprawdzonych zniknięć z ostatnich `sold_alarm_hours` godzin ani

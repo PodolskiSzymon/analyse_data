@@ -610,7 +610,8 @@ def test_details_only_for_selected_catalogs(monkeypatch):
 
     monkeypatch.delenv("ANALYZER_DETAILS_CATALOGS", raising=False)
     monkeypatch.delenv("ANALYZER_DETAILS_CATEGORIES", raising=False)
-    assert {"laptop", "phone", "console", "tablet", "ram", "gpu", "storage"} == set(_details_catalogs())
+    assert {"laptop", "phone", "console", "tablet", "ram", "gpu", "storage", "cpu", "motherboard",
+            "bundle"} == set(_details_catalogs())
     monkeypatch.setenv("ANALYZER_DETAILS_CATALOGS", "all")
     assert _details_catalogs() is None
     monkeypatch.setenv("ANALYZER_DETAILS_CATALOGS", "3580,3661")         # dawny zapis numerami katalogów
@@ -1403,3 +1404,34 @@ def test_catalog_keeps_numeric_seller_id():
     item = parse_item({"id": 5, "title": "x", "price": {"amount": "500", "currency_code": "PLN"},
                        "user": {"id": 165282118, "login": "nick"}}, 3661)
     assert item.seller_id == 165282118 and "login" not in str(item.raw)
+
+
+def test_offer_moves_from_retired_mixed_catalog_and_unseen_ones_are_closed():
+    """31.10: podzespoły z własnych katalogów. RAM widziany wcześniej w mieszanym 3582 pojawia się w 3603 → przechodzi
+    do niego (catalog_id); RAM z 3582, którego nie ma w 3603, nie wisi jako aktywny - migawka 3603 go domyka."""
+    market = FakeMarket([400, 500, 600])
+    ids = sorted(market.items)
+    market.titles = {i: f"Pamięć RAM DDR4 16GB {i}" for i in ids}
+    cfg = make_cfg(price_min=None, catalogs=(3580, 3603))
+    conn, _, _, _ = crawl(cfg, market, catalog_id=3582)              # dawny przebieg mieszanego katalogu
+    assert {r[0] for r in conn.execute("SELECT category FROM listings")} == {"ram"}
+    del market.items[ids[2]]                                         # tej oferty nie ma już w nowym katalogu
+    for _ in range(2):                                               # gone_after_runs = 2
+        crawl(cfg, market, conn, catalog_id=3603)
+    rows = {r["id"]: (r["catalog_id"], r["state"]) for r in conn.execute("SELECT id, catalog_id, state FROM listings")}
+    assert rows[ids[0]] == (3603, "active") and rows[ids[1]] == (3603, "active")
+    assert rows[ids[2]] == (3582, "gone_pending")                    # do resolvera, nie „aktywna” na zawsze
+
+
+def test_desktop_cpu_motherboard_and_bundle_rules():
+    from analyzer.extract import chipset, desktop_cpu, extract
+    assert desktop_cpu("Intel Core i3-10105F") == "i3-10105f"
+    assert desktop_cpu("intel i5 9400f") == "i5-9400f"
+    assert desktop_cpu("AMD Ryzen 5 1600AF") == "ryzen 5 1600af"
+    assert desktop_cpu("Processor Intel Xeon E3-1240 v2 socket 1155") == "xeon e3-1240 v2"
+    assert desktop_cpu("Chłodnica procesora AMD Wraith Prism RGB LED") is None
+    assert chipset("Gigabyte GA-H110M-S2H") == "h110" and chipset("Asus prime a520m") == "a520"
+    assert chipset("MSI Pro H610M-E DDR4 LGA1700") == "h610" and chipset("Samsung Galaxy A52") is None
+    fields, key = extract("bundle", "Kit Gaming i5-9600KF + MSI Z390-A PRO + 16GB DDR4", "", {})
+    assert key == "i5-9600kf" and fields["chipset"]["value"] == "z390" and fields["socket"]["value"] == "LGA1151"
+    assert extract("motherboard", "Płyta główna MSI B550-A PRO", "", {})[1] == "b550"

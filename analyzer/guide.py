@@ -31,17 +31,21 @@ GONE = ("sold", "blocked", "deleted", "closed")
 MIN_GONE_FOR_S = 10
 PROMO, SHIP = 26.0, 20.0
 CAT_TITLE = {"laptop": "Laptopy", "phone": "Telefony", "tablet": "Tablety", "console": "Konsole",
-             "gpu": "Karty graficzne", "ram": "Pamięci RAM", "storage": "Dyski SSD"}
+             "gpu": "Karty graficzne", "ram": "Pamięci RAM", "storage": "Dyski SSD", "cpu": "Procesory",
+             "motherboard": "Płyty główne", "bundle": "Zestawy płyta + procesor"}
 MIN_PROFIT = 300.0                           # zysk ≥ 300 zł zawsze
 # Minimalna marża: tanie (sprzedaż ≤ CHEAP_SALE) 28%, drogie (≥ EXPENSIVE_SALE) 25%, pomiędzy liniowo - jak Sniper
 # (sniper/evaluator.py: rule_min_margin, SNIPER_RULE_MARGIN_*).
 MARGIN_CHEAP, MARGIN_EXPENSIVE, CHEAP_SALE, EXPENSIVE_SALE = 0.28, 0.25, 1000.0, 2500.0
 SNIPER_PRICE_FROM = 300            # catalogs.json: dolna granica ceny każdego katalogu (użytkownik 28.10)
 MIXED_BELOW = 0.10                 # > 10% aktywnych ofert już ≤ max zakup → grupa mieszana, cena sprzedaży niepewna
-TOP_ROWS = 80                      # wierszy tabeli na kategorię (koszt tokenów w zapytaniu Snipera)
-# Katalogi Vinted Snipera → nasze kategorie (jak sniper/categories.py; mieszane - kategoria z tytułu).
-SNIPER_CATALOGS = {3580: ("laptop",), 3661: ("phone",), 3728: ("tablet",), 3025: ("console",),
-                   3582: ("gpu", "storage", "ram"), 3583: ("storage",), 3584: ("ram", "storage", "gpu")}
+# Wierszy tabeli w pliku kategorii. 31.10: wszystkie opłacalne - Sniper wysyła do AI tylko wiersze RODZINY oferty
+# (sniper/guides.py: families), więc pełna tabela nie zwiększa kosztu; stary tryb „wszystkie” Snipera bierze 80 pierwszych.
+TOP_ROWS = 2000
+# Katalogi Vinted Snipera → nasze kategorie (jak sniper/categories.py). 31.10: podzespoły z własnych katalogów zamiast
+# mieszanych 3582 / 3583 / 3584 (lista użytkownika).
+SNIPER_CATALOGS = {3580: ("laptop",), 3661: ("phone",), 3728: ("tablet",), 3025: ("console",), 3603: ("ram",),
+                   3607: ("storage",), 3602: ("gpu",), 3599: ("cpu",), 3600: ("motherboard",), 3601: ("bundle",)}
 SNIPER_WEIGHTS = {3580: 3}         # laptopy skanowane 3× częściej (największe zyski, najszybciej znikają)
 PRICE_TO_HEADROOM = 1.15           # do „Zaproponuj cenę”: oferta trochę powyżej max zakupu też warta oceny
 
@@ -156,7 +160,27 @@ def group_key(category, r):
         kind = {"nvme": "NVMe", "sata_ssd": "SATA SSD"}.get(parts[0], parts[0])
         size = int(parts[1]) if parts[1].isdigit() else None
         return f"{kind} {size // 1000} TB" if size and size >= 1000 else f"{kind} {parts[1]} GB"
+    if category in ("cpu", "bundle") and key:
+        name = cpu_display(key)
+        return name if category == "cpu" else f"Zestaw z {name}"
+    if category == "motherboard" and key:
+        from .extract import CHIPSET_SOCKET
+        return f"Płyta {key.upper()} ({CHIPSET_SOCKET.get(key, '?')})"
     return None
+
+
+def cpu_display(model):
+    """„i5-9400f” → „Intel Core i5-9400F”, „ryzen 5 2600x” → „AMD Ryzen 5 2600X” (nazwa grupy dla człowieka i AI)."""
+    model = model.strip()
+    if model.startswith("ryzen"):
+        return "AMD Ryzen " + model[6:].upper()
+    if re.match(r"i[3579]-", model):
+        return "Intel Core " + model[:3] + model[3:].upper()
+    if model.startswith("ultra"):
+        return "Intel Core Ultra " + model[6:].upper()
+    if model.startswith("xeon"):
+        return "Intel Xeon " + model[5:].upper().replace(" V", " v")
+    return "Intel " + model.title()
 
 
 def collect(conn, excluded=None, relists=None, ai_damaged=None, progress=None):

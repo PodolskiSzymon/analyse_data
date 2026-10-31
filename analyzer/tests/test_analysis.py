@@ -80,7 +80,7 @@ def test_suspicious_report_and_exclusions(flagged):
     assert truth.ids["blocked_console"] not in excluded and truth.ids["generic0"] not in excluded
     lines = suspicious.report(conn, aconn)
     row = next(line for line in lines if line.startswith("dup_title_price"))
-    assert row.split()[1:9] == ["0", "4", "0", "0", "0", "0", "0", "4"]
+    assert row.split()[1:12] == ["0", "4", "0", "0", "0", "0", "0", "0", "0", "0", "4"]   # 10 kategorii + razem
     assert any(f"https://www.vinted.pl/items/{truth.ids['off_olx']}" in line for line in lines)
     assert "(is_suspicious wyłączone" in "\n".join(lines)
     head = next(i for i, line in enumerate(lines) if line.startswith("stan       ofert"))
@@ -848,6 +848,7 @@ def test_auto_pipeline_publishes_guides(market, tmp_path):
     now = fake_market.NOW
     summary = asyncio.run(auto.run(cfg, backend=backend, now=now, send=send))
     assert summary["ai"]["done"] == 20 and len(backend.calls) == 20
+    assert all(not photos for _t, photos, _s, _sch in backend.calls)        # 31.10: automat bez zdjęć (koszt)
     assert (sniper / "guides" / "laptop.md").exists() and (sniper / "guides" / "phone.md").exists()
     assert (sniper / "guides" / "catalogs.json").exists()                     # SNIPER_CATALOGS=auto
     assert (sniper / "guides" / "comparables.db").exists()                    # porównywalne oferty
@@ -1279,3 +1280,23 @@ def test_connection_reset_is_quiet(caplog):
     async def answer():
         return 42
     assert run_async(answer()) == 42
+
+
+def test_guides_for_new_part_catalogs(market, tmp_path):
+    """Wytyczne i catalogs.json z własnymi katalogami podzespołów (31.10), bez dawnych mieszanych."""
+    import json
+
+    from analyzer import guide
+    path, _truth = _copy_market(market, tmp_path)
+    conn, aconn = analysis.open_ro(path), analysis.open_analysis(path)
+    result = guide.build(conn, aconn, tmp_path / "out" / "guides")
+    assert {"cpu", "motherboard", "bundle"} <= set(result)
+    names = {r["name"] for c in ("cpu", "motherboard", "bundle") for r in result[c][1]}
+    assert {"AMD Ryzen 5 5600X", "Płyta B550 (AM4)", "Zestaw z Intel Core i5-9600KF"} <= names
+    catalogs = {c["catalog_id"] for c in json.loads((tmp_path / "out" / "guides" / "catalogs.json")
+                                                    .read_text(encoding="utf-8"))["catalogs"]}
+    # Tylko katalogi, w których okazja (zysk ≥ 300 zł) jest możliwa: RAM za ~120 zł czy SSD za ~250 zł - nie
+    # (Sniper ich nie skanuje); karta graficzna i zestaw - tak. Dawnych mieszanych brak.
+    assert {3601, 3602} <= catalogs and not catalogs & {3582, 3583, 3584, 3603, 3607}
+    conn.close()
+    aconn.close()

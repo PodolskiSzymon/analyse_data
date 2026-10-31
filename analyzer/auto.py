@@ -5,8 +5,8 @@ liczy się od ostatniego UDANEGO automatu (`meta.auto_at` w analysis.db, zapis d
 przerwanie watch go nie przesuwa; watch sprawdza go na starcie każdego cyklu (też zaraz po uruchomieniu - nie czeka
 ~3 h na koniec przejścia) i po resolve:
   1. flagi podejrzanych + relisty (analysis.db),
-  2. stan techniczny przez AI tylko dla NOWYCH ofert ze wzmianką o usterce (najwyżej `ANALYZER_AUTO_AI_LIMIT`,
-     3 zdjęcia - z archiwum na dysku, jeśli są), bez pytania o zgodę - koszt w powiadomieniu,
+  2. stan techniczny przez AI tylko dla NOWYCH ofert ze wzmianką o usterce (najwyżej `ANALYZER_AUTO_AI_LIMIT`;
+     od 31.10 sam opis - `ANALYZER_AUTO_AI_PHOTOS=0`, ~5× taniej), bez pytania o zgodę - koszt w powiadomieniu,
   3. `report` + `sniper-guide` → reports/<data>/,
   4. kopia wytycznych + catalogs.json (zakresy cen katalogów) do `ANALYZER_SNIPER_GUIDES_DIR` (Sniper od D5 czyta
      `sniper/guides/<kategoria>.md` i `SNIPER_CATALOGS=auto`; wczytuje pliki od nowa po zmianie) i opcjonalnie
@@ -130,7 +130,8 @@ async def run(cfg, backend=None, now=None, send=None, force=False, progress=None
             suspicious.run(conn, aconn, progress=say)       # 31.10: bez postępu wyglądało na zawieszone
             relist.run(conn, aconn, progress=say)
             ai = {"done": 0, "failed": 0, "tokens_in": 0, "tokens_out": 0, "cost": None}
-            items = ai_condition.candidates(conn, aconn, ("flagged",), cfg.auto_ai_limit, 3, photos_root=photos_dir(cfg))
+            items = ai_condition.candidates(conn, aconn, ("flagged",), cfg.auto_ai_limit,
+                                            getattr(cfg, "auto_ai_photos", 0), photos_root=photos_dir(cfg))
             if items:
                 own = backend is None
                 if own:

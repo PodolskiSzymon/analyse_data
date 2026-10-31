@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Nasze kategorie przedmiotu (listings.category), w kolejności raportów.
-CATEGORIES = ("laptop", "phone", "tablet", "console", "gpu", "ram", "storage")
+# 2026-10-31: + procesory, płyty główne, zestawy (płyta + procesor) z własnych katalogów Vinted.
+CATEGORIES = ("laptop", "phone", "tablet", "console", "gpu", "ram", "storage", "cpu", "motherboard", "bundle")
 # Stany, które biorą udział w statystykach rynku (reszta: below_min, ignored, unclassified, gone_pending… - poza).
 ACTIVE, SOLD = "active", "sold"
 GONE_NOT_SOLD = ("deleted", "closed")        # zniknięte bez potwierdzonej sprzedaży
