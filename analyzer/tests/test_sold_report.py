@@ -155,6 +155,7 @@ def test_wardrobe_find_sold_active_missing_and_gone_account():
     assert requests == 1 + 1 + 2 + 2 + 1 and size > 0
     text = "\n".join(wardrobe.lines(out, summary, requests, size))
     assert "deleted      → w szafie: sold: 1" in text and "https://www.vinted.pl/items/11" in text
+    assert "https://www.vinted.pl/member/9" in text                   # profil sprzedawcy po seller_id
 
 
 def test_wardrobe_progress_bar_and_session_refresh(monkeypatch):

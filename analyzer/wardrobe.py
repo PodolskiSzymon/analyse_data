@@ -108,7 +108,7 @@ async def run(session, rows, pages=3, per_page=20, sleep=asyncio.sleep, delay=(1
         summary[key] = summary.get(key, 0) + 1
         counts[short(result)] = counts.get(short(result), 0) + 1
         draw(event("done", n, row, short(result)))
-        say(f"  [{n}/{len(rows)}] {row['id']} {row['state']:<12} → {result}")
+        say(f"  [{n}/{len(rows)}] oferta {row['id']} (sprzedawca {row['seller_id']}) {row['state']:<12} → {result}")
     return out, summary, requests, size
 
 
@@ -117,7 +117,7 @@ def lines(out, summary, requests, size):
     text += [f"  {state:<12} → {result}: {n}" for (state, result), n in sorted(summary.items())]
     text.append(f"Zapytań {requests}, {size / 1024:.0f} KB (śr. {size / max(requests, 1) / 1024:.1f} KB / stronę "
                 f"szafy).")
-    text.append("Przykłady (sprawdź w przeglądarce):")
-    text += [f"  https://www.vinted.pl/items/{row['id']}  {row['state']:<12} {result}  {(row['title'] or '')[:40]}"
-             for row, result in out[:15]]
+    text.append("Przykłady (sprawdź w przeglądarce: oferta, profil sprzedawcy - seller_id, NIE numer oferty):")
+    text += [f"  https://www.vinted.pl/items/{row['id']}  https://www.vinted.pl/member/{row['seller_id']}  "
+             f"{row['state']:<12} {result}  {(row['title'] or '')[:40]}" for row, result in out[:15]]
     return text
