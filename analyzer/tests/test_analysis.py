@@ -1253,6 +1253,6 @@ def test_auto_reports_each_stage(market, tmp_path):
     asyncio.run(auto.run(cfg, backend=FakeConditionBackend(), now=fake_market.NOW, send=send, force=True,
                          progress=said.append))
     text = "\n".join(said)
-    for stage in ("flagi podejrzanych", "AI stan", "raport (statystyki rynku)", "wytyczne Snipera",
+    for stage in ("flagi podejrzanych", "flagi cenowe", "relisty: laptop", "par z", "AI stan", "raport (statystyki rynku)", "wytyczne Snipera",
                   "porównywalne oferty dla Snipera", "gotowe"):
         assert stage in text, stage

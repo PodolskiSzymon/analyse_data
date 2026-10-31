@@ -79,7 +79,7 @@ def _span(index, key, t_lo, t_hi):
     return bisect_left(firsts, t_lo), bisect_right(firsts, t_hi)
 
 
-def candidates(conn, rows):
+def candidates(conn, rows, progress=None, every=5000):
     """Pary (stara, nowa) spełniające warunki → [(gap_dni, score, basis, old_id, new_id)].
 
     Dwa indeksy, w obu kandydaci posortowani po first_seen (okno czasowe bisekcją):
@@ -111,8 +111,11 @@ def candidates(conn, rows):
             descs[lid] = analysis.norm_title((r[0] if r else "") or "")[:DESC_CHARS]
         return descs[lid]
 
-    out = []
-    for a in rows:
+    out, compared = [], 0
+    say = progress or (lambda _t: None)
+    for n, a in enumerate(rows, 1):
+        if n % every == 0:
+            say(f"    {n}/{len(rows)} ofert, porównań {compared}, par {len(out)}...")
         if a.state not in OLD_STATES or a.last is None:
             continue
         lo, hi = a.price * (1 - PRICE_TOL), a.price * (1 + PRICE_TOL)
@@ -136,6 +139,7 @@ def candidates(conn, rows):
                 if b.id > a.id and lo <= b.price <= hi and (k[0] == "exact" or b.block == block):
                     pool[b.id] = b
         matcher = None
+        compared += len(pool)
         for b in pool.values():
             if a.brand and b.brand and a.brand != b.brand:
                 continue
@@ -184,7 +188,7 @@ def compute(conn, progress=None):
     for category in analysis.CATEGORIES:
         say(f"  relisty: {category}...")
         rows = _load(conn, category)
-        found = match(candidates(conn, rows))
+        found = match(candidates(conn, rows, progress))
         say(f"    {len(found)} par z {len(rows)} ofert")
         out += found
     return out

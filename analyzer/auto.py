@@ -127,8 +127,8 @@ async def run(cfg, backend=None, now=None, send=None, force=False, progress=None
         conn = analysis.open_ro(cfg.db_path)
         try:
             say("flagi podejrzanych i relisty...")
-            suspicious.run(conn, aconn)
-            relist.run(conn, aconn)
+            suspicious.run(conn, aconn, progress=say)       # 31.10: bez postępu wyglądało na zawieszone
+            relist.run(conn, aconn, progress=say)
             ai = {"done": 0, "failed": 0, "tokens_in": 0, "tokens_out": 0, "cost": None}
             items = ai_condition.candidates(conn, aconn, ("flagged",), cfg.auto_ai_limit, 3, photos_root=photos_dir(cfg))
             if items:
