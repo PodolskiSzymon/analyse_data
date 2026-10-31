@@ -553,7 +553,9 @@ def run(conn, again=False, progress=None):
     from .db import utcnow
 
     say = progress or (lambda _t: None)
-    where = "" if again else f"AND (x.listing_id IS NULL OR x.version < {VERSION} OR x.extracted_at < l.details_at)"
+    # x.category != l.category: oferta zmieniła kategorię (31.10: z ogólnego 3582 do katalogu procesorów / płyt).
+    where = "" if again else (f"AND (x.listing_id IS NULL OR x.version < {VERSION} OR x.extracted_at < l.details_at "
+                              f"OR x.category != l.category)")
     rows = conn.execute(f"""SELECT l.id, l.category, l.title, l.model, l.status_label, d.description, d.attributes_json
                             FROM listings l LEFT JOIN details d ON d.listing_id = l.id
                             LEFT JOIN features x ON x.listing_id = l.id

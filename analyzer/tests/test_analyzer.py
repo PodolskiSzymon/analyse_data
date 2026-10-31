@@ -1343,6 +1343,13 @@ def test_extract_run_and_report():
         conn.execute("UPDATE listings SET state='sold', sold_price=3000 WHERE id=?", (sold,))
     assert extract.run(conn) == 40
     assert extract.run(conn) == 0                               # nic nowego - przyrostowo
+    with conn:                                                  # oferta przeszła do innej kategorii (31.10)
+        conn.execute("UPDATE listings SET category='gpu' WHERE id=?", (sold,))
+    assert extract.run(conn) == 1
+    assert conn.execute("SELECT category FROM features WHERE listing_id=?", (sold,)).fetchone()[0] == "gpu"
+    with conn:
+        conn.execute("UPDATE listings SET category='laptop' WHERE id=?", (sold,))
+    assert extract.run(conn) == 1
     row = conn.execute("SELECT * FROM features WHERE listing_id=?", (sold,)).fetchone()
     assert row["gpu"] == "rtx 3060" and row["ram_gb"] == 16 and row["storage_gb"] == 512
     text = "\n".join(extract.report(conn))
