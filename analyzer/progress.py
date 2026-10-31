@@ -9,6 +9,25 @@ import sys
 import time
 
 
+def disable_quickedit():
+    """Windows: wyłącza tryb QuickEdit tej konsoli. Kliknięcie w okno zaznacza tekst i WSTRZYMUJE program, aż do
+    klawisza (Ctrl+C przy zaznaczeniu tylko kopiuje) - użytkownik 31.10: „postępowało dopiero, kiedy klikałem
+    Ctrl+C”. Na innych systemach / bez konsoli nic nie robi. → True, gdy wyłączono."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-10)              # STD_INPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        # ENABLE_EXTENDED_FLAGS (0x80) musi zostać, ENABLE_QUICK_EDIT_MODE (0x40) - zdjęty.
+        return bool(kernel32.SetConsoleMode(handle, (mode.value | 0x80) & ~0x40))
+    except (AttributeError, OSError):
+        return False
+
+
 def _hms(seconds):
     seconds = int(max(seconds or 0, 0))
     h, rest = divmod(seconds, 3600)

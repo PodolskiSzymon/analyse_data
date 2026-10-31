@@ -20,10 +20,15 @@ WARDROBE_URL = "https://www.vinted.pl/api/v2/wardrobe/{seller_id}/items?page={pa
 
 
 async def fetch_page(session, seller_id, page=1, per_page=20):
-    """→ (status HTTP, odpowiedź JSON, bajty odpowiedzi)."""
+    """→ (status HTTP, odpowiedź JSON, bajty odpowiedzi). 401/403 = brak / wygasła sesja → jedno odświeżenie
+    (przeglądarka przez proxy, jak resolver) i ponowienie."""
     url = WARDROBE_URL.format(seller_id=seller_id, page=page, per_page=per_page)
-    response = await session.client.get(url, headers={"referer": f"https://www.vinted.pl/member/{seller_id}"})
-    session.traffic.add_http("details", response)
+    for attempt in range(2):
+        response = await session.client.get(url, headers={"referer": f"https://www.vinted.pl/member/{seller_id}"})
+        session.traffic.add_http("details", response)
+        if response.status_code not in (401, 403) or attempt:
+            break
+        await session.refresh()
     try:
         body = response.json()
     except ValueError:
@@ -71,19 +76,38 @@ def candidates(conn, limit):
         (limit,)).fetchall()
 
 
-async def run(session, rows, pages=3, per_page=20, sleep=asyncio.sleep, delay=(1.0, 2.0), progress=None):
-    """→ (wiersze [(row, wynik)], podsumowanie {(nasz stan, wynik): liczba}, zapytań, bajtów)."""
+def short(result):
+    """„w szafie: sold” → „sold”, „brak na 3 stronach (…)” → „brak” - do licznika na pasku postępu."""
+    text = result.split(" (")[0].split(" - ")[0]
+    return text.replace("w szafie: ", "").replace("brak w szafie", "brak").split(" na ")[0]
+
+
+async def run(session, rows, pages=3, per_page=20, sleep=asyncio.sleep, delay=(1.0, 2.0), progress=None, bar=None):
+    """→ (wiersze [(row, wynik)], podsumowanie {(nasz stan, wynik): liczba}, zapytań, bajtów).
+    bar - pasek postępu (progress.ConsoleBar): przed każdą ofertą „sprawdzam…”, po niej wynik i liczniki."""
     import random
+    import time
     out, summary, requests, size = [], {}, 0, 0
     say = progress or (lambda _t: None)
+    draw = bar or (lambda _ev: None)
+    counts, started = {}, time.monotonic()
+
+    def event(stage, n, row, key=None):
+        done = n - (stage == "check")
+        eta = (time.monotonic() - started) / done * (len(rows) - done) if done else None
+        return {"stage": stage, "n": done, "total": len(rows), "row": row, "key": key, "counts": counts, "eta": eta}
+
     for n, row in enumerate(rows, 1):
         if n > 1:
             await sleep(random.uniform(*delay))
+        draw(event("check", n, row))
         result, r, b = await find(session, row["seller_id"], row["id"], pages, per_page, sleep)
         requests, size = requests + r, size + b
         out.append((row, result))
         key = (row["state"], result.split(" (")[0].split(" - ")[0])
         summary[key] = summary.get(key, 0) + 1
+        counts[short(result)] = counts.get(short(result), 0) + 1
+        draw(event("done", n, row, short(result)))
         say(f"  [{n}/{len(rows)}] {row['id']} {row['state']:<12} → {result}")
     return out, summary, requests, size
 

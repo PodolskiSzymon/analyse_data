@@ -574,6 +574,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     cfg = AnalyzerConfig()
+    from .progress import disable_quickedit
+    disable_quickedit()                     # kliknięcie w okno cmd nie wstrzymuje już programu
     setup_logging(cfg.db_path)
     if args.command == "crawl":
         asyncio.run(cmd_crawl(cfg, args.catalog or list(cfg.catalogs)))
@@ -830,18 +832,22 @@ def main(argv=None):
         from . import analysis, wardrobe
 
         async def szafa():
+            from .progress import ConsoleBar
+            print("Szukam ostatnich zniknięć z seller_id w bazie (duża baza - do minuty)...", flush=True)
             conn = analysis.open_ro(cfg.db_path)
             rows = wardrobe.candidates(conn, args.limit)
             conn.close()
             if not rows:
                 print("Brak zniknięć z zapisanym seller_id - zbierane od migracji v12 (29.10); poczekaj na cykl watch.")
                 return
-            print(f"Sprawdzam szafy {len(rows)} sprzedawców przez proxy (postęp co ofertę)...", flush=True)
+            print(f"Sprawdzam szafy {len(rows)} sprzedawców przez proxy (sesja Vinted może najpierw otworzyć "
+                  f"przeglądarkę ~1 min)...", flush=True)
             session = build_session()
+            bar = ConsoleBar()
             try:
-                out, summary, requests, size = await wardrobe.run(session, rows, args.pages,
-                                                                  progress=lambda t: print(t, flush=True))
+                out, summary, requests, size = await wardrobe.run(session, rows, args.pages, bar=bar)
             finally:
+                bar.finish()
                 await session.close()
             print("\n".join(wardrobe.lines(out, summary, requests, size)))
 

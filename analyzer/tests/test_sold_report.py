@@ -155,3 +155,62 @@ def test_wardrobe_find_sold_active_missing_and_gone_account():
     assert requests == 1 + 1 + 2 + 2 + 1 and size > 0
     text = "\n".join(wardrobe.lines(out, summary, requests, size))
     assert "deleted      → w szafie: sold: 1" in text and "https://www.vinted.pl/items/11" in text
+
+
+def test_wardrobe_progress_bar_and_session_refresh(monkeypatch):
+    """szafa-test (31.10, „trwa wieczność”): pasek postępu przed i po każdej ofercie, liczniki wyników; 403 = brak
+    sesji → jedno odświeżenie i ponowienie zamiast „szafa HTTP 403” dla każdej oferty."""
+    import asyncio
+    import io
+
+    import httpx
+
+    from analyzer import wardrobe
+    from analyzer.progress import ConsoleBar
+    from sniper.session import VintedSession
+
+    calls = {"n": 0, "refresh": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        if calls["refresh"] == 0:
+            return httpx.Response(403, text="brak sesji")
+        return httpx.Response(200, json={"items": [{"id": 21, "item_closing_action": "sold"}],
+                                         "pagination": {"total_pages": 1}})
+
+    async def go():
+        session = VintedSession(proxy_url=None)
+        await session.client.aclose()
+        session.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+        async def fake_refresh(seen_generation=None):
+            calls["refresh"] += 1
+        session.refresh = fake_refresh
+        stream, events = io.StringIO(), []
+        bar = ConsoleBar(stream=stream, width=120)
+
+        def draw(ev):
+            events.append((ev["stage"], ev["n"], dict(ev["counts"])))
+            bar(ev)
+
+        async def no_sleep(_s):
+            return None
+        rows = [{"id": 21, "seller_id": 1, "state": "deleted", "title": "PS5"},
+                {"id": 22, "seller_id": 2, "state": "deleted", "title": "iPhone"}]
+        try:
+            out = await wardrobe.run(session, rows, sleep=no_sleep, bar=draw)
+        finally:
+            await session.client.aclose()
+        bar.finish()
+        return out, events, stream.getvalue()
+
+    (out, _summary, _requests, _size), events, text = asyncio.run(go())
+    assert calls["refresh"] == 1 and [r for _row, r in out] == ["w szafie: sold", "brak w szafie"]
+    assert events == [("check", 0, {}), ("done", 1, {"sold": 1}), ("check", 1, {"sold": 1}),
+                      ("done", 2, {"sold": 1, "brak": 1})]
+    assert "2/2 100.0%" in text and "sprawdzam 22 iPhone" in text
+
+
+def test_disable_quickedit_is_harmless_outside_windows():
+    from analyzer.progress import disable_quickedit
+    assert disable_quickedit() is False
