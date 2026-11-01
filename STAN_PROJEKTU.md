@@ -14,7 +14,7 @@
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
 3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (265), w `unreachable_sniper`
-   `python -m pytest sniper/tests -q` (281 + 1 pominięty). Oba przed każdym pushem.
+   `python -m pytest sniper/tests -q` (282 + 1 pominięty). Oba przed każdym pushem.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
 
@@ -145,7 +145,7 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
   przeglądarki tylko na jedną próbę, 407 przerywa wizytę od razu, rosnąca przerwa TYLKO padniętego proxy
   (`SNIPER_REFRESH_BACKOFF_MAX`, `SNIPER_PROXY_AUTH_COOLDOWN`), ntfy „proxy N nie działa / znów działa”,
   `SNIPER_REFRESH_TIMEOUT` 90 → 60. Sam program od wykrycia do pusha: ~25 s. W logu też: `3 ofert/skan` (ciągłe
-  przepełnienia → zalecane `SNIPER_PER_PAGE=10`), dwa wpisy tabletów (300-3900 i 300-4100 zł), proxy 5 bez katalogów.
+  przepełnienia → zalecane `SNIPER_PER_PAGE=10`), dwa wpisy tabletów (stary zakres 300-3900 po zmianie catalogs.json dalej co 3 s – naprawione), proxy 5 bez katalogów.
 * **Koszty AI 31.10** (HISTORIA B 31.10): Sniper ~1 040 wywołań/dobę × $0,0158 ≈ $16,5/dobę (ponad limit $10) →
   po zmianach (rodziny, dwa etapy, bramka wg reguły, bez AI bez danych) symulacja na bazie: 765/dobę × $0,0081 ≈
   $6,2/dobę (−63%, bez cache). Watch: AI stanu bez zdjęć ~$5 → ~$1 na automat; `classify-ai` znika (czyste katalogi).
