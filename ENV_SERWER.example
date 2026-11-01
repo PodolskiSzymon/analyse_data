@@ -102,6 +102,16 @@ SNIPER_AI_TWO_STAGE=true
 SNIPER_AI_QUICK_EFFORT=low
 SNIPER_AI_QUICK_MEDIA_RESOLUTION=medium
 SNIPER_AI_CONFIRM_FROM=6
+# TAŃSZY MODEL (01.11, do sprawdzenia benchem): Claude Haiku 5.5 - $0,10 / $0,50 za 1 mln tokenów (Gemini 3.8 Flash
+# $0,75 / $3,75, od 2027 r. $1,50 / $7,50). Klucz: platform.claude.com → API keys. Porównanie bez płacenia za Gemini:
+#   .venv\Scripts\python -m sniper.bench --warianty haiku55,haiku55_low --ref zapisane --bez-bramki --last 50
+# ANTHROPIC_API_KEY=<klucz Anthropic>
+# a) tylko szybki etap na Haiku (pełna ocena okazji dalej Gemini):
+# SNIPER_AI_QUICK_PROVIDER=anthropic
+# SNIPER_AI_QUICK_MODEL=claude-haiku-5-5
+# b) całość na Haiku (zamiast SNIPER_AI_PROVIDER=gemini wyżej; SNIPER_AI_API_KEY wtedy pusty albo klucz Anthropic):
+# SNIPER_AI_PROVIDER=anthropic
+# SNIPER_AI_MODEL=claude-haiku-5-5
 # Bez AI, gdy z braku danych rynku ocena i tak nie dałaby powiadomienia (mediany: żadnej mediany = najwyżej 3).
 SNIPER_AI_SKIP_NO_DATA=true
 SNIPER_AI_FALLBACK=true
@@ -198,7 +208,9 @@ ANALYZER_GONE_AFTER_RUNS=1
 ANALYZER_RESOLVE_DELAY_S=1-2.5
 # Automat (mediany = comparables.db, wytyczne, raport) co tyle dni - liczone od ostatniego udanego automatu, więc
 # restart / przerwanie watch nie przesuwa terminu; zaległy rusza na starcie cyklu watch (30.10: 2, było 3,5).
-ANALYZER_AUTO_DAYS=2
+# 01.11: mediany nic nie kosztują (SQL na Twojej bazie, bez AI i proxy) - AI stanu ocenia tylko oferty jeszcze
+# nieocenione, więc częstszy automat nie zwiększa kosztu tokenów. Zalecane 1 (świeższe mediany).
+ANALYZER_AUTO_DAYS=1
 # Automat kopiuje wytyczne per kategoria + catalogs.json + comparables.db prosto do Snipera:
 ANALYZER_SNIPER_GUIDES_DIR=C:\Users\szymo\unreachable_sniper\sniper\guides
 # PUSTE: Twój ręczny sniper\guidelines.md zostaje nietknięty (Sniper bierze laptop.md z guides).

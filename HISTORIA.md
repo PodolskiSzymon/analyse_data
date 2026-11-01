@@ -560,3 +560,22 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
   Dopasowanie rodzin: tytuł-model 56%, numer modelu 7%, opis 7%, rodzina 11%, marka 6%, nic 13%. Watch: AI stanu
   w automacie bez zdjęć (`ANALYZER_AUTO_AI_PHOTOS=0`, ~$5 → ~$1 na automat), `classify-ai` bez nowych ofert (czyste
   katalogi). Do sprawdzenia u użytkownika: `python -m sniper.bench --warianty koszty --last 50` (jakość przed / po).
+* **2026-11-01 – laptopy po specyfikacji, tańsze modele, odpowiedzi.** Użytkownik: laptopy bez danych dostają
+  ≤ 7, a ludzie płacą za specyfikację (grafika, procesor, RAM, dysk), nie za model. Próbka bazy: specyfikację
+  (karta / CPU + generacja / MacBook) ma 23% ofert laptopów (stare cechy), 26% po poprawkach reguł, **52% ofert
+  z opisem** (Sniper ma opis zawsze); luki reguł: i5-1135G7 / i3-1005G1 (końcówki G1/G7 - nieczytane), „MacBook Air
+  M3 16GB” (M3 przed liczbą odrzucane, samotne 16GB nie jako RAM), RAM po RO / HU / DE, „memorie de 16 gb ssd 512 gb”
+  (dysk 16 GB), „16GB 512GB” bez słowa SSD. Ekstrakcja v3 + tabela `laptop_specs` w comparables.db; Sniper liczy
+  mediany od „karta + RAM + dysk” do samej karty (MacBook: linia + chip + RAM + dysk; zintegrowana: linia +
+  generacja + RAM + dysk, tylko laptopy bez karty dedykowanej); zgodność reguł Snipera i analizatora 4000/4000 ofert.
+  Laptopy w trybie mediany (LAPTOP_TASK z polem `laptop_specs`): bez specyfikacji w tekście AI ją odczytuje (opis /
+  zdjęcia / numer modelu, „nie zgaduj z samej serii”), program liczy mediany i ocenia jeszcze raz; ponowna ocena tylko
+  przy istotnej zmianie (karta / chip / procesor), nie przy samym RAM / dysku. Telefony / tablety: pojemność z
+  formularza lub opisu do median, gdy tytuł jej nie ma; AI widzi pola formularza Vinted. Research cen (01.11):
+  Claude Haiku 5.5 $0,10 / $0,50 (≤ 100 tys. tokenów), Gemini 3.1 Flash-Lite $0,25 / $1,50, Qwen3-VL ~$0,20 /
+  $0,9-1,6, GPT-5.4 nano $0,20 / $1,25, mini $0,75 / $4,50 - Sniper: szybki etap na innym modelu / dostawcy
+  (`SNIPER_AI_QUICK_*`), warianty bench `haiku55*`, odniesienie `--ref zapisane` (bez płacenia za Gemini, kredyty
+  wyczerpane), Haiku bez `fallbacks` (nie ma zapasowego modelu), zdjęcia dla Claude też w trybie download. Szafa:
+  `unlisted` 46/50 aktywne w szafie to potwierdzenie stanu, który resolver już zna z `/services` (~1,3 KB zamiast
+  ~95 KB strony szafy); `deleted` 45-50/50 brak w szafie → szafa nie zamienia usunięć na sprzedaże - zostaje
+  usunięta. Mediany (comparables, wytyczne) nie kosztują tokenów - zalecane `ANALYZER_AUTO_DAYS=1`.

@@ -506,7 +506,8 @@ def test_backend_sends_several_photos_anthropic():
                                           schema={"type": "object"}, max_tokens=300))
     content = seen["messages"][0]["content"]
     assert [c["type"] for c in content] == ["image", "image", "text"] and seen["system"] == "S"
-    assert seen["max_tokens"] == 300 and usage == (10, 2)
+    # Haiku 5.5 myśli domyślnie (myślenie liczy się do max_tokens) → krótkie myślenie i zapas na odpowiedź
+    assert seen["max_tokens"] == 2000 and seen["output_config"]["effort"] == "low" and usage == (10, 2)
 
 
 def test_ai_condition_stops_after_error_streak(market, tmp_path):
@@ -1219,7 +1220,57 @@ def test_comparables_db(relisted, flagged, tmp_path):
     fraud_prices = db.execute("SELECT price FROM offers WHERE offers MATCH ? AND price < 600",
                               ('"iphone" "16" "pro"',)).fetchall()
     assert not fraud_prices
+    # laptopy po specyfikacji (2026-11-01): karta / MacBook / procesor + generacja, RAM, dysk
+    assert int(db.execute("SELECT value FROM meta WHERE key='laptop_specs'").fetchone()[0]) > 100
+    gaming = db.execute("SELECT COUNT(*) FROM laptop_specs WHERE gpu='rtx 2060' AND ram=16 AND ssd=512").fetchone()[0]
+    mac = db.execute("SELECT COUNT(*) FROM laptop_specs WHERE line='macbook air' AND chip='m1' AND ram=8").fetchone()[0]
+    office = db.execute("SELECT COUNT(*) FROM laptop_specs WHERE cpu_line='intel core i5' AND cpu_gen='8–9 gen.' "
+                        "AND gpu IS NULL AND ram=16 AND ssd=256").fetchone()[0]
+    assert gaming > 20 and mac > 20 and office > 20
     db.close()
+
+
+# Te same przypadki w unreachable_sniper/sniper/tests/test_specs.py i analyse_data/analyzer/tests/test_analysis.py -
+# reguły specyfikacji laptopa muszą dawać to samo w Sniperze i analizatorze (inaczej mediany się nie trafią).
+SPEC_PARITY = [
+    ("Lenovo Legion 5 RTX 3060 16GB 512GB", "Ryzen 7 5800H",
+     {"gpu": "rtx 3060", "cpu_line": "amd ryzen 7", "cpu_gen": "4000–5000", "chip": None, "line": None, "ram": 16,
+      "ssd": 512}),
+    ("Laptop Dell Latitude 3410", "i3-10110U | 8GB RAM | 256GB SSD",
+     {"gpu": None, "cpu_line": "intel core i3", "cpu_gen": "10–11 gen.", "chip": None, "line": None, "ram": 8,
+      "ssd": 256}),
+    ("MacBook Air M3 16GB 15.3 Cal", "",
+     {"gpu": None, "cpu_line": "apple m3", "cpu_gen": None, "chip": "m3", "line": "macbook air", "ram": 16,
+      "ssd": None}),
+    ("hp pavilion 14", "Processzor: Intel Core i5-1135G7 • Memória mérete: 8 GB • SSD 512GB",
+     {"gpu": None, "cpu_line": "intel core i5", "cpu_gen": "10–11 gen.", "chip": None, "line": None, "ram": 8,
+      "ssd": 512}),
+    ("Laptop Lenovo", "Sprzedam, stan bdb", None),
+]
+
+
+def test_laptop_spec_parity_with_sniper():
+    from analyzer.comparables import laptop_spec
+    from analyzer.extract import extract
+    for title, desc, expected in SPEC_PARITY:
+        fields, _ = extract("laptop", title, desc, {})
+        get = lambda k: (fields.get(k) or {}).get("value")  # noqa: E731
+        assert laptop_spec(get("model"), get("cpu"), get("cpu_line"), get("gpu"), get("ram_gb"),
+                           get("storage_gb")) == expected, title
+
+
+def test_laptop_spec_paths():
+    from analyzer.comparables import laptop_spec, ssd_bucket
+    assert laptop_spec(None, "i7-10750h", None, "rtx 2060", 16, 512)["gpu"] == "rtx 2060"
+    office = laptop_spec("latitude 7490", "i5-8350u", None, "integrated", 8, 240)
+    assert (office["gpu"], office["cpu_line"], office["cpu_gen"], office["ram"], office["ssd"]) == \
+        (None, "intel core i5", "8–9 gen.", 8, 256)
+    mac = laptop_spec("macbook pro 14 2021", "apple m1 pro", "Apple M1", None, 16, 1000)
+    assert (mac["line"], mac["chip"], mac["ssd"]) == ("macbook pro", "m1 pro", 1000)
+    assert laptop_spec(None, "ultra 7 155h", None, None, 32, 1000)["cpu_gen"] == "core ultra"
+    assert laptop_spec("ideapad 5", None, "intel core i5", None, 8, 512) is None      # bez generacji - za mało
+    assert laptop_spec(None, None, None, "mx 450", 8, 256) is None                     # MX = jak zintegrowana
+    assert [ssd_bucket(x) for x in (120, 250, 480, 1000, 2000, 16)] == [128, 256, 512, 1000, 2000, None]
 
 
 def test_slim_db_copies_without_raw(market, tmp_path, flagged):

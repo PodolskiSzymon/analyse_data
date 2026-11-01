@@ -1310,6 +1310,13 @@ def test_html_details_flow_stops_early_and_stores():
      {"model": "macbook air", "cpu": "apple m3", "ram_gb": 8, "storage_gb": 256}),
     ("laptop", "Dell Precision 7550", "RTX A2000 4GB, 15,6 cala, i7-10850H", {"computer_ram": "32 GB"},
      {"gpu": "rtx a2000", "screen_in": 15.6, "cpu": "i7-10850h", "segment": "workstation"}),
+    # v3 (2026-11-01): końcówki G1/G7, chip przed RAM-em, RAM w innych językach, RAM vs dysk w jednym zdaniu
+    ("laptop", "MacBook Air M3 16GB 15.3 Cal", "", {}, {"cpu": "apple m3", "ram_gb": 16}),
+    ("laptop", "hp pavilion 14", "Processzor: Intel Core i3-1005G1 1.20 GHz • Memória mérete: 8 GB", {},
+     {"cpu": "i3-1005g1", "ram_gb": 8}),
+    ("laptop", "Lenovo", "i5-1135G7, 16GB RAM, 512GB SSD", {}, {"cpu": "i5-1135g7", "ram_gb": 16, "storage_gb": 512}),
+    ("laptop", "Galaxy Book Pro 360", "intel core i7 memorie de 16 gb ssd 512 gb", {}, {"ram_gb": 16, "storage_gb": 512}),
+    ("laptop", "Laptop dysk M2 512GB", "", {}, {"cpu": None, "storage_gb": 512}),
     ("phone", "iPhone 13 Pro Max 256GB", "bateria 87%, bez blokad", {"internal_memory_capacity": "256 GB",
                                                                      "sim_lock": "Brak blokady"},
      {"model": "iphone 13 pro max", "storage_gb": 256, "battery_pct": 87, "locked": False, "sim_lock": False}),

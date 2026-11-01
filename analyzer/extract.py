@@ -14,7 +14,9 @@ import json
 import re
 import unicodedata
 
-VERSION = 2          # v2 (2026-10-25): zaprzeczenia przy „na części” / pęknięciu („bez defektów”, „not broken”)
+VERSION = 3          # v2 (2026-10-25): zaprzeczenia przy „na części” / pęknięciu („bez defektów”, „not broken”)
+# v3 (2026-11-01): procesory z końcówką G1/G4/G7 (i5-1135G7), „MacBook Air M3 16GB” (chip przed RAM-em, samotne
+# „16GB” w tytule MacBooka = RAM), RAM w innych językach („memorie de 16 gb”, „memória mérete: 8 gb”).
 
 # ---------------------------------------------------------------------------------------------- pomocnicze
 
@@ -130,10 +132,11 @@ def common(f, title, desc, attrs, listing):
 
 CPU_PATTERNS = (
     re.compile(r"\b(?:intel\s*)?(?:core\s*)?ultra\s*([579])\s*-?\s*(\d{3}[a-z]{0,2})\b"),
-    re.compile(r"\b(?:intel\s*)?(?:core\s*)?(i[3579])\s*-?\s*(\d{4,5}[a-z]{0,2})\b"),
+    re.compile(r"\b(?:intel\s*)?(?:core\s*)?(i[3579])\s*-?\s*(\d{4,5}(?:[a-z]{1,2}\d?)?)\b"),
     re.compile(r"\b(?:amd\s*)?ryzen\s*(?:ai\s*)?([3579])\s*(?:pro\s*)?-?\s*(\d{3,4}[a-z]{0,2})\b"),
     # Apple M - tylko w tekście z „macbook” / „apple” (patrz _cpu), bez „M2 SSD”, „M.2 512”
-    re.compile(r"\b(?:apple\s*)?(m[1345](?!\s*\d)|m2(?!\s*(?:\d|ssd|nvme|slot|sata|dysk|disk)))"
+    # „M3 16GB” - liczba po M1/M3/M4/M5 to RAM; tylko „M2 512 / M2 SSD” bywa złączem M.2
+    re.compile(r"\b(?:apple\s*)?(m[1345](?![.\d])|m2(?![.\d])(?!\s*(?:\d{3}|ssd|nvme|slot|sata|dysk|disk)))"
                r"(?:\s*(pro|max|ultra))?\b"),
     re.compile(r"\b(celeron|pentium|athlon|snapdragon x\s*(?:elite|plus))\s*-?\s*([a-z]?\d{3,5}[a-z]?)?\b"),
 )
@@ -150,10 +153,16 @@ INTEGRATED = re.compile(r"\b(?:iris\s*xe|iris plus|intel (?:uhd|hd) graphics|uhd
                         r"780m|680m|890m|integrated graphics|zintegrowan\w*)\b")
 SCREEN = re.compile(r"(?<![\d.,])(1[0-8](?:[.,]\d)?)\s*(?:\"|”|''|cal\w*|inch\w*|tum|zoll|col\w*|hüvelyk|palc\w*)")
 HZ = re.compile(r"\b(60|90|120|144|165|240|300|360)\s*hz\b")
-RAM = re.compile(r"\b(\d{1,2})\s*gb\s*(?:ram|ddr\d?|lpddr\d?\w*|pamie\w*|memory|memoria|operacn\w*)\b|"
-                 r"\b(?:ram|pamiec\w*|memory)\s*:?\s*(\d{1,2})\s*gb\b")
+RAM = re.compile(r"\b(\d{1,2})\s*gb\s*(?:ram|ddr\d?|lpddr\d?\w*|pamie\w*|memory|memoria|memorie|operacn\w*|"
+                 r"arbeitsspeicher)\b|"
+                 r"\b(?:ram|pamiec\w*|memory|memoria|memorie|arbeitsspeicher|operacni pamet)\s*(?:merete|de|size)?"
+                 r"\s*:?\s*(\d{1,2})\s*gb\b")
 STORAGE = re.compile(r"\b(\d+(?:[.,]\d+)?)\s*(tb|gb)\s*(?:ssd|nvme|m\.?2|hdd|emmc|dysk\w*|disk\w*|storage)\b|"
                      r"\b(?:ssd|nvme|dysk|disk)(?:\s*(?::|m\.?2|nvme|pcie|sata|ssd))*\s*(\d+(?:[.,]\d+)?)\s*(tb|gb)\b")
+# Oba zapisy osobno (w „16 gb ssd 512 gb” pierwszy zjada „ssd” drugiego) - patrz _storage.
+STORAGE_BEFORE = re.compile(r"\b(\d+(?:[.,]\d+)?)\s*(tb|gb)\s*(?:ssd|nvme|m\.?2|hdd|emmc|dysk\w*|disk\w*|storage)\b")
+STORAGE_AFTER = re.compile(r"\b(?:ssd|nvme|dysk|disk)(?:\s*(?::|m\.?2|nvme|pcie|sata|ssd))*\s*(\d+(?:[.,]\d+)?)\s*"
+                           r"(tb|gb)\b")
 
 
 def _cpu(text):
@@ -207,15 +216,28 @@ def _ram(text, loose=False):
                  and not re.match(r"\s*(?:ssd|nvme|hdd|emmc|m\.?2|dysk|disk|storage|vram)", clean[end:])]
         if small and any(v >= 128 for v, _ in sizes):
             return small[0]
+        # MacBook z chipem Apple: dysk ma zawsze ≥ 128 GB, więc samotne „8 / 16 / 24 GB” to RAM („Air M3 16GB”)
+        if small and len(sizes) == 1 and re.search(r"\b(?:macbook|apple)\b", text) and re.search(r"\bm[1-5]\b", text):
+            return small[0]
     return None
 
 
-def _storage(text):
-    match = STORAGE.search(text)
-    if not match:
-        return None
-    number, unit = (match.group(1), match.group(2)) if match.group(1) else (match.group(3), match.group(4))
-    return _gb(f"{number} {unit}")
+def _storage(text, loose=False):
+    """Pojemność dysku: pierwsza wzmianka ≥ 64 GB (w „memorie de 16 gb ssd 512 gb” 16 GB to RAM), inaczej pierwsza.
+    loose=True (tytuł) - także „i7 16GB 512GB” bez słowa SSD: obok RAM-u (≤ 64 GB) większa liczba (≥ 120 GB) to dysk.
+    Ta sama reguła w unreachable_sniper/sniper/specs.py."""
+    found = sorted((m.start(), _gb(f"{m.group(1)} {m.group(2)}")) for pattern in (STORAGE_BEFORE, STORAGE_AFTER)
+                   for m in pattern.finditer(text))
+    values = [v for _pos, v in found if v]
+    if values:
+        return next((v for v in values if v >= 64), values[0])
+    if loose:
+        clean = _GPU_WITH_VRAM.sub(" ", text)
+        sizes = [_gb(m.group(0)) for m in re.finditer(r"\b\d+(?:[.,]\d+)?\s*(?:tb|gb)\b", clean)]
+        big = [v for v in sizes if v and v >= 120]
+        if big and any(v and v <= 64 for v in sizes):
+            return big[0]
+    return None
 
 
 MACBOOK = re.compile(r"\bmac\s*book\s*(air|pro)?\s*(?:(1[3-6])(?:[.,]\d)?\s*(?:\"|”|''|cal\w*|inch\w*)?)?\s*"
@@ -254,7 +276,7 @@ def laptop(f, title, desc, attrs, listing):
         disk_attr = None
     f.put("storage_gb", disk_attr, "attribute")
     for source, text in (("title", t), ("description", d)):
-        f.put("storage_gb", _storage(text), source)
+        f.put("storage_gb", _storage(text, loose=source == "title"), source)
     for source, text in (("title", title), ("description", desc)):
         match = SCREEN.search(norm(text))
         if match:

@@ -123,10 +123,16 @@ class Backend:
             content = [_anthropic_image(u) for u in photos]
             content.append({"type": "text", "text": text})
             # Jak w Sniperze (sniper/evaluator.py): beta.messages + output_config (odpowiedź zgodna ze schematem).
+            # Claude Haiku 5.5 (i nowsze) myśli domyślnie, a myślenie liczy się do max_tokens - krótkie myślenie
+            # (effort low) i zapas na odpowiedź, inaczej JSON bywa ucięty. Haiku 4.5 nie zna effort.
+            output_config = {"format": {"type": "json_schema", "schema": schema}}
+            if not self.model.startswith("claude-haiku-4"):
+                output_config["effort"] = "low"
+                max_tokens = max(max_tokens, 2000)
             response = await self.client.beta.messages.create(
                 model=self.model, max_tokens=max_tokens, system=system,
                 messages=[{"role": "user", "content": content}],
-                output_config={"format": {"type": "json_schema", "schema": schema}})
+                output_config=output_config)
             usage = (getattr(response.usage, "input_tokens", 0) or 0, getattr(response.usage, "output_tokens", 0) or 0)
             return "".join(b.text for b in response.content if getattr(b, "type", None) == "text"), usage
 

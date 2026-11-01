@@ -1,4 +1,4 @@
-# STAN PROJEKTU – punkt startowy nowej rozmowy (2026-10-31)
+# STAN PROJEKTU – punkt startowy nowej rozmowy (2026-11-01)
 
 > **„wykonaj md” = przeczytaj CAŁY ten plik i działaj wg §6–§7.** `CLAUDE.md` wczytuje się sam. Innych plików nie
 > czytaj na zapas – mapa w §9 mówi, co otworzyć przy danym temacie. Archiwum decyzji z liczbami: `HISTORIA.md`
@@ -13,8 +13,8 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (258), w `unreachable_sniper`
-   `python -m pytest sniper/tests -q` (259 + 1 pominięty). Oba przed każdym pushem.
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (265), w `unreachable_sniper`
+   `python -m pytest sniper/tests -q` (274 + 1 pominięty). Oba przed każdym pushem.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
 
@@ -129,12 +129,25 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
   (~982 → 1 300–1 400, na styk), **Xiaomi 12T 256 HR (~391 → 550–600, zysk ~110–160 – reguła NIE spełniona)**,
   **Asus Laptop 15 i3-10 gen 10/500 RO (~457 → 750–850, brak danych < 700 zł)**. `flips.csv` pusty.
 
+* **Laptopy po specyfikacji (01.11, pomysł użytkownika):** mediany laptopów po karcie / procesorze + generacji / RAM /
+  dysku / MacBooku (tabela `laptop_specs` w `comparables.db`, `sniper/specs.py` = te same reguły co
+  `analyzer/extract.py`, test `SPEC_PARITY` w obu repo), nie po słowach tytułu. Specyfikacja z tekstu w 52% ofert
+  z opisem (próbka bazy); resztę AI odczytuje w szybkim etapie (opis / zdjęcia / numer modelu) → mediany dla niej →
+  pełna ocena (czerwona flaga „specyfikację rozpoznało AI”). Laptop bez żadnej specyfikacji → bez danych (≤ 3), jak
+  inne kategorie. Ekstrakcja v3: i5-1135G7 (końcówki G1/G7), „MacBook Air M3 16GB”, RAM po RO/HU/DE, „16GB 512GB”.
+* **Tańsze modele (01.11, research):** Claude Haiku 5.5 $0,10 / $0,50 za 1 mln tokenów (≤ 100 tys. w zapytaniu) vs
+  Gemini 3.8 Flash $0,75 / $3,75 (od 2027 r. $1,50 / $7,50); Sniper i analizator obsługują Anthropic. Do sprawdzenia
+  benchem (`--warianty haiku55,haiku55_low --ref zapisane`) przed przełączeniem; opcja hybrydy: szybki etap na Haiku
+  (`SNIPER_AI_QUICK_PROVIDER/_MODEL`), pełna ocena okazji na Gemini.
 * **Koszty AI 31.10** (HISTORIA B 31.10): Sniper ~1 040 wywołań/dobę × $0,0158 ≈ $16,5/dobę (ponad limit $10) →
   po zmianach (rodziny, dwa etapy, bramka wg reguły, bez AI bez danych) symulacja na bazie: 765/dobę × $0,0081 ≈
   $6,2/dobę (−63%, bez cache). Watch: AI stanu bez zdjęć ~$5 → ~$1 na automat; `classify-ai` znika (czyste katalogi).
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
+0a. (01.11) Wybór modelu AI: wynik `python -m sniper.bench --warianty haiku55,haiku55_low --ref zapisane --bez-bramki
+   --last 50` (klucz ANTHROPIC_API_KEY, ~$0,3) - czy Haiku 5.5 trafia jedyną prawdziwą okazję ze złotego zbioru bez
+   fałszywych i zgadza się z zapisanymi ocenami Gemini; potem decyzja: całość / szybki etap / zostaje Gemini.
 0. (31.10) Po aktualizacji: log startu Snipera (`[AI] … ocena dwuetapowa …`), dzienny koszt z heartbeat
    („dziś ~$…”), kilka linii `[AI] … etap 1/2 | 2/2` i opcjonalnie `python -m sniper.bench --warianty koszty --last 50`
    (jakość przed / po na złotym zbiorze). Pierwsze przejście `watch` nowych katalogów podzespołów → czy
@@ -193,6 +206,7 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 | serwer, pilot, `.env` | `PILOT.md`, `ENV_SERWER.example`, `unreachable_sniper/sniper/.env.example` |
 | reguła zysku, wytyczne | `analyzer/guide.py`, `sniper/evaluator.py`, `sniper/guides.py` (`route` – rodziny wierszy, `rules_text`), `sniper/guidelines.md` (laptopy, ręczne) |
 | koszty AI (rodziny, dwa etapy, bramka, bez danych) | `sniper/guides.py`, `sniper/evaluator.py` (`gate`, `no_data_reason`, `_staged`), `sniper/tests/test_cost.py` |
+| laptopy po specyfikacji | `sniper/specs.py`, `sniper/comparables.py: spec_levels`, `sniper/evaluator.py: spec_mode / _refresh_spec_levels`, `sniper/experiment.py: LAPTOP_TASK`, `analyzer/comparables.py: laptop_spec`, `analyzer/extract.py` (v3) |
 | mediany / podobne oferty | `analyzer/comparables.py`, `sniper/comparables.py` (`levels`), `sniper/experiment.py` (`MEDIANS_TASK`, `finish_medians`, `cheap_guard`) |
 | porównanie wariantów oceny | `sniper/bench.py`, `sniper/bench_golden.json`, `sniper/basal.py` |
 | zniknięcia, sprzedaże | `analyzer/resolver.py`, `analyzer/sold_report.py` |
