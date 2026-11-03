@@ -14,7 +14,8 @@ import json
 import re
 import unicodedata
 
-VERSION = 3          # v2 (2026-10-25): zaprzeczenia przy „na części” / pęknięciu („bez defektów”, „not broken”)
+VERSION = 4          # v2 (2026-10-25): zaprzeczenia przy „na części” / pęknięciu („bez defektów”, „not broken”)
+# v4 (2026-11-03): telefon / tablet - sieć z tytułu (5G; tablet: LTE / 5G / cellular) w kluczu grupy cenowej
 # v3 (2026-11-01): procesory z końcówką G1/G4/G7 (i5-1135G7), „MacBook Air M3 16GB” (chip przed RAM-em, samotne
 # „16GB” w tytule MacBooka = RAM), RAM w innych językach („memorie de 16 gb”, „memória mérete: 8 gb”).
 
@@ -316,6 +317,8 @@ GALAXY = re.compile(r"\b(?:samsung\s*)?galaxy\s*([sazm]\d{1,2}|note\s*\d{1,2}|z\
 PIXEL = re.compile(r"\bpixel\s*(\d{1,2}a?)\s*(pro\s*xl|pro|xl)?\b")
 IPAD = re.compile(r"\bi\s?pad\s*(pro|air|mini)?\s*(\d{1,2}(?:[.,]\d)?(?:\s*(?:\"|cal\w*|inch))?)?\s*"
                   r"(?:\(?\s*(\d{1,2})\s*(?:gen|generacj\w*|th)\)?)?")
+NET5G = re.compile(r"(?<![\d.,])5\s?g(?![^\W\d_])")
+CELLULAR = re.compile(r"(?<![\d.,])[45]\s?g(?![^\W\d_])|\b(?:lte|cellular|celular|sim)\b")
 PHONE_STORAGE = re.compile(r"\b(16|32|64|128|256|512|1024|1)\s*(gb|tb)\b")
 
 
@@ -352,11 +355,16 @@ def phone(f, title, desc, attrs, listing, tablet=False):
             value = int(match.group(1)) if match and int(match.group(1)) >= 16 else None
             if value:
                 f.put("storage_gb", value, "model_guess")
-        f.put("storage_gb", value, "attribute")
+        # „4 GB” w polu pamięci = RAM wpisany zamiast pamięci (A17 „4 GB (nowe)” w tabeli, 03.11) - pomijamy
+        f.put("storage_gb", value if value is None or value >= 16 else None, "attribute")
     for source, text in (("title", t), ("description", d)):
         match = PHONE_STORAGE.search(text)
         if match:
             f.put("storage_gb", _gb(match.group(0)), source)
+    # 2026-11-03 (A17 vs A17 5G): sieć tylko z TYTUŁU - opis bywa ogólny („obsługa 5G sieci”), a wersja 5G
+    # i 4G tego samego modelu różnią się ceną. Tablet: LTE / cellular / 4G / 5G / SIM = wersja z modemem.
+    net = (CELLULAR if tablet else NET5G).search(t)
+    f.put("net", ("lte" if tablet else "5g") if net else None, "title")
     sim = norm(attrs.get("sim_lock"))
     if sim:
         f.put("sim_lock", not sim.startswith("brak"), "attribute")
@@ -367,7 +375,8 @@ def phone(f, title, desc, attrs, listing, tablet=False):
 def phone_key(f):
     if not f.get("model"):
         return None
-    return f"{f.get('model')}|{f.get('storage_gb') or '?'}"
+    net = {"5g": " 5G", "lte": " LTE"}.get(f.get("net"), "")
+    return f"{f.get('model')}{net}|{f.get('storage_gb') or '?'}"
 
 
 # ---------------------------------------------------------------------------------------------- konsole

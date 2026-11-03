@@ -1227,7 +1227,29 @@ def test_comparables_db(relisted, flagged, tmp_path):
     office = db.execute("SELECT COUNT(*) FROM laptop_specs WHERE cpu_line='intel core i5' AND cpu_gen='8–9 gen.' "
                         "AND gpu IS NULL AND ram=16 AND ssd=256").fetchone()[0]
     assert gaming > 20 and mac > 20 and office > 20
+    # stan (2026-11-03): nowe / używane osobno, w ofertach i laptopach
+    assert db.execute("SELECT value FROM meta WHERE key='cond'").fetchone()[0] == "1"
+    conds = {c for (c,) in db.execute("SELECT DISTINCT cond FROM offers")}
+    assert conds <= {"new", "used"} and "used" in conds
+    assert {c for (c,) in db.execute("SELECT DISTINCT cond FROM laptop_specs")} <= {"new", "used"}
     db.close()
+
+
+def test_condition_and_network_split():
+    """Samsung A17 (03.11): nowy z metką i wersja 5G to inne grupy cenowe niż używany A17."""
+    from analyzer import extract
+    from analyzer.comparables import condition_group
+    assert condition_group("Nowy z metką") == condition_group("Nowy bez metki") == "new"
+    assert condition_group("Bardzo dobry") == condition_group(None) == "used"
+    _f, key = extract.extract("phone", "Samsung Galaxy A17 5G 128GB", "", {"model_nav": "Galaxy A17"})
+    assert key == "galaxy a17 5G|128"
+    _f, key = extract.extract("phone", "Samsung A17", "Telefon obsługuje 5G", {"model_nav": "Galaxy A17",
+                                                                          "internal_memory_capacity": "128 GB"})
+    assert key == "galaxy a17|128"                          # 5G tylko z tytułu
+    _f, key = extract.extract("phone", "Samsung A17", "", {"model_nav": "Galaxy A17", "internal_memory_capacity": "4 GB"})
+    assert key == "galaxy a17|?"                            # „4 GB” w polu pamięci = RAM, nie pamięć
+    _f, key = extract.extract("tablet", "iPad Air 5 64GB Wi-Fi + Cellular", "", {})
+    assert key.split("|")[0].endswith(" LTE")
 
 
 # Te same przypadki w unreachable_sniper/sniper/tests/test_specs.py i analyse_data/analyzer/tests/test_analysis.py -

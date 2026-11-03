@@ -579,3 +579,12 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
   `unlisted` 46/50 aktywne w szafie to potwierdzenie stanu, który resolver już zna z `/services` (~1,3 KB zamiast
   ~95 KB strony szafy); `deleted` 45-50/50 brak w szafie → szafa nie zamienia usunięć na sprzedaże - zostaje
   usunięta. Mediany (comparables, wytyczne) nie kosztują tokenów - zalecane `ANALYZER_AUTO_DAYS=1`.
+* **2026-11-03 – mediany szczegółowe po fałszywej okazji A17.** Użytkownik kupił Samsunga A17 128 GB („Bardzo dobry”,
+  bez 5G w tytule, Litwa) za 377 zł jako „okazję”; rynek (katalog od najtańszych) 260–530 zł, „okazją byłby tylko 5G
+  z 8 GB RAM”. Kopia bazy 31.10: oferty A17 (bez Oppo) - nowe bez 5G 188 akt. med. 650, nowe 5G 204 med. 710,
+  używane bez 5G 54 akt. med. 550 / zniknęło 12 med. 493, używane 5G 41 med. 539. Stare poziomy dla „Samsung A17”:
+  „17 samsung” 627, „samsung” 819, „cała rodzina samsung” 829 → nowe: jeden poziom „a 17” + używane, do 128 GB,
+  bez 5G → 493–499 zł. Zmiany opisane w STAN_PROJEKTU §5 („Mediany szczegółowe”). Pokrycie (próbka 250 używanych
+  aktywnych na kategorię): bez mediany teraz telefony 28 (dawniej tylko ogólny poziom: 49), tablety 47 (67), konsole
+  31 (62), karty 51 (107), RAM 20 (45), dyski 102 (90 - tanie, poniżej progu zysku).
+

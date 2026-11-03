@@ -10,6 +10,10 @@ Plik ~kilkadziesiąt MB, budowa strumieniowo (4 GB RAM u użytkownika).
 Laptopy dodatkowo w tabeli `laptop_specs` (2026-11-01, pomysł użytkownika: „za specyfikację ludzie płacą, nie za
 model”): karta graficzna (dedykowana), linia procesora + generacja, chip i linia MacBooka, RAM, dysk (przedział) -
 Sniper liczy mediany od najdokładniejszej specyfikacji do samej karty / procesora (sniper/specs.py, te same reguły).
+
+Stan (2026-11-03, Samsung A17 za 377 zł jako „okazja”: 80% ofert A17 to nowe z metką, mediana ~650 zł, a używane
+schodzą po ~490 zł): kolumna `cond` = "new" („Nowy z metką / bez metki”) albo "used" - Sniper porównuje używane
+z używanymi, nowe z nowymi (meta `cond` = 1).
 """
 import re
 import sqlite3
@@ -64,6 +68,13 @@ def laptop_spec(model, cpu, cpu_line, gpu, ram_gb, storage_gb):
     return None
 
 
+def condition_group(status_label):
+    """Stan z formularza Vinted → "new" / "used" (jak sniper/comparables.py: condition_group)."""
+    if not status_label:
+        return "used"
+    return "new" if "nowy" in status_label.strip().lower() else "used"
+
+
 def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=None):
     """→ liczba ofert zapisanych do `path` (plik budowany obok i podmieniany na końcu)."""
     say = progress or (lambda _t: None)
@@ -75,15 +86,15 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
     out = sqlite3.connect(str(tmp))
     out.executescript("""
         CREATE VIRTUAL TABLE offers USING fts5(words, category UNINDEXED, price UNINDEXED, gone UNINDEXED,
-                                               tokenize = 'unicode61 remove_diacritics 2');
+                                               cond UNINDEXED, tokenize = 'unicode61 remove_diacritics 2');
         CREATE VIRTUAL TABLE vocab USING fts5vocab(offers, 'row');
         CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
         CREATE TABLE laptop_specs (gpu TEXT, cpu_line TEXT, cpu_gen TEXT, chip TEXT, line TEXT, ram INTEGER,
-                                   ssd INTEGER, price REAL, gone INTEGER);
+                                   ssd INTEGER, price REAL, gone INTEGER, cond TEXT);
     """)
     sql = f"""SELECT l.id, l.category, l.title, l.state, l.price_now, l.sold_price,
                      COALESCE(f.for_parts, 0) OR COALESCE(f.locked, 0) OR COALESCE(f.cracked, 0) AS damaged,
-                     f.model, f.cpu, f.cpu_line, f.gpu, f.ram_gb, f.storage_gb
+                     f.model, f.cpu, f.cpu_line, f.gpu, f.ram_gb, f.storage_gb, l.status_label
               FROM listings l LEFT JOIN features f ON f.listing_id = l.id
               WHERE l.category IS NOT NULL AND l.state IN ({",".join("?" * len(STATES))})"""
     batch, specs, n, n_specs = [], [], 0, 0
@@ -96,26 +107,27 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
         words = " ".join(tokens(r[2]))
         if price is None or price <= 0 or not words:
             continue
-        batch.append((words, r[1], float(price), int(gone)))
+        cond = condition_group(r[13])
+        batch.append((words, r[1], float(price), int(gone), cond))
         if r[1] == "laptop":
             spec = laptop_spec(*r[7:13])
             if spec:
                 specs.append((spec["gpu"], spec["cpu_line"], spec["cpu_gen"], spec["chip"], spec["line"], spec["ram"],
-                              spec["ssd"], float(price), int(gone)))
+                              spec["ssd"], float(price), int(gone), cond))
         if len(batch) >= 20000:
-            out.executemany("INSERT INTO offers VALUES (?, ?, ?, ?)", batch)
+            out.executemany("INSERT INTO offers VALUES (?, ?, ?, ?, ?)", batch)
             n += len(batch)
             batch = []
             say(f"  porównywalne: {n} ofert...")
         if len(specs) >= 20000:
-            out.executemany("INSERT INTO laptop_specs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", specs)
+            out.executemany("INSERT INTO laptop_specs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", specs)
             n_specs += len(specs)
             specs = []
     if batch:
-        out.executemany("INSERT INTO offers VALUES (?, ?, ?, ?)", batch)
+        out.executemany("INSERT INTO offers VALUES (?, ?, ?, ?, ?)", batch)
         n += len(batch)
     if specs:
-        out.executemany("INSERT INTO laptop_specs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", specs)
+        out.executemany("INSERT INTO laptop_specs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", specs)
         n_specs += len(specs)
     out.executescript("""
         CREATE INDEX laptop_specs_gpu ON laptop_specs(gpu, ram, ssd);
@@ -123,6 +135,7 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
         CREATE INDEX laptop_specs_mac ON laptop_specs(line, chip, ram, ssd);""")
     out.execute("INSERT INTO meta VALUES ('rows', ?)", (str(n),))
     out.execute("INSERT INTO meta VALUES ('laptop_specs', ?)", (str(n_specs),))
+    out.execute("INSERT INTO meta VALUES ('cond', '1')")
     say(f"  laptopy ze specyfikacją (mediany po GPU / CPU / RAM / dysku): {n_specs}")
     out.execute("INSERT INTO offers(offers) VALUES ('optimize')")
     out.commit()

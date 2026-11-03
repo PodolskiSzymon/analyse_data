@@ -1,4 +1,4 @@
-# STAN PROJEKTU – punkt startowy nowej rozmowy (2026-11-01)
+# STAN PROJEKTU – punkt startowy nowej rozmowy (2026-11-03)
 
 > **„wykonaj md” = przeczytaj CAŁY ten plik i działaj wg §6–§7.** `CLAUDE.md` wczytuje się sam. Innych plików nie
 > czytaj na zapas – mapa w §9 mówi, co otworzyć przy danym temacie. Archiwum decyzji z liczbami: `HISTORIA.md`
@@ -13,8 +13,8 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (265), w `unreachable_sniper`
-   `python -m pytest sniper/tests -q` (282 + 1 pominięty). Oba przed każdym pushem.
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (266), w `unreachable_sniper`
+   `python -m pytest sniper/tests -q` (286 + 1 pominięty). Oba przed każdym pushem.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
 
@@ -139,6 +139,19 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
   Gemini 3.8 Flash $0,75 / $3,75 (od 2027 r. $1,50 / $7,50); Sniper i analizator obsługują Anthropic. Do sprawdzenia
   benchem (`--warianty haiku55,haiku55_low --ref zapisane`) przed przełączeniem; opcja hybrydy: szybki etap na Haiku
   (`SNIPER_AI_QUICK_PROVIDER/_MODEL`), pełna ocena okazji na Gemini.
+* **Mediany szczegółowe (03.11, fałszywa okazja Samsung A17 za 377 zł, rynek używanych ~450–550 zł):** stare
+  mediany mieszały nowe z metką (80% ofert A17, ~700 zł), wersję 5G z 4G, „A17” z każdym Samsungiem z „17” (litera
+  „a” odpadała) i dawały AI poziom „cała rodzina samsung” (~830 zł). Teraz: `comparables.db` ma stan (`cond` new /
+  used) - używane porównywane z używanymi; kod modelu jako fraza („a 17”, „rtx 3050”, „ddr 4”, przy podzespołach
+  tylko przedrostki układów); 5G (telefon) i LTE / cellular (tablet) jako wariant - oferta bez 5G w tytule nie
+  dostaje cen 5G, z 5G przy braku danych dostaje wszystkie wersje (ostrożniej); RAM („8/256”, „8 GB RAM”); poziom
+  „każda pojemność” tylko z pojemnościami ≤ oferty; poziomów bez numeru modelu i „cała rodzina” już nie ma (zamiast:
+  „ten sam model, pozostałe słowa dowolne”). Tabela wytycznych: wiersze nowych osobno („… (nowe)”, używana oferta
+  ich nie widzi ani w bramce), telefony / tablety z 5G / LTE w nazwie grupy (ekstrakcja v4; „4 GB” w polu pamięci =
+  RAM, pomijane). AI: wariant niepodany = najtańszy możliwy (reguła D). Symulacja na kopii bazy (31.10): A17 →
+  „za drogo wg podobnych ofert” (wycena ~500 zł, max zakup 253 zł); najwyższa wycena z median spada: telefony ×0,73,
+  tablety ×0,84, konsole ×0,94, karty ×0,62 (mediana), oferty bez żadnej mediany ≈ te, które dawniej miały tylko
+  poziom ogólny. **Mniej alertów, ale bez okazji wyliczonych z cen nowych / innego modelu.**
 * **Przestoje skanu (01.11, log `sniper.log`):** Dell Latitude 5320 złapany 5 min po wystawieniu, bo przez
   ~11 min (20:56–21:07) nie było żadnego skanu: proxy 2 (Evomi, telefony) nie odświeżało sesji (6 prób × timeout,
   407 od proxy), a wspólna przeglądarka była zajęta przez całą serię – inne proxy z 403 czekały. Poprawka: blokada

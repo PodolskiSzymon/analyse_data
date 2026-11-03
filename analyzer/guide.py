@@ -25,6 +25,7 @@ import math
 import re
 
 from . import analysis
+from .comparables import condition_group
 
 STATES = ("active", "reserved", "sold", "blocked", "deleted", "closed")
 GONE = ("sold", "blocked", "deleted", "closed")
@@ -169,6 +170,9 @@ def group_key(category, r):
     return None
 
 
+NEW_SUFFIX = " (nowe)"
+
+
 def cpu_display(model):
     """„i5-9400f” → „Intel Core i5-9400F”, „ryzen 5 2600x” → „AMD Ryzen 5 2600X” (nazwa grupy dla człowieka i AI)."""
     model = model.strip()
@@ -190,6 +194,7 @@ def collect(conn, excluded=None, relists=None, ai_damaged=None, progress=None):
     excluded, relists, ai_damaged = excluded or {}, relists or {}, ai_damaged or {}
     old_ids = set(relists.values())
     sql = f"""SELECT l.id, l.state, l.price_now, l.sold_price, COALESCE(d.seller_currency, l.seller_currency) AS cur,
+                     l.status_label,
                      f.config_key, f.model, f.cpu, f.cpu_line, f.ram_gb, f.gpu,
                      COALESCE(f.for_parts, 0) OR COALESCE(f.locked, 0) OR COALESCE(f.cracked, 0) AS damaged
               FROM listings l LEFT JOIN features f ON f.listing_id = l.id LEFT JOIN details d ON d.listing_id = l.id
@@ -206,6 +211,10 @@ def collect(conn, excluded=None, relists=None, ai_damaged=None, progress=None):
             name = group_key(category, r)
             if not name:
                 continue
+            # 2026-11-03: nowe (z metką / bez metki) osobnym wierszem - A17 nowy ~700 zł, używany ~490 zł; wspólna
+            # mediana robiła z używanego za 377 zł „okazję”.
+            if condition_group(r["status_label"]) == "new":
+                name += NEW_SUFFIX
             g = groups.setdefault(name, {"active": [], "active_pl": [], "active_zagr": [], "gone": [], "sold": []})
             if r["state"] in ("active", "reserved"):
                 if r["price_now"] is None:
