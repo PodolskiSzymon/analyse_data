@@ -29,8 +29,10 @@ Ten plik to krok 1. Kroki 2–3: `python -m analyzer basal-sample` i `basal-test
    ```
    nvidia-smi
    ```
-   Wersja sterownika powinna być 47x.xx, a na liście „GeForce 920M” z 2048 MiB. Jeśli `nvidia-smi` nie działa,
-   zainstaluj z nvidia.com najnowszy sterownik dla 920M (gałąź R470, 474.xx).
+   Na liście „GeForce 920M” z 2048 MiB. **Ostatni sterownik dla laptopowych Keplerów to 425.31 (04.2019)** - 47x.xx
+   są tylko dla kart stacjonarnych (poprawka 06.11). 425.31 nie dodaje `nvidia-smi` do PATH:
+   `"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe"`. Ten sterownik ma Vulkan 1.1 i CUDA ≤ 10.1 -
+   czy llama.cpp Vulkan ruszy, pokaże `--list-devices`; jeśli nie, test na procesorze (wariant C).
 
 2. llama.cpp z Vulkanem. Ze strony https://github.com/ggml-org/llama.cpp/releases pobierz najnowszy plik
    `llama-b<numer>-bin-win-vulkan-x64.zip` i rozpakuj do `C:\Users\szymo\llama-vulkan`. Sprawdź, czy widzi kartę:

@@ -162,15 +162,21 @@ def rule_label(offer):
     return "s23_base"
 
 
+# Starsze sterowniki (np. 425.31 - ostatni dla laptopowych Keplerów, GeForce 920M) nie dodają nvidia-smi do PATH.
+NVIDIA_SMI = ("nvidia-smi", r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe")
+
+
 def vram_used():
     """Zajęta pamięć karty (MB) wg nvidia-smi; None, gdy brak nvidia-smi / karty."""
-    try:
-        out = subprocess.run(["nvidia-smi", "--query-gpu=memory.used,memory.total,name", "--format=csv,noheader,nounits"],
-                             capture_output=True, text=True, timeout=10).stdout.strip().splitlines()
-        used, total, name = [x.strip() for x in out[0].split(",")]
-        return int(used), int(total), name
-    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
-        return None
+    for exe in NVIDIA_SMI:
+        try:
+            out = subprocess.run([exe, "--query-gpu=memory.used,memory.total,name", "--format=csv,noheader,nounits"],
+                                 capture_output=True, text=True, timeout=10).stdout.strip().splitlines()
+            used, total, name = [x.strip() for x in out[0].split(",")]
+            return int(used), int(total), name
+        except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+            continue
+    return None
 
 
 def run_test(rows, family="s23", url="http://127.0.0.1:8000", client=None, with_tricky=True, say=print):
