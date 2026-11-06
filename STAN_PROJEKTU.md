@@ -166,8 +166,8 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
 00. (06.11) **Basal 2.0 Mini na GeForce 920M** (plan użytkownika: regex → lokalny model decyzyjny → mediany; kroki
-   1–3 gotowe, `BASAL_GPU.md`, `analyzer/basal_poc.py`): wynik `llama-server --list-devices` (czy Vulkan widzi
-   920M; Ollama / CUDA 12 nie obsługują Keplera cc 3.5), `basal-export-gguf --help`, potem wydruk / plik wyników
+   1–3 gotowe, `BASAL_GPU.md`, `analyzer/basal_poc.py`): **GPU odpada** (06.11: sterownik 425.31 = Vulkan 1.1,
+   llama.cpp wymaga 1.2) → llama.cpp CPU, `-ngl 0`; czekamy na `basal-export-gguf --help`, potem wydruk / plik wyników
    `basal-test` (etykiety S23, przypadki z zaprzeczeniami, czas, VRAM). **Kroki 4–5 (regexy rodzin, kaskada) dopiero
    po akceptacji wyników przez użytkownika.**
 

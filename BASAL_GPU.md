@@ -4,6 +4,11 @@ Plan użytkownika (06.11): regex na tytule → przy wątpliwościach lokalny mod
 Ten plik to krok 1. Kroki 2–3: `python -m analyzer basal-sample` i `basal-test` (`analyzer/basal_poc.py`).
 **Po kroku 3 czekamy na wyniki użytkownika** – dopiero potem regexy rodzin i kaskada (kroki 4–5).
 
+> **Wynik u użytkownika (06.11): `ggml_vulkan: Error: Vulkan 1.2 required` → karta 920M odpada** (ostatni
+> sterownik 425.31 ma Vulkan 1.1 i CUDA 10.1). basal tylko na CPU: llama.cpp „Windows x64 (CPU)” w
+> `C:\Users\szymo\llama-cpu`, serwer z `-ngl 0`, dalej wariant A / B. Wariant C (eager, torch, ~3 GB) odpada przy
+> 4 GB RAM. Szacunek 10–30 s / ofertę → basal tylko jako bramkarz wątpliwych ofert, nie dla każdej.
+
 ## Co trzeba wiedzieć przed instalacją (sprawdzone w dokumentacji github.com/rkinas/basal, v2.5.5)
 
 * **basal-2.0-mini**: 1,5 mld parametrów, na bazie Bielika v3 (architektura Llama), PL + EN, Apache-2.0, kontekst
