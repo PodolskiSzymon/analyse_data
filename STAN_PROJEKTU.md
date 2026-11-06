@@ -13,7 +13,7 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (268), w `unreachable_sniper`
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (269), w `unreachable_sniper`
    `python -m pytest sniper/tests -q` (286 + 1 pominięty). Oba przed każdym pushem.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
@@ -142,7 +142,8 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 * **Miejsce na dysku (07.11, WizTree u użytkownika):** archiwum zdjęć `data\photos` = 278,8 GB z 345 GB zajętych
   (476 GB dysk). Nowa komenda `python -m analyzer photos-clean [--stan deleted] [--starsze-niz 14] [--tak]` -
   usuwa zdjęcia ofert usuniętych od ≥ N dni (+ wpis w `photos/index.db`), najpierw pokazuje GB i pyta; sprzedane
-  zostają. Plan: serwer na stację roboczą (i5-7400, 8 GB DDR4, MSI Z270, zasilacz 1000 W) z Ubuntu Server, dysk
+  zostają; `unlisted` (żywe dla watch) dostają wpis „cleaned” - bez ponownego pobierania. Archiwum od 27.10:
+  active 227 GB, unlisted 38, deleted 17,5, gone_pending 3,8, hidden 3,1, below_min 1,7, sold 0,7 GB. Plan: serwer na stację roboczą (i5-7400, 8 GB DDR4, MSI Z270, zasilacz 1000 W) z Ubuntu Server, dysk
   512 GB z laptopa; basal najpierw na Intel HD 630 (Vulkan), potem ew. RX 570 8 GB (Linux/RADV - na Windows
   sterownik AMD dla Polarisa ryzykowny, `VK_ERROR_DEVICE_LOST`).
 * **Mediany szczegółowe (03.11, fałszywa okazja Samsung A17 za 377 zł, rynek używanych ~450–550 zł):** stare

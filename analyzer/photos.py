@@ -83,7 +83,7 @@ def candidates(conn, index, limit=None):
     out = []
     for r in conn.execute(sql, (*ALIVE, *analysis.CATEGORIES)):
         source = done.get(r["id"])
-        if source == "sidebar" or (source == "catalog" and not r["details_at"]):
+        if source in ("sidebar", CLEANED) or (source == "catalog" and not r["details_at"]):
             continue
         out.append(r)
         if limit and len(out) >= limit:
@@ -183,6 +183,7 @@ def status_line(cfg):
 # 2026-11-07 (prośba użytkownika): archiwum zdjęć urosło do ~280 GB z 476 GB dysku. Zdjęcia ofert USUNIĘTYCH
 # (deleted ≠ sprzedaż) najmniej potrzebne; sprzedane zostają (jak wyglądał przedmiot sprzedany za daną cenę).
 CLEAN_STATES = ("deleted",)
+CLEANED = "cleaned"              # wpis w index.db: zdjęcia usunięte celowo - archive() ich nie pobiera ponownie
 
 
 def clean_plan(conn, root, states=CLEAN_STATES, older_days=14, now=None, progress=None):
@@ -209,9 +210,10 @@ def clean_plan(conn, root, states=CLEAN_STATES, older_days=14, now=None, progres
     return plan, total
 
 
-def clean_apply(root, plan, progress=None):
-    """Usuwa foldery z planu i ich wpisy w index.db (oferta, która wróci jako aktywna, dostanie zdjęcia od nowa).
-    → (usuniętych ofert, zwolnionych bajtów)."""
+def clean_apply(root, plan, progress=None, keep_marker=False):
+    """Usuwa foldery z planu. Wpis w index.db: usuwany (oferta deleted, która wróci jako aktywna, dostanie zdjęcia
+    od nowa) albo - `keep_marker` dla stanów, które archive() uważa za żywe (unlisted) - zamieniany na „cleaned”,
+    żeby watch nie pobrał ich ponownie. → (usuniętych ofert, zwolnionych bajtów)."""
     import shutil
     say = progress or (lambda _t: None)
     root = Path(root)
@@ -224,13 +226,20 @@ def clean_apply(root, plan, progress=None):
             freed += size
             batch.append((listing_id,))
             if len(batch) >= 2000:
-                with index:
-                    index.executemany("DELETE FROM photos WHERE listing_id = ?", batch)
+                _forget(index, batch, keep_marker)
                 batch = []
                 say(f"  usunięto {done}/{len(plan)} ofert, zwolniono {freed / 1e9:.1f} GB...")
         if batch:
-            with index:
-                index.executemany("DELETE FROM photos WHERE listing_id = ?", batch)
+            _forget(index, batch, keep_marker)
     finally:
         index.close()
     return done, freed
+
+
+def _forget(index, batch, keep_marker):
+    with index:
+        if keep_marker:
+            index.executemany(f"INSERT OR REPLACE INTO photos (listing_id, source, n_urls, n_saved, bytes, saved_at, "
+                              f"error) VALUES (?, '{CLEANED}', 0, 0, 0, NULL, 'usunięte: photos-clean')", batch)
+        else:
+            index.executemany("DELETE FROM photos WHERE listing_id = ?", batch)

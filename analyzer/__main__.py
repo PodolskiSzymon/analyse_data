@@ -862,7 +862,21 @@ def main(argv=None):
         if not args.tak and input("Wpisz TAK, żeby usunąć: ").strip().upper() != "TAK":
             print("Nic nie usunięto.")
             return
-        done, freed = clean_apply(root, plan, progress=say)
+        from .photos import ALIVE
+        alive = [st for st in args.stan if st in ALIVE]
+        if alive:
+            print(f"Stany {', '.join(alive)} watch uważa za żywe - zdjęcia nie zostaną pobrane ponownie.")
+        # Osobno: stany „żywe” z blokadą ponownego pobrania, reszta bez (wróci jako aktywna → zdjęcia od nowa).
+        conn = analysis.open_ro(cfg.db_path)
+        state_of = {}
+        for chunk in range(0, len(plan), 900):
+            ids = [i for i, _s in plan[chunk:chunk + 900]]
+            state_of.update(conn.execute(f"SELECT id, state FROM listings WHERE id IN ({','.join('?' * len(ids))})",
+                                         ids).fetchall())
+        conn.close()
+        done, freed = clean_apply(root, [x for x in plan if state_of.get(x[0]) not in ALIVE], progress=say)
+        d2, f2 = clean_apply(root, [x for x in plan if state_of.get(x[0]) in ALIVE], progress=say, keep_marker=True)
+        done, freed = done + d2, freed + f2
         print(f"Usunięto zdjęcia {done} ofert, zwolniono {freed / 1e9:.1f} GB.")
         print(status_line(cfg))
     elif args.command == "remote":

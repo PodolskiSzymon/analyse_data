@@ -1437,3 +1437,25 @@ def test_photos_clean_only_old_deleted(tmp_path):
     assert all(photos.listing_dir(root, i).exists() for i in (2, 3, 4))
     left = {r[0] for r in sqlite3.connect(root / "index.db").execute("SELECT listing_id FROM photos")}
     assert left == {2, 3, 4}
+
+
+def test_photos_clean_unlisted_not_downloaded_again(tmp_path):
+    """unlisted = dla watch oferta żywa: po photos-clean wpis „cleaned”, archive() nie pobiera zdjęć od nowa."""
+    import sqlite3
+    from analyzer import photos
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE listings (id INTEGER PRIMARY KEY, state TEXT, state_at TEXT, photo_url TEXT, "
+                 "details_at TEXT, category TEXT)")
+    conn.execute("INSERT INTO listings VALUES (7, 'unlisted', '2026-10-01T00:00:00.000+00:00', 'http://x/1.jpg', "
+                 "'2026-10-01', 'phone')")
+    root = tmp_path / "photos"
+    folder = photos.listing_dir(root, 7)
+    folder.mkdir(parents=True)
+    (folder / "01.jpg").write_bytes(b"x" * 10)
+    plan, _total = photos.clean_plan(conn, root, states=("unlisted",), older_days=0)
+    photos.clean_apply(root, plan, keep_marker=True)
+    index = photos.open_index(root)
+    assert index.execute("SELECT source FROM photos WHERE listing_id=7").fetchone()[0] == photos.CLEANED
+    assert photos.candidates(conn, index) == []
+    index.close()
