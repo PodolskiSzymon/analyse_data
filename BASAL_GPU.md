@@ -107,3 +107,75 @@ OK albo BŁĄD. Przy ofertach z bazy pokazuje, gdzie basal różni się od prost
 czasy (średni, mediana, max, pierwsze zapytanie z rozgrzewką), VRAM (przed / szczyt, z `nvidia-smi`) i wynik
 przypadków testowych. Wyniki trafiają do `data\basal\s23_<czas>_wyniki_<godz>.json` – ten plik albo wydruk
 wyślij mi do oceny.
+
+---
+
+# Test na PC z GTX 1060 6 GB (Windows) – plan na 08.11
+
+Ten PC służy tylko do testu, nie jako serwer. GTX 1060 (Pascal) ma CUDA, więc bierzemy gotowy llama.cpp z
+**CUDA 12** (nie CUDA 13 – ta nie obsługuje już Pascala; nie Vulkan). 6 GB mieści i mini (1,5B, ~1,4 GB), i większy
+basal-2.0 4,5B w Q5_K_M (~3,5 GB) – testujemy oba.
+
+## A. Na laptopie-serwerze: próbka (tam jest baza)
+
+```
+cd C:\Users\szymo\analyse_data
+git pull origin claude/gifted-volta-x1764p
+python -m analyzer basal-sample --rodzina s23 --limit 40
+```
+Plik `C:\Users\szymo\category_analyzer\data\basal\s23_<czas>.jsonl` skopiuj na PC (pendrive / sieć), np. do
+`C:\basal\s23.jsonl`.
+
+## B. Na PC: sterownik i llama.cpp CUDA 12
+
+1. `nvidia-smi` – „GeForce GTX 1060 6GB”, sterownik 5xx (jeśli starszy: najnowszy z nvidia.com).
+2. Z https://github.com/ggml-org/llama.cpp/releases pobierz DWA pliki: **„Windows x64 (CUDA 12)”** i obok
+   **„CUDA 12.4 DLLs”**. Rozpakuj OBA do tego samego folderu `C:\llama-cuda` (`tar -xf <zip> -C C:\llama-cuda`).
+   Brak `VCRUNTIME140.dll` → https://aka.ms/vs/17/release/vc_redist.x64.exe.
+3. `C:\llama-cuda\llama-server.exe --list-devices` → ma być `CUDA0: NVIDIA GeForce GTX 1060 6GB`.
+
+## C. Na PC: Python, modele, basal
+
+```
+py -3.12 -m venv C:\basal-env
+C:\basal-env\Scripts\activate
+pip install -U huggingface_hub
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install "basal @ https://github.com/rkinas/basal/archive/refs/tags/v2.5.5.tar.gz"
+hf download Remek/basal-2.0-mini-GGUF --include "*Q5_K_M*" --local-dir C:\basal-models\mini
+hf download Remek/basal-2.0-4.5B-GGUF --include "*Q5_K_M*" --local-dir C:\basal-models\4.5b
+dir C:\basal-models\mini C:\basal-models\4.5b
+```
+(4.5B ~3,5 GB do pobrania.) Do testu skryptem z analizatora: `git clone` repo `analyse_data` na PC (albo skopiuj
+folder z laptopa) i w tym samym środowisku `pip install -r sniper\requirements.txt`.
+
+## D. Na PC: test mini (2 okna cmd + 1 do testu)
+
+Okno 1 (model na karcie):
+```
+C:\llama-cuda\llama-server.exe -m C:\basal-models\mini\<plik>.gguf --host 127.0.0.1 --port 8080 -ngl 99 -c 4096 -np 1
+```
+Szukaj w logu `CUDA0: NVIDIA GeForce GTX 1060` i `offloaded N/N layers to GPU`.
+
+Okno 2 (`C:\basal-env\Scripts\activate`):
+```
+basal-serve --model Remek/basal-2.0-mini --mode llamacpp --llamacpp-url http://127.0.0.1:8080 --port 8000
+```
+Okno 3 (w folderze `analyse_data`, środowisko z kroku C):
+```
+python -m analyzer basal-test --plik C:\basal\s23.jsonl
+```
+
+## E. Na PC: test 4.5B
+
+Zamknij okna 1 i 2 (Ctrl+C) i uruchom z większym modelem:
+```
+C:\llama-cuda\llama-server.exe -m C:\basal-models\4.5b\<plik>.gguf --host 127.0.0.1 --port 8080 -ngl 99 -c 4096 -np 1
+basal-serve --model Remek/basal-2.0-4.5B --mode llamacpp --llamacpp-url http://127.0.0.1:8080 --template-prefix off --port 8000
+python -m analyzer basal-test --plik C:\basal\s23.jsonl
+```
+(`--template-prefix off` – dokumentacja basal wymaga go tylko dla 4.5B.)
+
+Do oceny wyślij oba pliki `..._wyniki_<godz>.json` (albo wydruki): etykiety, przypadki testowe OK / BŁĄD,
+czasy, VRAM. Gdy `basal-serve --mode llamacpp` nie ruszy – wklej błąd; awaryjnie wariant A (`basal-export-gguf
+--systemone`, wtedy llama-server sam na porcie 8000 i bez okna 2).
