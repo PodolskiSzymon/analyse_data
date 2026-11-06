@@ -28,6 +28,7 @@
   szukaj <kategoria> [słowa...] [--max N]  najtańsze aktywne oferty z bazy, np. „szukaj ram ddr4 dimm 16 --max 200”
   auto [--force]                          automat (AI stanu nowych ofert, raport, wytyczne Snipera) - jak w watch
   photos [--limit N]                      archiwum zdjęć ofert (bez proxy) - jak w watch
+  photos-clean [--stan deleted] [--starsze-niz 14] [--tak]   usuwa zdjęcia usuniętych ofert (pyta o potwierdzenie)
   remote                                  pilot z telefonu (ntfy): start/stop watch i Snipera, status, logi (PILOT.md)
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
@@ -578,6 +579,14 @@ def main(argv=None):
     p_auto.add_argument("--force", action="store_true", help="teraz, nawet jeśli nie minęło ANALYZER_AUTO_DAYS")
     p_photos = sub.add_parser("photos", help="archiwum zdjęć ofert z CDN Vinted, bez proxy (watch robi to sam)")
     p_photos.add_argument("--limit", type=int, default=None)
+    p_pclean = sub.add_parser("photos-clean", help="usuwa zdjęcia ofert usuniętych (deleted) z archiwum - najpierw "
+                              "pokazuje ile GB i pyta o potwierdzenie")
+    p_pclean.add_argument("--stan", nargs="+", default=["deleted"],
+                          help="stany ofert (domyślnie deleted; np. deleted hidden). Sprzedanych (sold) nie podawaj, "
+                               "chyba że naprawdę chcesz je stracić")
+    p_pclean.add_argument("--starsze-niz", type=int, default=14, help="tylko oferty w tym stanie od tylu dni "
+                          "(domyślnie 14 - czasem „usunięta” wraca)")
+    p_pclean.add_argument("--tak", action="store_true", help="bez pytania (np. w harmonogramie)")
     sub.add_parser("remote", help="pilot z telefonu przez ntfy: start / stop / status watch i Snipera (PILOT.md)")
     p_sample = sub.add_parser("sample", help="próbka ofert z opisami do projektu ekstrakcji -> data/sample_*.jsonl")
     p_sample.add_argument("--per-category", type=int, default=150)
@@ -834,6 +843,27 @@ def main(argv=None):
         conn = db.connect(cfg.db_path)
         run_async(archive(cfg, conn, limit=args.limit))
         conn.close()
+        print(status_line(cfg))
+    elif args.command == "photos-clean":
+        from . import analysis
+        from .photos import clean_apply, clean_plan, photos_dir, status_line
+        root = photos_dir(cfg)
+        say = lambda text: print(text, flush=True)          # noqa: E731
+        print(status_line(cfg))
+        print(f"Szukam zdjęć ofert w stanie {', '.join(args.stan)} od ≥ {args.starsze_niz} dni ...", flush=True)
+        conn = analysis.open_ro(cfg.db_path)
+        plan, total = clean_plan(conn, root, tuple(args.stan), args.starsze_niz, progress=say)
+        conn.close()
+        print(f"Do usunięcia: {len(plan)} ofert, {total / 1e9:.1f} GB")
+        if not plan:
+            return
+        if "sold" in args.stan:
+            print("UWAGA: w stanach jest 'sold' - stracisz zdjęcia sprzedanych ofert.")
+        if not args.tak and input("Wpisz TAK, żeby usunąć: ").strip().upper() != "TAK":
+            print("Nic nie usunięto.")
+            return
+        done, freed = clean_apply(root, plan, progress=say)
+        print(f"Usunięto zdjęcia {done} ofert, zwolniono {freed / 1e9:.1f} GB.")
         print(status_line(cfg))
     elif args.command == "remote":
         from . import remote

@@ -1405,3 +1405,35 @@ def test_basal_poc_request_and_results(monkeypatch):
     assert summary["vram_mb"]["karta"] == "NVIDIA GeForce 920M" and summary["przypadki_testowe"]
     assert any("-> s23_fe -> 91%" in line for line in out)
     assert basal_poc.rule_label({"title": "Etui do Samsung S23", "description": ""}) == "akcesorium"
+
+
+def test_photos_clean_only_old_deleted(tmp_path):
+    """photos-clean (07.11): usuwa tylko zdjęcia ofert deleted od ≥ N dni; sprzedane, aktywne i świeżo usunięte
+    zostają; wpis w index.db znika (oferta, która wróci, dostanie zdjęcia od nowa)."""
+    import sqlite3
+    from datetime import datetime, timezone
+    from analyzer import photos
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE listings (id INTEGER PRIMARY KEY, state TEXT, state_at TEXT)")
+    now = datetime(2026, 11, 7, tzinfo=timezone.utc)
+    rows = [(1, "deleted", "2026-10-01T00:00:00.000+00:00"), (2, "deleted", "2026-11-05T00:00:00.000+00:00"),
+            (3, "sold", "2026-10-01T00:00:00.000+00:00"), (4, "active", "2026-10-01T00:00:00.000+00:00"),
+            (5, "deleted", "2026-10-02T00:00:00.000+00:00")]          # 5 bez folderu
+    conn.executemany("INSERT INTO listings VALUES (?, ?, ?)", rows)
+    root = tmp_path / "photos"
+    index = photos.open_index(root)
+    for listing_id in (1, 2, 3, 4):
+        folder = photos.listing_dir(root, listing_id)
+        folder.mkdir(parents=True)
+        (folder / "01.jpg").write_bytes(b"x" * 1000)
+        (folder / "02.jpg").write_bytes(b"x" * 500)
+        index.execute("INSERT INTO photos VALUES (?, 'sidebar', 2, 2, 1500, '', NULL)", (listing_id,))
+    index.commit()
+    index.close()
+    plan, total = photos.clean_plan(conn, root, older_days=14, now=now)
+    assert plan == [(1, 1500)] and total == 1500
+    assert photos.clean_apply(root, plan) == (1, 1500)
+    assert not photos.listing_dir(root, 1).exists()
+    assert all(photos.listing_dir(root, i).exists() for i in (2, 3, 4))
+    left = {r[0] for r in sqlite3.connect(root / "index.db").execute("SELECT listing_id FROM photos")}
+    assert left == {2, 3, 4}

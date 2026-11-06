@@ -177,3 +177,60 @@ def status_line(cfg):
     n, photos, size = index.execute("SELECT COUNT(*), SUM(n_saved), SUM(bytes) FROM photos").fetchone()
     index.close()
     return f"Archiwum zdjęć: {n} ofert, {photos or 0} zdjęć, {(size or 0) / 1e9:.1f} GB ({root})"
+
+
+# ---------------------------------------------------------------------------------------------- sprzątanie
+# 2026-11-07 (prośba użytkownika): archiwum zdjęć urosło do ~280 GB z 476 GB dysku. Zdjęcia ofert USUNIĘTYCH
+# (deleted ≠ sprzedaż) najmniej potrzebne; sprzedane zostają (jak wyglądał przedmiot sprzedany za daną cenę).
+CLEAN_STATES = ("deleted",)
+
+
+def clean_plan(conn, root, states=CLEAN_STATES, older_days=14, now=None, progress=None):
+    """Oferty w `states` od co najmniej `older_days` dni, które mają folder ze zdjęciami → (lista (id, bajty),
+    razem bajtów). Tylko liczy - nic nie usuwa."""
+    from datetime import timedelta
+    say = progress or (lambda _t: None)
+    now = now or datetime.now(timezone.utc)
+    cutoff = (now - timedelta(days=older_days)).isoformat(timespec="milliseconds")
+    root = Path(root)
+    sql = f"""SELECT id FROM listings WHERE state IN ({",".join("?" * len(states))})
+              AND state_at IS NOT NULL AND state_at < ?"""
+    plan, total, seen = [], 0, 0
+    for (listing_id,) in conn.execute(sql, (*states, cutoff)):
+        seen += 1
+        if seen % 20000 == 0:
+            say(f"  sprawdzono {seen} ofert, do usunięcia {len(plan)} ({total / 1e9:.1f} GB)...")
+        folder = listing_dir(root, listing_id)
+        if not folder.is_dir():
+            continue
+        size = sum(p.stat().st_size for p in folder.iterdir() if p.is_file())
+        plan.append((listing_id, size))
+        total += size
+    return plan, total
+
+
+def clean_apply(root, plan, progress=None):
+    """Usuwa foldery z planu i ich wpisy w index.db (oferta, która wróci jako aktywna, dostanie zdjęcia od nowa).
+    → (usuniętych ofert, zwolnionych bajtów)."""
+    import shutil
+    say = progress or (lambda _t: None)
+    root = Path(root)
+    index = open_index(root)
+    done, freed, batch = 0, 0, []
+    try:
+        for listing_id, size in plan:
+            shutil.rmtree(listing_dir(root, listing_id), ignore_errors=True)
+            done += 1
+            freed += size
+            batch.append((listing_id,))
+            if len(batch) >= 2000:
+                with index:
+                    index.executemany("DELETE FROM photos WHERE listing_id = ?", batch)
+                batch = []
+                say(f"  usunięto {done}/{len(plan)} ofert, zwolniono {freed / 1e9:.1f} GB...")
+        if batch:
+            with index:
+                index.executemany("DELETE FROM photos WHERE listing_id = ?", batch)
+    finally:
+        index.close()
+    return done, freed
