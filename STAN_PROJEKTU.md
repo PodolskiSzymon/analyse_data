@@ -13,7 +13,7 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (269), w `unreachable_sniper`
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (270), w `unreachable_sniper`
    `python -m pytest sniper/tests -q` (286 + 1 pominięty). Oba przed każdym pushem.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
@@ -139,6 +139,10 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
   Gemini 3.8 Flash $0,75 / $3,75 (od 2027 r. $1,50 / $7,50); Sniper i analizator obsługują Anthropic. Do sprawdzenia
   benchem (`--warianty haiku55,haiku55_low --ref zapisane`) przed przełączeniem; opcja hybrydy: szybki etap na Haiku
   (`SNIPER_AI_QUICK_PROVIDER/_MODEL`), pełna ocena okazji na Gemini.
+* **Proxy w watch (07.11):** `analyzer/proxy_health.py` - licznik błędów połączenia z rzędu na całej sesji
+  (katalog, szczegóły, resolver, odświeżanie sesji); ntfy „Analyzer: proxy nie działa” po
+  `ANALYZER_PROXY_ALERT_AFTER` (20, przy 407 po 3), przypomnienie co 6 h, „proxy znów działa” po pierwszej odpowiedzi.
+  Watch nie wysyła ruchu bez proxy (`require_proxy_url`, brak obejścia przy awarii).
 * **Miejsce na dysku (07.11, WizTree u użytkownika):** archiwum zdjęć `data\photos` = 278,8 GB z 345 GB zajętych
   (476 GB dysk). Nowa komenda `python -m analyzer photos-clean [--stan deleted] [--starsze-niz 14] [--tak]` -
   usuwa zdjęcia ofert usuniętych od ≥ N dni (+ wpis w `photos/index.db`), najpierw pokazuje GB i pyta; sprzedane

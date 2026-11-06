@@ -220,4 +220,6 @@ def build_session():
         state_file=Path(scout.log_dir) / "session.json" if scout.log_dir else None,
     )
     session.load_state(scout.session_max_age_min * 60)
-    return session
+    # Powiadomienie ntfy, gdy proxy padnie (ANALYZER_PROXY_ALERT_AFTER błędów z rzędu, przy 407 po 3) - 07.11.
+    from .proxy_health import ProxyHealth
+    return ProxyHealth().attach(session)

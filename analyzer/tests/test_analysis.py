@@ -1459,3 +1459,50 @@ def test_photos_clean_unlisted_not_downloaded_again(tmp_path):
     assert index.execute("SELECT source FROM photos WHERE listing_id=7").fetchone()[0] == photos.CLEANED
     assert photos.candidates(conn, index) == []
     index.close()
+
+
+def test_proxy_health_alerts_once_and_on_recovery():
+    """Padnięte proxy (07.11): po N błędach z rzędu jedno ntfy, przy 407 po 3; odpowiedź HTTP zeruje licznik
+    i daje „proxy znów działa”; bez hasła z adresu proxy w treści."""
+    import asyncio
+    import httpx
+    from analyzer.proxy_health import ProxyHealth
+    from sniper.session import VintedSession
+    sent, answers = [], []
+
+    async def fake_send(title, lines, priority=3, tags=()):
+        sent.append((title, " ".join(lines)))
+
+    def handler(request):
+        if answers.pop(0):
+            return httpx.Response(404, json={})
+        raise httpx.ConnectError("proxy http://LOGIN:HASLO@proxy.example:823 nie odpowiada", request=request)
+
+    async def scenario():
+        session = VintedSession()
+        session.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        ProxyHealth(after=5, send=fake_send).attach(session)
+        answers.extend([False] * 7 + [True] + [False] * 2)
+        for _ in range(10):
+            try:
+                await session.client.get("https://www.vinted.pl/api/v2/items/1/details/sidebar")
+            except httpx.ConnectError:
+                pass
+        await session.close()
+        return session.proxy_health
+
+    health = asyncio.run(scenario())
+    assert [t for t, _ in sent] == ["Analyzer: proxy nie działa", "Analyzer: proxy znów działa"]
+    assert "HASLO" not in sent[0][1] and "***" in sent[0][1]
+    assert health.failures == 2                                      # po powrocie liczy od nowa, bez alarmu
+
+    sent.clear()
+
+    async def auth():
+        h = ProxyHealth(after=20, send=fake_send)
+        for _ in range(3):
+            await h.failed(httpx.ProxyError("407 Proxy Authentication Required"))
+        return h
+
+    asyncio.run(auth())
+    assert len(sent) == 1 and "407" in sent[0][1]

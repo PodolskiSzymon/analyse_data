@@ -223,3 +223,7 @@ SNIPER_DIR=C:\Users\szymo\unreachable_sniper
 ANALYZER_CONTROL_AUTOSTART=watch,sniper
 # Polecenie „wytyczne”: kopia na Dysk Google
 ANALYZER_GDRIVE_DIR=G:\Mój dysk\program
+# Pilnowanie proxy (watch, resolve, details...): ntfy po tylu błędach połączenia z rzędu (przy 407 - po 3),
+# przypomnienie co tyle godzin, gdy dalej nie działa; potem „proxy znów działa”
+ANALYZER_PROXY_ALERT_AFTER=20
+ANALYZER_PROXY_ALERT_REPEAT_H=6
