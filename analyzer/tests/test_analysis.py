@@ -1,4 +1,5 @@
 """Testy analizy danych (PLAN_ANALIZY.md, A2-A6) na atrapie rynku (fake_market) - bez sieci."""
+import json
 import pytest
 
 from analyzer import analysis
@@ -1373,3 +1374,34 @@ def test_guides_for_new_part_catalogs(market, tmp_path):
     assert {3601, 3602} <= catalogs and not catalogs & {3582, 3583, 3584, 3603, 3607}
     conn.close()
     aconn.close()
+
+
+def test_basal_poc_request_and_results(monkeypatch):
+    """Test basal (06.11): zapytanie /v1/systemone z etykietami rodziny + flagi; wynik = etykieta, pewność, czas."""
+    import httpx
+    from analyzer import basal_poc
+    seen = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        seen.append(body)
+        label = "s23_fe" if "FE" in body["state"] else "s23_base"
+        return httpx.Response(200, json={"answers": {
+            "etykieta": {"type": "choice", "choice": label, "confidence": 0.91, "probabilities": {label: 0.91}},
+            "uszkodzony": {"type": "noul", "noul": 0.04}, "akcesorium": {"type": "noul", "noul": 0.02}},
+            "usage": {"latency_ms": 120}})
+
+    monkeypatch.setattr(basal_poc, "vram_used", lambda: (900, 2048, "NVIDIA GeForce 920M"))
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    rows = [{"id": 1, "title": "Samsung Galaxy S23 FE 128GB", "description": "stan bdb", "price": 1100.0,
+             "condition": "Bardzo dobry", "hint": "FE"}]
+    out = []
+    results, summary = basal_poc.run_test(rows, url="http://basal", client=client, say=out.append)
+    q = seen[0]["questions"]
+    assert set(q["etykieta"]["criteria"]) >= {"s23_base", "s23_fe", "uszkodzony", "akcesorium"}
+    assert q["uszkodzony"]["type"] == "noul" and "Tytuł: Samsung Galaxy S23 FE" in seen[0]["state"]
+    assert results[0]["label"] == "s23_fe" and results[0]["rule"] == "s23_fe"
+    assert len(results) == 1 + len(basal_poc.FAMILIES["s23"]["tricky"])
+    assert summary["vram_mb"]["karta"] == "NVIDIA GeForce 920M" and summary["przypadki_testowe"]
+    assert any("-> s23_fe -> 91%" in line for line in out)
+    assert basal_poc.rule_label({"title": "Etui do Samsung S23", "description": ""}) == "akcesorium"

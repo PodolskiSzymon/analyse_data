@@ -38,6 +38,7 @@
 """
 import argparse
 import asyncio
+import json
 import logging
 import sqlite3
 from pathlib import Path
@@ -580,6 +581,16 @@ def main(argv=None):
     sub.add_parser("remote", help="pilot z telefonu przez ntfy: start / stop / status watch i Snipera (PILOT.md)")
     p_sample = sub.add_parser("sample", help="próbka ofert z opisami do projektu ekstrakcji -> data/sample_*.jsonl")
     p_sample.add_argument("--per-category", type=int, default=150)
+    p_bs = sub.add_parser("basal-sample", help="test basal, krok 2: oferty jednej rodziny (np. s23) z opisem -> "
+                          "data/basal/*.jsonl + wydruk (bez sieci)")
+    p_bs.add_argument("--rodzina", default="s23")
+    p_bs.add_argument("--limit", type=int, default=40)
+    p_bt = sub.add_parser("basal-test", help="test basal, krok 3: próbka -> lokalny basal (POST /v1/systemone) -> "
+                          "etykieta, pewność, czas, VRAM (BASAL_GPU.md)")
+    p_bt.add_argument("--plik", required=True, help="plik z basal-sample")
+    p_bt.add_argument("--rodzina", default="s23")
+    p_bt.add_argument("--url", default="http://127.0.0.1:8000", help="adres basal-serve / llama-server --systemone")
+    p_bt.add_argument("--bez-testowych", action="store_true", help="bez dopisanych przypadków z zaprzeczeniami")
     sub.add_parser("classify-report", help="klasyfikacja ofert z kategorii mieszanych - bez sieci")
     sub.add_parser("reclassify", help="ponowna klasyfikacja zapisanych ofert po poprawce reguł - bez sieci")
     p_ai = sub.add_parser("classify-ai", help="kategoria ze zdjęcia głównego (AI) dla ofert 'RAM + coś innego' w tytule")
@@ -827,6 +838,30 @@ def main(argv=None):
     elif args.command == "remote":
         from . import remote
         run_async(remote.main(cfg))
+    elif args.command == "basal-sample":
+        from . import analysis, basal_poc
+        print(f"Otwieram bazę {cfg.db_path} (tylko do odczytu) ...", flush=True)
+        conn = analysis.open_ro(cfg.db_path)
+        rows, counts = basal_poc.sample(conn, args.rodzina, args.limit)
+        conn.close()
+        basal_poc.print_sample(rows, counts)
+        path = basal_poc.save_sample(rows, args.rodzina, Path(cfg.db_path).parent)
+        print(f"\nZapisano {len(rows)} ofert -> {path}")
+        print(f"Krok 3: python -m analyzer basal-test --plik \"{path}\"")
+    elif args.command == "basal-test":
+        import httpx
+        from . import basal_poc
+        rows = [json.loads(line) for line in Path(args.plik).read_text(encoding="utf-8").splitlines() if line.strip()]
+        print(f"{len(rows)} ofert z {args.plik} -> basal {args.url}", flush=True)
+        try:
+            results, summary = basal_poc.run_test(rows, args.rodzina, args.url,
+                                                  with_tricky=not args.bez_testowych,
+                                                  say=lambda text: print(text, flush=True))
+        except httpx.HTTPError as exc:
+            print(f"Basal niedostępny pod {args.url}: {exc!r} - uruchom serwer (BASAL_GPU.md, krok 1).")
+            return
+        print("\n" + json.dumps(summary, ensure_ascii=False, indent=1))
+        print(f"Wyniki: {basal_poc.save_results(results, summary, args.plik)}")
     elif args.command == "sample":
         from .sample import export
         print(f"Otwieram bazę {cfg.db_path} ...", flush=True)

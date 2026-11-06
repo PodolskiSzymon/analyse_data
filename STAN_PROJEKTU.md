@@ -1,4 +1,4 @@
-# STAN PROJEKTU – punkt startowy nowej rozmowy (2026-11-03)
+# STAN PROJEKTU – punkt startowy nowej rozmowy (2026-11-06)
 
 > **„wykonaj md” = przeczytaj CAŁY ten plik i działaj wg §6–§7.** `CLAUDE.md` wczytuje się sam. Innych plików nie
 > czytaj na zapas – mapa w §9 mówi, co otworzyć przy danym temacie. Archiwum decyzji z liczbami: `HISTORIA.md`
@@ -13,7 +13,7 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (266), w `unreachable_sniper`
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (267), w `unreachable_sniper`
    `python -m pytest sniper/tests -q` (286 + 1 pominięty). Oba przed każdym pushem.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
@@ -164,6 +164,12 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
   $6,2/dobę (−63%, bez cache). Watch: AI stanu bez zdjęć ~$5 → ~$1 na automat; `classify-ai` znika (czyste katalogi).
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
+
+00. (06.11) **Basal 2.0 Mini na GeForce 920M** (plan użytkownika: regex → lokalny model decyzyjny → mediany; kroki
+   1–3 gotowe, `BASAL_GPU.md`, `analyzer/basal_poc.py`): wynik `llama-server --list-devices` (czy Vulkan widzi
+   920M; Ollama / CUDA 12 nie obsługują Keplera cc 3.5), `basal-export-gguf --help`, potem wydruk / plik wyników
+   `basal-test` (etykiety S23, przypadki z zaprzeczeniami, czas, VRAM). **Kroki 4–5 (regexy rodzin, kaskada) dopiero
+   po akceptacji wyników przez użytkownika.**
 
 0a. (01.11) Wybór modelu AI: wynik `python -m sniper.bench --warianty haiku55,haiku55_low --ref zapisane --bez-bramki
    --last 50` (klucz ANTHROPIC_API_KEY, ~$0,3) - czy Haiku 5.5 trafia jedyną prawdziwą okazję ze złotego zbioru bez

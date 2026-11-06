@@ -587,4 +587,12 @@ pushem; bez PR. Odpowiedzi: konkretnie, z komendami do wklejenia na serwerze (`g
   bez 5G → 493–499 zł. Zmiany opisane w STAN_PROJEKTU §5 („Mediany szczegółowe”). Pokrycie (próbka 250 używanych
   aktywnych na kategorię): bez mediany teraz telefony 28 (dawniej tylko ogólny poziom: 49), tablety 47 (67), konsole
   31 (62), karty 51 (107), RAM 20 (45), dyski 102 (90 - tanie, poniżej progu zysku).
+* **2026-11-06 – basal-2.0-mini jako „bramkarz” (plan użytkownika, kroki 1–3).** Dokumentacja rkinas/basal v2.5.5:
+  mini 1,5B (Bielik v3, Llama), GGUF Q8_0 / Q5_K_M (~1,1 GB), decyzje = prawdopodobieństwa podanych odpowiedzi
+  (`/v1/systemone`), nie tekst; uruchamianie przez basal-serve (`--mode llamacpp`) albo GGUF z metadanymi
+  (`basal-export-gguf --systemone`, llama-server). GeForce 920M = Kepler cc 3.5: Ollama (cc ≥ 5.0) i gotowe CUDA 12
+  odpadają → llama.cpp Vulkan (sterownik R470, Vulkan 1.2) - niesprawdzone. Baza to SQLite, nie PostgreSQL (plan
+  użytkownika zakładał PostgreSQL). Próbka S23 z kopii bazy: grupy FE 79, Plus 63, Ultra 208, akcesorium? 22,
+  podróbka? 4, uszkodzenie? 133, zaprzeczenie w opisie 182, zwykły 225; pułapka „S23 + tokok” („+” = z etui, nie
+  Plus). Hugging Face niedostępny ze środowiska Claude - testy tylko na atrapie serwera.
 
