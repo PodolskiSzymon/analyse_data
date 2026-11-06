@@ -40,3 +40,10 @@ python -m analyzer status
 ```
 
 Testy (u Ciebie, bez sieci): `python -m pytest analyzer/tests sniper/tests -q`.
+
+## human_client (2026-11-06, makieta)
+
+`human_client/` – osobny klient bez proxy: stały profil Chrome (Patchright/Playwright) tylko do rzadkiego
+odświeżania sesji (15–60 min albo 401/403), zapytania przez `curl_cffi` z odciskiem TLS Chrome i nagłówkami
+odczytanymi z przeglądarki, ludzkie tempo. Opis i instrukcja: `human_client/README.md`. Nie jest podłączony do
+`analyzer`. Tokeny/ciastka/profil w `.gitignore`.

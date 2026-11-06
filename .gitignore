@@ -19,3 +19,10 @@ data/
 *.db
 *.db-wal
 *.db-shm
+
+# human_client: tokeny, ciastka i profil przeglądarki - NIGDY do repo
+human_client/secrets.json
+human_client/config.json
+human_client/state.json
+human_client/profile/
+human_client/out/

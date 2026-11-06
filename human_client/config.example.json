@@ -1,0 +1,22 @@
+{
+  "browser": {
+    "channel": "chrome",
+    "executable_path": "",
+    "profile_dir": "human_client/profile",
+    "headless": false,
+    "keep_open": false,
+    "warmup_url": "https://www.vinted.pl/catalog/3580"
+  },
+  "refresh_minutes": [15, 60],
+  "pacing": {
+    "gap_s": [2.0, 6.0],
+    "read_chance": 0.15,
+    "read_s": [8.0, 25.0],
+    "break_every_min": [25, 35],
+    "break_s": [60, 240],
+    "active_hours": [8, 23],
+    "max_requests_per_session": 300
+  },
+  "http": {"impersonate": "chrome", "timeout_s": 30},
+  "job": {"catalog_id": 3580, "pages": 3, "per_page": 96, "order": "newest_first"}
+}
