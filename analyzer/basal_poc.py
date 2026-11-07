@@ -135,9 +135,11 @@ def rules_ddr4(text):
     mhz = labels.pop() if len(labels) == 1 else (UNKNOWN if not labels else "sprzeczne")
     t = re.sub(r"(?:not for|nie do|nie dla|nie pasuje do|nie nadaje si[eę] do)\s+(?:\w+\s+)?(?:laptop|notebook)\w*",
                " ", t)                                                    # „Not for laptops” ≠ laptop
+    if re.search(r"\b(?:u-?dimm|desktop)\b", t):                        # „desktop … not for laptops (SO-DIMM)”
+        t = re.sub(r"so-?\s?dimm", " ", t)
     forma = ("laptop" if re.search(r"so-?\s?dimm|laptop|notebook|\bpc[345]l?-\d{4,5}[a-z]{0,2}-s|\bpc3l?-\d{4,5}s\b",
                                    t) else
-             "serwer" if re.search(r"\becc\b|rdimm|registered|\breg\b", t) else
+             "serwer" if re.search(r"(?<!non-)(?<!non )\becc\b|rdimm|(?<!un)registered|\breg\b", t) else
              "pc" if re.search(r"\b(?:u-?)?dimm\b|desktop|stacjonar|\bpc[345]l?-\d{4,5}[a-z]{0,2}-u|"
                                r"\bpc3l?-\d{4,5}u\b", t) else UNKNOWN)
     return {"typ": typ, "mhz": mhz, "forma": forma, "sztuk": rule_quantity({"title": text, "description": ""})}
@@ -180,13 +182,15 @@ def rules_i5(text):
 
 def rules_s23(text):
     t = text.lower()
-    if re.search(r"\b(etui|case|husa|szk[lł]o|folia)\b", t) and not re.search(r"\d{2,3}\s*gb", t):
+    title = t.split("\n", 1)[0]       # akcesorium tylko z tytułu (07.11: „etui gratis” w opisie ≠ akcesorium)
+    if re.search(r"\b(etui|case|husa|szk[lł]o|folia)\b", title) and not re.search(r"\d{2,3}\s*gb|telefon|smartfon",
+                                                                                 title):
         return {"etykieta": "akcesorium"}
     if re.search(r"\bfe\b|s23\s?fe", t):
         return {"etykieta": "s23_fe"}
     if "ultra" in t:
         return {"etykieta": "s23_ultra"}
-    if re.search(r"plus|s23\s?\+", t):
+    if re.search(r"s\s?23\s?(?:plus|\+(?!\s*[a-ząćęłńóśźż]))", t):     # „S23 + etui” ≠ S23+
         return {"etykieta": "s23_plus"}
     return {"etykieta": "s23_base"}
 

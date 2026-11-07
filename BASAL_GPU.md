@@ -222,6 +222,14 @@ nie obejmowała 17 z 30 ofert (6500, 7400, 3570, 11500, 14500...) - rozszerzona 
 słabo (pewność zwykle < 50%, często „K” bez powodu) - opis pytania z przykładami; błędy pewne: „sam wiatrak” jako
 sprawny procesor, procesor + płyta jako sprawna (nie zestaw) - opisy stanu poprawione.
 
+**Mini po poprawkach testu (07.11, 14:38):** karta pracuje (Menedżer zadań „Cuda” 94–96%, VRAM 1,7 GB), 46–122 ofert
+na minutę. Pewne (≥ 70%) odpowiedzi: model karty / dysku / procesora, VRAM, pojemność, typ RAM, wersja S23 -
+praktycznie zawsze trafne (np. NVMe model 25/25, pojemność 25/25, typ RAM 19/19, VRAM 20/20 i 16/16, i5 model
+24/26 - dwie „niezgodności” to listy procesorów, gdzie myliła się reguła; S23 20/22). Słabe: taktowanie RAM (DDR2
+800 / 1066 i kody PC3 → „nie wiadomo” z wysoką pewnością), końcówka i5 (nigdy ≥ 70%), liczba sztuk („Ventus”,
+„x2 cena za sztukę” → 2). Reguły porównawcze poprawione (S23: „etui gratis” w opisie ≠ akcesorium, „S23 + zegarek” ≠
+Plus; RAM: „non-ECC” ≠ serwer, „desktop … not for laptops (SO-DIMM)” = PC).
+
 **Wykorzystanie GPU:** Menedżer zadań domyślnie pokazuje wykres „3D”, a llama.cpp liczy na „Cuda” - wtedy widać
 ~0–2%. Sprawdzenie w czasie testu: `"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe" --query-gpu=utilization.gpu,memory.used --format=csv -l 1`
 (albo w Menedżerze kliknąć nazwę małego wykresu i wybrać „Cuda” / „Compute_0”). Karta pracuje zrywami (ułamek

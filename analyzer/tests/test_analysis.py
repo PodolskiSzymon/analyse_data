@@ -1546,6 +1546,12 @@ def test_basal_rules_and_signals():
                   "Gigabyte WINDFORCE 3X", "SK Hynix 8GB DDR4 1Rx8", "Wentylator 3x fan 120x120mm"):
         assert rule_quantity({"title": title}) == "1", title
     assert rule_quantity({"title": "RAM DDR4 16GB 2x8"}) == "2" and rule_quantity({"title": "4 sztuki (2x2GB)"}) == "4"
+    assert rules_ddr4("Kingston DDR3L desktop RAM\n240-pin UDIMM, non-ECC. Not for laptops (they need SO-DIMM)")["forma"] \
+        == "pc"
+    from analyzer.basal_poc import rules_s23
+    assert rules_s23("Samsung Galaxy S23\nW zestawie etui i szkło.")["etykieta"] == "s23_base"
+    assert rules_s23("Samsung s23 + zegarek")["etykieta"] == "s23_base" and rules_s23("Samsung S23+ 256GB")["etykieta"] \
+        == "s23_plus"
 
 
 def test_basal_sample_line_breaks(tmp_path):
