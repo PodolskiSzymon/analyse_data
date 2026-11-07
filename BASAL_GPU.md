@@ -187,7 +187,7 @@ python -m analyzer basal-sample --rodzina karty --limit 30
 python -m analyzer basal-sample --rodzina procesory --limit 30
 python -m analyzer basal-test --rodzina ram --plik C:\basal\ram.jsonl
 ```
-(`--rodzina` przy `basal-test` musi być ta sama co przy próbce.) Dodatkowe pytania: **ile sztuk za podaną cenę**
+(`--rodzina` przy `basal-test` musi być ta sama co przy próbce.) Od 07.11 `basal-sample` bierze **trudne przypadki językowe**: zaprzeczenia („bez artefaktów”), cena za sztukę, zestawy, część / pudełko / adapter zamiast rzeczy, zamiana / kupię, kopanie krypto, „lub / chyba”, inny model w opisie niż w tytule, opis po obcemu - w nawiasie przy ofercie lista pułapek. Dawne losowanie: `--zwykle`. Dodatkowe pytania: **ile sztuk za podaną cenę**
 (1 / 2 / 3 / 4 / 5+ / nie wiadomo; „2x8 GB” = 2, „cena za sztukę, mam 4” = 1) i **czy cena jest za jedną sztukę
 z kilku**. Wydruk: `-> etykieta -> pewność | sztuk: N (pewność)`, przy ofertach z bazy `sztuk ≠ reguły: N`
 (porównanie z prostymi regułami), przy przypadkach testowych `sztuk OK / BŁĄD`. Karty mają w testach dwie prawdziwe

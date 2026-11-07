@@ -594,6 +594,8 @@ def main(argv=None):
                           "data/basal/*.jsonl + wydruk (bez sieci)")
     p_bs.add_argument("--rodzina", default="s23", choices=("s23", "ram", "dyski", "karty", "procesory"))
     p_bs.add_argument("--limit", type=int, default=40)
+    p_bs.add_argument("--zwykle", action="store_true", help="dawne losowanie warstwowe zamiast trudnych przypadków "
+                      "językowych (zaprzeczenia, cena za sztukę, zestawy, inny model w opisie, obcy język...)")
     p_bt = sub.add_parser("basal-test", help="test basal, krok 3: próbka -> lokalny basal (POST /v1/systemone) -> "
                           "etykieta, pewność, czas, VRAM (BASAL_GPU.md)")
     p_bt.add_argument("--plik", required=True, help="plik z basal-sample")
@@ -886,7 +888,7 @@ def main(argv=None):
         from . import analysis, basal_poc
         print(f"Otwieram bazę {cfg.db_path} (tylko do odczytu) ...", flush=True)
         conn = analysis.open_ro(cfg.db_path)
-        rows, counts = basal_poc.sample(conn, args.rodzina, args.limit)
+        rows, counts = basal_poc.sample(conn, args.rodzina, args.limit, hard=not args.zwykle)
         conn.close()
         basal_poc.print_sample(rows, counts)
         path = basal_poc.save_sample(rows, args.rodzina, Path(cfg.db_path).parent)

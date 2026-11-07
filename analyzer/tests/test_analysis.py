@@ -1539,3 +1539,15 @@ def test_basal_poc_parts_quantity():
     assert rq({"title": "4x4GB DDR3", "description": ""}) == "4"
     assert rq({"title": "RX 580", "description": "Dwie karty"}) == "2"
     assert set(basal_poc.FAMILIES) == {"s23", "ram", "dyski", "karty", "procesory"}
+
+
+def test_basal_language_signals():
+    """Trudne próbki (07.11): pułapki językowe zamiast losowych ofert."""
+    from analyzer.basal_poc import language_signals
+    assert "zaprzeczenie uszkodzenia" in language_signals("RX 570 8GB", "W pełni sprawna, bez artefaktów.", "karty")
+    assert "cena za sztukę" in language_signals("RAM DDR4 8GB", "Mam 4, cena za sztukę.", "ram")
+    assert "inny model / typ w opisie niż w tytule" in language_signals("GTX 970", "Wydajność jak GTX 1060.", "karty")
+    assert "opis po obcemu" in language_signals("RX 480 8gb", "Se vinde placa din imagini, a fost folosita foarte "
+                                                "putin, sigiliile sunt intacte.", "karty")
+    assert "uszkodzenie / niepewny stan" not in language_signals("Samsung S23", "Smartfon w stanie idealnym.", "s23")
+    assert language_signals("Samsung S23 128GB", "Sprzedam telefon, stan bardzo dobry.", "s23") == []

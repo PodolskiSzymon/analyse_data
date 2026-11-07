@@ -203,31 +203,93 @@ def _hint(title, description, family="s23"):
     return "zwykły"
 
 
-def sample(conn, family="s23", limit=40, seed=7):
-    """Oferty rodziny z opisem (tytuł + opis + cena + stan) - losowanie warstwowe po grupach z `_hint`.
-    → lista słowników."""
+# Trudne przypadki językowe (07.11, użytkownik: „zbyt ogólne próbki, daj takie, gdzie mogą być błędy przez naturalny
+# język”). Każdy sygnał to osobna pułapka dla prostych reguł; oferta może mieć kilka (wyżej w kolejce).
+_DAMAGE = (r"uszkodz|nie dzia|niedzia|na cz[eę][sś]ci|artefakt|brak obrazu|czarny ekran|czerwony ekran|bad ?sector|"
+           r"smart\W{0,3}(?:\d|status|b[lł][eę]d|error|warn|ostrze)|wygi[eę]t|nie wykrywa|nie odpala|nie w[lł][aą]cza|nie startuje|zbit|p[eę]kni|broken|defekt|"
+           r"faulty|not working|for parts|ремонт|сломан|nefunk|nem m[uű]k|nu func")
+SIGNALS = {
+    "zaprzeczenie uszkodzenia": re.compile(
+        r"\b(?:nie|bez|brak|[zż]adn\w*|zero|no|not|nicht|nem|fara|nie by[lł]\w*)\W+(?:\w+\W+){0,3}?"
+        r"(?:uszkodz|artefakt|wad|problem|b[lł][eę]d|rys|p[eę]kni|zbit|kopan|koparc|damage|issue)", re.I),
+    "uszkodzenie / niepewny stan": re.compile(_DAMAGE + r"|nie testowan|nietestowan|niesprawdzon|nie sprawdzan|"
+                                              r"stan nieznany|jak jest|as is|bez gwarancji dzia", re.I),
+    "cena za sztukę": re.compile(r"za sztuk|za szt\b|za szt\.|za jedn|cena za 1|za ko[sś][cć]|za dysk\b|za kart[eę]|"
+                                 r"per piece|each\b|za kus|darab", re.I),
+    "kilka sztuk / zestaw": re.compile(r"\d\s*[x×]\s*\d|\b[x×]\s*\d\b|\d\s*[x×]\b|\b\d+\s*szt|komplet|\bkit\b|"
+                                       r"\bdwie\b|\bdwa\b|\btrzy\b|\bcztery\b|\bpi[eę][cć]\b|\bpar[ay]\b|zestaw", re.I),
+    "część / akcesorium / pudełko": re.compile(r"radiator|heatsink|ch[lł]odzeni|wentylator|backplate|obudow|kiesze[nń]|"
+                                              r"adapter|riser|pude[lł]k|\bbox\b|bez karty|bez dysku|bez procesora|"
+                                              r"sam[aoy]?\s+(?:radiator|ch[lł]odzenie|pude[lł]ko|obudowa|p[lł]yta)", re.I),
+    "zamiana / kupię": re.compile(r"zamian|zamieni|wymieni[eę]|kupi[eę]|szukam|swap|\bwtb\b|\bkaufe\b", re.I),
+    "kopanie krypto": re.compile(r"kopa[lł]|kopani|koparka|mining|minin|crypto|kryptow|ethereum|\beth\b", re.I),
+    "warunki / „lub”": re.compile(r"\b(?:lub|albo|ewentualnie|mo[zż]liwe [zż]e|chyba|prawdopodobnie|maybe|not sure)\b",
+                                  re.I),
+}
+_MODEL_CODE = {
+    "karty": re.compile(r"\b(?:rtx|gtx|gt|rx|hd)\s?-?(\d{3,4})\b", re.I),
+    "ram": re.compile(r"\b(ddr[2345])\b", re.I),
+    "procesory": re.compile(r"\b(i[3579])\s?-?\s?\d{4,5}|\bryzen\s?([3579])\b", re.I),
+    "dyski": re.compile(r"\b(\d{3,4})\s?(?:gb|tb)\b", re.I),
+    "s23": re.compile(r"\bs\s?(2[0-9])\b", re.I),
+}
+_POLISH = re.compile(r"\b(?:jest|nie|się|sie|bardzo|stan|sprzedam|karta|dysk|pami[eę][cć]|procesor|telefon|dzia[lł]a)\b",
+                     re.I)
+
+
+def language_signals(title, description, family):
+    """Lista pułapek językowych oferty (nazwy z SIGNALS + „inny model / typ w opisie”, „opis po obcemu”)."""
+    text = f"{title or ''}\n{description or ''}"
+    found = [name for name, pattern in SIGNALS.items() if pattern.search(text)]
+    code = _MODEL_CODE.get(family)
+    if code and description:
+        in_title = {"".join(g for g in m.groups() if g).lower() for m in code.finditer(title or "")}
+        in_desc = {"".join(g for g in m.groups() if g).lower() for m in code.finditer(description)}
+        if in_title and in_desc - in_title:
+            found.append("inny model / typ w opisie niż w tytule")
+    if description and len(description) > 40 and not _POLISH.search(description):
+        found.append("opis po obcemu")
+    return found
+
+
+def sample(conn, family="s23", limit=40, seed=7, hard=True):
+    """Oferty rodziny z opisem (tytuł + opis + cena + stan) → lista słowników.
+    hard=True (domyślnie, 07.11): tylko oferty z pułapkami językowymi (`language_signals`), po kolei z każdego rodzaju
+    pułapki, najpierw te z największą liczbą pułapek naraz; hard=False - dawne losowanie warstwowe (`_hint`)."""
     fam = FAMILIES[family]
     sql = """SELECT l.id, l.title, l.price_now, l.sold_price, l.state, l.status_label, d.description
              FROM listings l JOIN details d ON d.listing_id = l.id
              WHERE l.category = ? AND d.description IS NOT NULL"""
-    groups = {}
+    groups, signals_of = {}, {}
     for r in conn.execute(sql, (fam["category"],)):
         if fam["title"] is not None and not fam["title"].search(r[1] or ""):
             continue
-        groups.setdefault(_hint(r[1], r[6], family), []).append(r)
+        if hard:
+            found = language_signals(r[1], r[6], family)
+            if not found:
+                continue
+            signals_of[r[0]] = found
+            for name in found:
+                groups.setdefault(name, []).append(r)
+        else:
+            groups.setdefault(_hint(r[1], r[6], family), []).append(r)
     rnd = random.Random(seed)
     for rows in groups.values():
         rnd.shuffle(rows)
-    picked, i = [], 0
+        if hard:                                  # najpierw oferty z kilkoma pułapkami naraz
+            rows.sort(key=lambda r: -len(signals_of[r[0]]))
+    picked, seen, i = [], set(), 0
     while len(picked) < limit and any(i < len(g) for g in groups.values()):
         for name in sorted(groups):
-            if i < len(groups[name]) and len(picked) < limit:
+            if i < len(groups[name]) and len(picked) < limit and groups[name][i][0] not in seen:
+                seen.add(groups[name][i][0])
                 picked.append((name, groups[name][i]))
         i += 1
     out = []
     for name, r in picked:
         price = r[3] if r[4] == "sold" and r[3] else r[2]
-        out.append({"id": r[0], "title": r[1], "price": price, "state": r[4], "condition": r[5], "hint": name,
+        hint = " + ".join(signals_of[r[0]]) if hard else name
+        out.append({"id": r[0], "title": r[1], "price": price, "state": r[4], "condition": r[5], "hint": hint,
                     "description": redact((r[6] or "")[:DESCRIPTION_CHARS])})
     return out, {k: len(v) for k, v in groups.items()}
 
