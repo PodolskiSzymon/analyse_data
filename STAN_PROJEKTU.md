@@ -13,7 +13,7 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (272), w `unreachable_sniper`
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (276), w `unreachable_sniper`
    `python -m pytest sniper/tests -q` (286 + 1 pominięty). Oba przed każdym pushem.
 
 ## Jak odpowiadać użytkownikowi (preferencje – ważne, sprawdzone w rozmowach)
@@ -224,12 +224,12 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
-00. (07.11) **Wyniki testu basala na PC z GTX 1060** (`BASAL_GPU.md`, rodziny `s23 gtx1060 rtx3060 ddr4 nvme
-   i5`). Mini przyszło dla 5 rodzin (s23 wywalił się na U+2028 - naprawione): ocena w `BASAL_GPU.md` §F. Po
-   poprawkach testu (ceny w przypadkach testowych, typy RAM DDR2–DDR5, 990 EVO Plus, i5 2.–14. gen., liczba sztuk
-   bez „PCIe x4” / „Ventus 2X”, „pewność ≥ 70%”, `--rownolegle`, `--etykieta`, rodzina z nazwy pliku) czekamy na:
-   wyniki `*_wyniki_mini_*` i `*_wyniki_45b_*` dla 6 rodzin (te same próbki `D:\basal\*.jsonl` na PC; kod na
-   pendrive `D:\analyse_data` trzeba odświeżyć z laptopa). Kroki 4–5 dopiero po akceptacji wyników.
+00. (07.11) **Basal v2 - test całego rynku** (`BASAL_RODZINY.md`, `BASAL_GPU.md` §G / §H): 173 rodziny
+   (telefony 58, laptopy 33, konsole 22, karty 17, tablety 13, płyty 8, RAM 7, dyski 7, procesory 7, zestawy 1),
+   próbki 24 / rodzinę z bazy 07.11 + 1083 przypadki testowe. Czekamy na wyniki 4.5B Q5_K_M z GTX 1060 (folder
+   `D:\basal\v2` z `*_wyniki_45b_*.json` i `raport_45b.txt` na Dysku). Potem: poprawki instrukcji (pytań) wg pewnych
+   błędów, docelowo serwer z kartą 8 GB i 4.5B Q8_0. Wcześniej (mini / 4.5B, 6 rodzin v1): 4.5B lepszy w
+   taktowaniu RAM, końcówkach i5, liczbie sztuk; mini szybszy (BASAL_GPU.md §F). Kroki 4–5 dopiero po akceptacji.
 
 0a. (01.11) Wybór modelu AI: wynik `python -m sniper.bench --warianty haiku55,haiku55_low --ref zapisane --bez-bramki
    --last 50` (klucz ANTHROPIC_API_KEY, ~$0,3) - czy Haiku 5.5 trafia jedyną prawdziwą okazję ze złotego zbioru bez

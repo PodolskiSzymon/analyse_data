@@ -245,3 +245,60 @@ sekundy na ofertę), resztę czasu zajmują basal-serve (Python) i kolejne zapyt
 Do oceny wyślij oba pliki `..._wyniki_<godz>.json` (albo wydruki): etykiety, przypadki testowe OK / BŁĄD,
 czasy, VRAM. Gdy `basal-serve --mode llamacpp` nie ruszy – wklej błąd; awaryjnie wariant A (`basal-export-gguf
 --systemone`, wtedy llama-server sam na porcie 8000 i bez okna 2).
+
+# G. Rodziny v2 – test całego rynku na PC z GTX 1060 6 GB (4.5B Q5_K_M)
+
+173 rodziny (telefony, tablety, konsole, laptopy, zestawy, karty, RAM, dyski, procesory, płyty) – opis:
+`BASAL_RODZINY.md`. Na każdą rodzinę osobny plik próbki (24 oferty + 4–7 przypadków testowych), razem ~5200
+zapytań. Na GTX 1060 z 4.5B Q5_K_M to kilka godzin (2–6 s na ofertę zależnie od liczby pytań) – test zapisuje
+wyniki po każdej rodzinie i wznawia się tą samą komendą (`--pomin-gotowe`).
+
+Próbki: gotowy ZIP od Claude (kod `analyzer` + `basal\v2\*.jsonl`) albo na laptopie (tam jest baza, ~15–40 min):
+```
+python -m analyzer basal-sample --wszystkie --limit 24 --katalog D:\basal\v2
+```
+
+Okno 1 (model 4.5B na karcie, dwa sloty po 4096 tokenów):
+```
+C:\llama-cuda\llama-server.exe -m C:\basal-models\4.5b\basal-2.0-4.5B-Q5_K_M.gguf --host 127.0.0.1 --port 8080 -ngl 99 -c 8192 -np 2
+```
+Okno 2 (`C:\basal-env\Scripts\activate`):
+```
+basal-serve --model Remek/basal-2.0-4.5B --mode llamacpp --llamacpp-url http://127.0.0.1:8080 --http-parallel 2 --template-prefix off --host 127.0.0.1 --port 8000
+```
+Okno 3 (`C:\basal-env\Scripts\activate`, `cd /d D:\analyse_data`):
+```
+python -m analyzer basal-test --katalog D:\basal\v2 --etykieta 45b --pomin-gotowe --rownolegle 2
+python -m analyzer basal-raport --katalog D:\basal\v2 --etykieta 45b
+```
+Wyniki: `D:\basal\v2\<rodzina>_<data>_wyniki_45b_<godz>.json` + `raport_45b.txt / .json` – cały folder na Dysk.
+Gdy `--rownolegle 2` da błędy albo brak VRAM: okno 1 bez `-np 2` (i `-c 4096`), okno 2 `--http-parallel 1`,
+okno 3 bez `--rownolegle`.
+
+# H. Serwer docelowy – karta 8 GB, basal 4.5B Q8_0 (plan, do sprawdzenia na serwerze)
+
+Q8_0 (~4,8 GB) zamiast Q5_K_M (~3,3 GB): minimalnie wierniejszy oryginałowi, mieści się w 8 GB razem z dwoma
+slotami (szacunek: wagi 4,8 GB + kontekst 2 × 4096 + bufory ≈ 6–6,5 GB). Na 6 GB (GTX 1060) - nie.
+```
+hf download Remek/basal-2.0-4.5B-GGUF --include "*Q8_0*" --local-dir C:\basal-models\4.5b
+```
+Windows: jak §G, tylko plik `basal-2.0-4.5B-Q8_0.gguf` i etykieta `45b_q8`.
+
+Linux (Ubuntu 24.04, plan przeprowadzki serwera): llama.cpp ze źródeł - NVIDIA: sterownik + `nvidia-cuda-toolkit`,
+`-DGGML_CUDA=ON`; AMD / Intel (np. RX 570 / 580 8 GB): `libvulkan-dev glslc mesa-vulkan-drivers`, `-DGGML_VULKAN=ON`.
+```
+sudo apt install -y build-essential cmake git python3-venv
+git clone https://github.com/ggml-org/llama.cpp ~/llama.cpp
+cmake -S ~/llama.cpp -B ~/llama.cpp/build -DGGML_CUDA=ON
+cmake --build ~/llama.cpp/build --config Release -j
+python3 -m venv ~/basal-env
+~/basal-env/bin/pip install -U huggingface_hub
+~/basal-env/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
+~/basal-env/bin/pip install "basal @ https://github.com/rkinas/basal/archive/refs/tags/v2.5.5.tar.gz"
+~/basal-env/bin/hf download Remek/basal-2.0-4.5B-GGUF --include "*Q8_0*" --local-dir ~/basal-models/4.5b
+~/llama.cpp/build/bin/llama-server -m ~/basal-models/4.5b/basal-2.0-4.5B-Q8_0.gguf --host 127.0.0.1 --port 8080 -ngl 99 -c 8192 -np 2
+~/basal-env/bin/basal-serve --model Remek/basal-2.0-4.5B --mode llamacpp --llamacpp-url http://127.0.0.1:8080 --http-parallel 2 --template-prefix off --host 127.0.0.1 --port 8000
+```
+Na stałe: dwie usługi systemd (`basal-llama` i `basal-serve`, `Restart=always`, druga `After=basal-llama.service`) -
+do napisania przy przeprowadzce. Bramkarz w Sniperze (kroki 4–5) pyta `http://127.0.0.1:8000/v1/systemone` tylko
+dla ofert, których reguły nie rozstrzygają; próg pewności 70% (BASAL_RODZINY.md, „Wyniki i poprawki”).

@@ -1515,7 +1515,7 @@ def test_basal_poc_variants(monkeypatch):
                                          parallel=3)
     assert [r["id"] for r in again] == [r["id"] for r in results] and len(seen) == len(results)
     assert summary2["czas_ms"]["naraz"] == 3 and summary2["czas_ms"]["ofert na minutę"] > 0
-    assert set(basal_poc.FAMILIES) == {"s23", "gtx1060", "rtx3060", "ddr4", "nvme", "i5"}
+    assert {"s23", "gtx1060", "rtx3060", "ddr4", "nvme", "i5"} <= set(basal_poc.FAMILIES)
 
 
 def test_basal_rules_and_signals():

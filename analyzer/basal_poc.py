@@ -545,9 +545,14 @@ def load_sample(path):
 # ---------------------------------------------------------------------------------------------- krok 3: test basal
 
 def state_text(offer, family):
+    """Stan dla basala. Rodziny v2: także pola formularza Vinted (model, pamięć, bateria, RAM / dysk laptopa,
+    platforma) z ostrzeżeniem, że bywają błędne („256 MB”, RAM w polu dysku)."""
+    from .basal_families import form_text
     price = f"{offer['price']:.0f} zł" if offer.get("price") else "?"
+    form = form_text(offer.get("form") or {})
+    form = f"Formularz Vinted (wypełnia sprzedawca, bywa błędny): {form}\n" if form else ""
     return (f"Ogłoszenie z Vinted (kategoria: {FAMILIES[family]['name']}).\nTytuł: {offer['title']}\nCena: {price}\n"
-            f"Stan (formularz): {offer.get('condition') or '?'}\nOpis: {offer.get('description') or ''}")
+            f"Stan (formularz): {offer.get('condition') or '?'}\n{form}Opis: {offer.get('description') or ''}")
 
 
 def build_request(offer, family):
@@ -597,7 +602,14 @@ def run_test(rows, family="gtx1060", url="http://127.0.0.1:8000", client=None, w
     fam = FAMILIES[family]
     cases = [dict(r, expected={}) for r in rows]
     if with_tricky:
-        for i, (title, desc, expected, *price) in enumerate(fam["tricky"], 1):
+        for i, case in enumerate(fam["tricky"], 1):
+            if isinstance(case, dict):              # rodziny v2: słownik z formularzem
+                cases.append({"id": f"test{i}", "title": case["title"], "description": case["description"],
+                              "price": case.get("price") or fam["price"],
+                              "condition": (case.get("form") or {}).get("status") or TEST_CONDITION,
+                              "form": case.get("form") or {}, "hint": "[test]", "expected": case["expected"]})
+                continue
+            title, desc, expected, *price = case
             cases.append({"id": f"test{i}", "title": title, "description": desc, "price": (price or [fam["price"]])[0],
                           "condition": TEST_CONDITION, "hint": "[test]", "expected": expected})
     own = client is None
@@ -618,10 +630,14 @@ def run_test(rows, family="gtx1060", url="http://127.0.0.1:8000", client=None, w
             got = {q: (answers.get(q) or {}).get("choice") for q in fam["questions"]}
             conf = {q: (answers.get(q) or {}).get("confidence") for q in fam["questions"]}
             flags = {k: (answers.get(k) or {}).get("noul") for k in fam["flags"]}
-            by_title = fam["rules"](offer["title"])
-            by_all = fam["rules"](f"{offer['title']}\n{offer.get('description') or ''}")
-            if "sztuk" in fam["questions"]:
-                by_all["sztuk"] = rule_quantity(offer)
+            if fam.get("v2"):
+                by_title = fam["rules"](offer["title"])
+                by_all = fam["rules"](offer["title"], offer.get("description") or "", offer.get("form") or {})
+            else:
+                by_title = fam["rules"](offer["title"])
+                by_all = fam["rules"](f"{offer['title']}\n{offer.get('description') or ''}")
+                if "sztuk" in fam["questions"]:
+                    by_all["sztuk"] = rule_quantity(offer)
             results.append({"id": offer["id"], "title": offer["title"], "answers": got, "confidence": conf,
                             "flags": flags, "rules_title": by_title, "rules_all": by_all,
                             "expected": offer["expected"], "ms": round(wall)})
@@ -684,9 +700,11 @@ def confidence_split(results, fam, threshold=CONFIDENT):
 
 
 def family_from_path(path):
-    """gtx1060_20261107_1225.jsonl → gtx1060 (rodzina z początku nazwy próbki); None, gdy nie pasuje."""
-    name = Path(path).name.split("_")[0]
-    return name if name in FAMILIES else None
+    """gtx1060_20261107_1225.jsonl → gtx1060, galaxy_s23_20261107.jsonl → galaxy_s23 (najdłuższa nazwa rodziny
+    z początku nazwy pliku, przed „_<cyfry>”); None, gdy nie pasuje."""
+    name = Path(path).name
+    hits = [f for f in FAMILIES if re.match(rf"{re.escape(f)}_\d", name)]
+    return max(hits, key=len) if hits else None
 
 
 def save_results(results, summary, sample_path, label=""):
@@ -695,3 +713,10 @@ def save_results(results, summary, sample_path, label=""):
     path.write_text(json.dumps({"podsumowanie": summary, "wyniki": results}, ensure_ascii=False, indent=1),
                     encoding="utf-8")
     return path
+
+
+# ---------------------------------------------------------------------------------------------- rodziny v2
+
+from .basal_families import build_families as _build_v2  # noqa: E402
+
+FAMILIES.update(_build_v2())

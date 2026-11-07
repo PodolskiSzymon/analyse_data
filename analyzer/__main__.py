@@ -40,6 +40,7 @@
 import argparse
 import asyncio
 import json
+import time
 import logging
 import sqlite3
 from pathlib import Path
@@ -463,6 +464,11 @@ def data_size_line(db_path):
     return f"Baza: {db_mb:,.1f} MB ({base}), cały folder {base.parent}: {folder_mb:,.1f} MB"
 
 
+
+def basal_v2_family(name):
+    from . import basal_poc
+    return bool((basal_poc.FAMILIES.get(name) or {}).get("v2"))
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="python -m analyzer", description="Category Analyzer (Vinted)")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -592,20 +598,31 @@ def main(argv=None):
     p_sample.add_argument("--per-category", type=int, default=150)
     p_bs = sub.add_parser("basal-sample", help="test basal, krok 2: oferty jednej rodziny (np. s23) z opisem -> "
                           "data/basal/*.jsonl + wydruk (bez sieci)")
-    p_bs.add_argument("--rodzina", default="s23", choices=("s23", "gtx1060", "rtx3060", "ddr4", "nvme", "i5"))
+    p_bs.add_argument("--rodzina", default="s23", help="rodzina (s23, gtx1060 ... albo v2: iphone_13, ps5 ...)")
+    p_bs.add_argument("--wszystkie", action="store_true", help="wszystkie rodziny v2 (BASAL_RODZINY.md) jednym "
+                      "przejściem bazy -> osobny plik na rodzinę w --katalog")
+    p_bs.add_argument("--rodziny", default="", help="z --wszystkie: tylko te rodziny (po przecinku)")
+    p_bs.add_argument("--katalog", default=None, help="folder próbek v2 (domyślnie data/basal_v2)")
     p_bs.add_argument("--limit", type=int, default=40)
     p_bs.add_argument("--zwykle", action="store_true", help="dawne losowanie warstwowe zamiast trudnych przypadków "
                       "językowych (zaprzeczenia, cena za sztukę, zestawy, inny model w opisie, obcy język...)")
     p_bt = sub.add_parser("basal-test", help="test basal, krok 3: próbka -> lokalny basal (POST /v1/systemone) -> "
                           "etykieta, pewność, czas, VRAM (BASAL_GPU.md)")
-    p_bt.add_argument("--plik", required=True, help="plik z basal-sample")
-    p_bt.add_argument("--rodzina", default=None, choices=("s23", "gtx1060", "rtx3060", "ddr4", "nvme", "i5"),
-                      help="domyślnie z nazwy pliku (gtx1060_20261107_1225.jsonl -> gtx1060)")
+    p_bt.add_argument("--plik", default=None, help="plik z basal-sample")
+    p_bt.add_argument("--katalog", default=None, help="zamiast --plik: wszystkie próbki *.jsonl z folderu, po kolei")
+    p_bt.add_argument("--pomin-gotowe", action="store_true", help="z --katalog: pomiń próbki, które mają już plik "
+                      "wyników z tą samą --etykieta (wznawianie przerwanego testu)")
+    p_bt.add_argument("--rodzina", default=None, help="domyślnie z nazwy pliku (gtx1060_20261107_1225.jsonl -> gtx1060)")
     p_bt.add_argument("--url", default="http://127.0.0.1:8000", help="adres basal-serve / llama-server --systemone")
     p_bt.add_argument("--bez-testowych", action="store_true", help="bez dopisanych przypadków z zaprzeczeniami")
     p_bt.add_argument("--rownolegle", type=int, default=1,
                       help="ile ofert naraz (llama-server -np N i basal-serve --http-parallel N); domyślnie 1")
     p_bt.add_argument("--etykieta", default="", help="np. mini / 45b - trafia do nazwy pliku wyników i podsumowania")
+    sub.add_parser("basal-rodziny", help="lista rodzin basala v2 (warianty, pytania) - tabela do BASAL_RODZINY.md")
+    p_br = sub.add_parser("basal-raport", help="podsumowanie wyników basal-test z folderu (trafność per rodzina i pytanie, "
+                          "pewne błędy) -> raport_<etykieta>.txt / .json")
+    p_br.add_argument("--katalog", required=True)
+    p_br.add_argument("--etykieta", default="", help="tylko wyniki z tą etykietą (np. 45b)")
     sub.add_parser("classify-report", help="klasyfikacja ofert z kategorii mieszanych - bez sieci")
     sub.add_parser("reclassify", help="ponowna klasyfikacja zapisanych ofert po poprawce reguł - bez sieci")
     p_ai = sub.add_parser("classify-ai", help="kategoria ze zdjęcia głównego (AI) dla ofert 'RAM + coś innego' w tytule")
@@ -888,6 +905,20 @@ def main(argv=None):
     elif args.command == "remote":
         from . import remote
         run_async(remote.main(cfg))
+    elif args.command == "basal-sample" and (args.wszystkie or basal_v2_family(args.rodzina)):
+        from . import analysis, basal_families
+        folder = Path(args.katalog) if args.katalog else Path(cfg.db_path).parent / "basal_v2"
+        only = [x.strip() for x in args.rodziny.split(",") if x.strip()] or (None if args.wszystkie else [args.rodzina])
+        print(f"Otwieram bazę {cfg.db_path} (tylko do odczytu), rodziny: {', '.join(only) if only else 'wszystkie'} ...",
+              flush=True)
+        conn = analysis.open_ro(cfg.db_path)
+        samples = basal_families.sample_all(conn, args.limit, only=only, say=lambda t: print(t, flush=True))
+        conn.close()
+        paths = basal_families.save_all(samples, folder)
+        for fid, (rows, counts) in sorted(samples.items()):
+            print(f"  {fid:<28} {len(rows):>3} ofert (pułapek w bazie: {sum(counts.values())})")
+        print(f"\nZapisano {sum(len(r) for r, _ in samples.values())} ofert w {len(paths)} plikach -> {folder}")
+        print(f"Krok 3: python -m analyzer basal-test --katalog \"{folder}\" --etykieta 45b --pomin-gotowe")
     elif args.command == "basal-sample":
         from . import analysis, basal_poc
         print(f"Otwieram bazę {cfg.db_path} (tylko do odczytu) ...", flush=True)
@@ -901,24 +932,49 @@ def main(argv=None):
     elif args.command == "basal-test":
         import httpx
         from . import basal_poc
-        family = args.rodzina or basal_poc.family_from_path(args.plik)
-        if family is None:
-            print(f"Nie rozpoznaję rodziny z nazwy {args.plik} - podaj --rodzina ({', '.join(basal_poc.FAMILIES)}).")
+        if args.katalog:
+            files = sorted(Path(args.katalog).glob("*.jsonl"))
+        elif args.plik:
+            files = [Path(args.plik)]
+        else:
+            print("Podaj --plik albo --katalog.")
             return
-        rows = basal_poc.load_sample(args.plik)
-        print(f"{len(rows)} ofert z {args.plik} (rodzina {family}) -> basal {args.url}", flush=True)
-        try:
-            results, summary = basal_poc.run_test(rows, family, args.url,
-                                                  with_tricky=not args.bez_testowych,
-                                                  parallel=args.rownolegle,
-                                                  say=lambda text: print(text, flush=True))
-        except httpx.HTTPError as exc:
-            print(f"Basal niedostępny pod {args.url}: {exc!r} - uruchom serwer (BASAL_GPU.md, krok 1).")
-            return
-        print("\n" + json.dumps(summary, ensure_ascii=False, indent=1))
-        if args.etykieta:
-            summary = {"model": args.etykieta, **summary}
-        print(f"Wyniki: {basal_poc.save_results(results, summary, args.plik, args.etykieta)}")
+        started = time.time()
+        for n, path in enumerate(files, 1):
+            family = args.rodzina or basal_poc.family_from_path(path)
+            if family is None or family not in basal_poc.FAMILIES:
+                print(f"Pomijam {path.name} - nie rozpoznaję rodziny (podaj --rodzina).")
+                continue
+            tag = f"_wyniki_{args.etykieta}_" if args.etykieta else "_wyniki_"
+            if args.pomin_gotowe and list(path.parent.glob(f"{path.stem}{tag}*.json")):
+                print(f"[{n}/{len(files)}] {path.name} - już są wyniki, pomijam")
+                continue
+            rows = basal_poc.load_sample(path)
+            print(f"\n[{n}/{len(files)}] {len(rows)} ofert z {path} (rodzina {family}) -> basal {args.url}", flush=True)
+            try:
+                results, summary = basal_poc.run_test(rows, family, args.url,
+                                                      with_tricky=not args.bez_testowych,
+                                                      parallel=args.rownolegle,
+                                                      say=lambda text: print(text, flush=True))
+            except httpx.HTTPError as exc:
+                print(f"Basal niedostępny pod {args.url}: {exc!r} - uruchom serwer (BASAL_GPU.md, krok 1). "
+                      f"Wznowisz tą samą komendą z --pomin-gotowe.")
+                return
+            if len(files) == 1:
+                print("\n" + json.dumps(summary, ensure_ascii=False, indent=1))
+            else:
+                print(f"  czas: {summary['czas_ms']}, minęło {(time.time() - started) / 60:.0f} min")
+            if args.etykieta:
+                summary = {"model": args.etykieta, **summary}
+            print(f"Wyniki: {basal_poc.save_results(results, summary, path, args.etykieta)}", flush=True)
+    elif args.command == "basal-rodziny":
+        from . import basal_families, basal_poc
+        print(basal_families.catalog_markdown(basal_poc.FAMILIES))
+    elif args.command == "basal-raport":
+        from . import basal_report
+        text, path = basal_report.write(Path(args.katalog), args.etykieta)
+        print(text)
+        print(f"\nRaport: {path}")
     elif args.command == "sample":
         from .sample import export
         print(f"Otwieram bazę {cfg.db_path} ...", flush=True)
