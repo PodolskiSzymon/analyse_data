@@ -742,8 +742,6 @@ def main(argv=None):
         print("\n".join(lines))
         say(f"\nZapisano też do {path}")
     elif args.command == "report":
-        import time
-
         from . import analysis, report
         say = lambda text: print(text, flush=True)  # noqa: E731
         started = time.monotonic()
