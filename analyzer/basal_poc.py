@@ -96,7 +96,8 @@ def rules_rtx3060(text):
 
 # Taktowania znamionowe (MT/s) jako odpowiedzi: DDR2 / DDR3 / DDR4 / DDR5 (07.11: było tylko DDR4).
 RAM_SPEEDS = ("1600", "1866", "2133", "2400", "2666", "2933", "3000", "3200", "3600", "4800", "5200", "5600")
-SPEED_LABELS = {"do_1333": "1333 MHz lub mniej (DDR2, starsze DDR3: 800 / 1066 / 1333)",
+SPEED_LABELS = {"667_i_mniej": "667 MHz lub mniej (DDR2-667, DDR-400 i starsze)", "800": "800 MHz (DDR2-800, PC2-6400)",
+                "1066": "1066 MHz (DDR2-1066, DDR3-1066)", "1333": "1333 MHz (DDR3-1333, PC3-10600)",
                 **{s: f"{s} MHz" for s in RAM_SPEEDS[:9]}, "3733_4600": "od 3733 do 4600 MHz (szybkie DDR4)",
                 **{s: f"{s} MHz" for s in RAM_SPEEDS[9:]}, "6000+": "6000 MHz lub więcej (DDR5)"}
 KNOWN_MTS = {266, 333, 400, 533, 667, 800, 1066, 1333, 1600, 1866, 2133, 2400, 2666, 2800, 2933, 3000, 3200, 3333,
@@ -106,8 +107,10 @@ OLD_RAM = re.compile(r"\bsimm\b|\bedo\b|\bfpm\b|\bddr\s?-?\s?(?:1|[234]00|333|26
 
 def speed_label(mts):
     """MT/s → odpowiedź pytania „mhz” (1333 i mniej razem, 3733-4600 razem, 6000+ razem, reszta - najbliższa)."""
+    if mts <= 700:
+        return "667_i_mniej"
     if mts <= 1400:
-        return "do_1333"
+        return min(("800", "1066", "1333"), key=lambda s: abs(int(s) - mts))
     if 3700 <= mts <= 4650:
         return "3733_4600"
     if mts >= 5900:
@@ -282,7 +285,9 @@ FAMILIES = {
         "name": "karty graficzne - GeForce RTX 3060 / 3060 Ti", "category": "gpu", "title": re.compile(r"3060"),
         "rules": rules_rtx3060, "flags": PART_FLAGS, "price": 950,
         "questions": {
-            "model": _q("Który dokładnie model? RTX 3060 i RTX 3060 Ti to różne karty (Ti szybsza i droższa).",
+            "model": _q("Który dokładnie model? RTX 3060 i RTX 3060 Ti to różne karty (Ti szybsza i droższa). Nazwa "
+                        "„RTX 3060” bez „Ti” (także z dopiskami OC, Gaming, Ventus, 12G) = zwykła RTX 3060 - nie "
+                        "trzeba pisać „bez Ti”.",
                         {"rtx3060": "GeForce RTX 3060 (bez Ti)", "rtx3060ti": "GeForce RTX 3060 Ti",
                          "inna": "inna karta albo inna rzecz", UNKNOWN: "nie da się ustalić"}),
             "vram": _q("Ile pamięci (VRAM) ma TA karta? RTX 3060: 12 GB albo 8 GB; RTX 3060 Ti: 8 GB. Gdy nie "
@@ -323,7 +328,7 @@ FAMILIES = {
             ("Pamięć RAM 2x16 MB EDO", "Stare kości SIMM do komputera retro.", {"typ": "ddr2_starsza"}, 40),
             ("Hynix 4GB PC3L-12800S", "Z laptopa, sprawna.", {"typ": "ddr3", "mhz": "1600", "forma": "laptop"}, 30),
             ("Pamięć 8GB DDR4 2666", "Not for laptops - desktop DIMM.", {"forma": "pc"}),
-            ("Kingston HyperX DDR2 4x1GB", "Komplet 4 kości 1066 MHz.", {"typ": "ddr2_starsza", "mhz": "do_1333",
+            ("Kingston HyperX DDR2 4x1GB", "Komplet 4 kości 1066 MHz.", {"typ": "ddr2_starsza", "mhz": "1066",
                                                                        "sztuk": "4"}, 60),
             ("RAM 8GB 1600MHz", "Pamięć DDR3, nie DDR4 - uwaga przy zakupie.", {"typ": "ddr3"}),
             ("Kingston 8GB PC4-21300", "Do PC, jedna kość.", {"typ": "ddr4", "mhz": "2666", "forma": "pc"}),

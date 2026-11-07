@@ -230,6 +230,13 @@ praktycznie zawsze trafne (np. NVMe model 25/25, pojemność 25/25, typ RAM 19/1
 „x2 cena za sztukę” → 2). Reguły porównawcze poprawione (S23: „etui gratis” w opisie ≠ akcesorium, „S23 + zegarek” ≠
 Plus; RAM: „non-ECC” ≠ serwer, „desktop … not for laptops (SO-DIMM)” = PC).
 
+**4.5B (07.11, 14:52):** VRAM ~4,0–4,1 GB, 15–44 ofert na minutę (~3× wolniej niż mini). Lepszy niż mini: taktowanie
+RAM (wzorzec 21/26 vs 14/26), typ RAM 26/26, końcówka i5 27/28 (mini 20/28), liczba sztuk z wysoką pewnością
+i trafnie (NVMe 30/32, RTX 30/31, GTX 28/32), VRAM RTX 27/28. Gorzej: model RTX 3060 - przy zwykłej 3060 odpowiadał
+„nie wiadomo” (18 z 34, także z pewnością ~80%) - pytanie poprawione („bez Ti w nazwie = zwykła 3060”). Pewne błędy:
+naklejka PC4-2133 przy tytule 3200 → 3200, „cena za sztukę, mam 4 kości” → 4. Taktowania DDR2/DDR3 jako odpowiedzi
+800 / 1066 / 1333 (zamiast „do 1333”). Q8_0 4.5B nie zmieści się pewnie w 6 GB i nie da zauważalnej różnicy.
+
 **Wykorzystanie GPU:** Menedżer zadań domyślnie pokazuje wykres „3D”, a llama.cpp liczy na „Cuda” - wtedy widać
 ~0–2%. Sprawdzenie w czasie testu: `"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe" --query-gpu=utilization.gpu,memory.used --format=csv -l 1`
 (albo w Menedżerze kliknąć nazwę małego wykresu i wybrać „Cuda” / „Compute_0”). Karta pracuje zrywami (ułamek
