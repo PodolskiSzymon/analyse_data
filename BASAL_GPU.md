@@ -162,19 +162,23 @@ Okno 2 (`C:\basal-env\Scripts\activate`):
 ```
 basal-serve --model Remek/basal-2.0-mini --mode llamacpp --llamacpp-url http://127.0.0.1:8080 --port 8000
 ```
-Okno 3 (w folderze `analyse_data`, środowisko z kroku C):
+Okno 3 (w folderze `analyse_data`, środowisko z kroku C) - wszystkie próbki naraz (rodzina z nazwy pliku,
+`--etykieta` trafia do nazwy wyników):
 ```
-python -m analyzer basal-test --plik C:\basal\s23.jsonl
+for %f in (D:\basal\*.jsonl) do python -m analyzer basal-test --plik "%f" --etykieta mini
 ```
 
 ## E. Na PC: test 4.5B
 
 Zamknij okna 1 i 2 (Ctrl+C) i uruchom z większym modelem:
 ```
-C:\llama-cuda\llama-server.exe -m C:\basal-models\4.5b\<plik>.gguf --host 127.0.0.1 --port 8080 -ngl 99 -c 4096 -np 1
-basal-serve --model Remek/basal-2.0-4.5B --mode llamacpp --llamacpp-url http://127.0.0.1:8080 --template-prefix off --port 8000
-python -m analyzer basal-test --plik C:\basal\s23.jsonl
+C:\llama-cuda\llama-server.exe -m C:\basal-models\4.5b\basal-2.0-4.5B-Q5_K_M.gguf --host 127.0.0.1 --port 8080 -ngl 99 -c 4096 -np 1
+basal-serve --model Remek/basal-2.0-4.5B --mode llamacpp --llamacpp-url http://127.0.0.1:8080 --http-parallel 1 --template-prefix off --host 127.0.0.1 --port 8000
+for %f in (D:\basal\*.jsonl) do python -m analyzer basal-test --plik "%f" --etykieta 45b
 ```
+Kilka ofert naraz (więcej pracy dla karty, wyższa przepustowość - przydatne przy masowym przeglądzie bazy; dla
+bramkarza w Sniperze liczy się czas jednej oferty): llama-server `-np 4 -c 16384` (4 sloty po 4096), basal-serve
+`--http-parallel 4`, basal-test `--rownolegle 4`; podsumowanie ma „ofert na minutę” i „naraz”.
 (`--template-prefix off` – dokumentacja basal wymaga go tylko dla 4.5B.)
 
 ## F. Rodziny wariantów (07.11 – sedno testu)
@@ -212,6 +216,11 @@ bardzo dobrze (RTX 3060 / Ti 30/30, Samsung NVMe 26/26, pojemność 24/24); odpo
 zgodne (typ RAM 12/12, VRAM 15/15, model dysku 18/18), błędy skupiają się w niepewnych. Słabo: taktowanie RAM
 (brakowało DDR3 / DDR5 w odpowiedziach), liczba sztuk („Dual”, „2X”), przypadki testowe bez ceny. Poprawione 07.11;
 s23 wywalał się na znaku U+2028 w opisie (odczyt próbki).
+GTX 1060: model 29/30, VRAM 17/17 + 5 trafnych tam, gdzie reguły widzą sprzeczność („lepsza niż wersja 3GB”), „3GT”
+= 3 GB; wszystkie pewne (≥ 70%) odpowiedzi o model / VRAM zgodne (26/26, 19/19). i5: dawna lista modeli (8400+)
+nie obejmowała 17 z 30 ofert (6500, 7400, 3570, 11500, 14500...) - rozszerzona do 2.-14. generacji; końcówka (F / K)
+słabo (pewność zwykle < 50%, często „K” bez powodu) - opis pytania z przykładami; błędy pewne: „sam wiatrak” jako
+sprawny procesor, procesor + płyta jako sprawna (nie zestaw) - opisy stanu poprawione.
 
 **Wykorzystanie GPU:** Menedżer zadań domyślnie pokazuje wykres „3D”, a llama.cpp liczy na „Cuda” - wtedy widać
 ~0–2%. Sprawdzenie w czasie testu: `"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe" --query-gpu=utilization.gpu,memory.used --format=csv -l 1`

@@ -599,9 +599,13 @@ def main(argv=None):
     p_bt = sub.add_parser("basal-test", help="test basal, krok 3: próbka -> lokalny basal (POST /v1/systemone) -> "
                           "etykieta, pewność, czas, VRAM (BASAL_GPU.md)")
     p_bt.add_argument("--plik", required=True, help="plik z basal-sample")
-    p_bt.add_argument("--rodzina", default="s23", choices=("s23", "gtx1060", "rtx3060", "ddr4", "nvme", "i5"))
+    p_bt.add_argument("--rodzina", default=None, choices=("s23", "gtx1060", "rtx3060", "ddr4", "nvme", "i5"),
+                      help="domyślnie z nazwy pliku (gtx1060_20261107_1225.jsonl -> gtx1060)")
     p_bt.add_argument("--url", default="http://127.0.0.1:8000", help="adres basal-serve / llama-server --systemone")
     p_bt.add_argument("--bez-testowych", action="store_true", help="bez dopisanych przypadków z zaprzeczeniami")
+    p_bt.add_argument("--rownolegle", type=int, default=1,
+                      help="ile ofert naraz (llama-server -np N i basal-serve --http-parallel N); domyślnie 1")
+    p_bt.add_argument("--etykieta", default="", help="np. mini / 45b - trafia do nazwy pliku wyników i podsumowania")
     sub.add_parser("classify-report", help="klasyfikacja ofert z kategorii mieszanych - bez sieci")
     sub.add_parser("reclassify", help="ponowna klasyfikacja zapisanych ofert po poprawce reguł - bez sieci")
     p_ai = sub.add_parser("classify-ai", help="kategoria ze zdjęcia głównego (AI) dla ofert 'RAM + coś innego' w tytule")
@@ -897,17 +901,24 @@ def main(argv=None):
     elif args.command == "basal-test":
         import httpx
         from . import basal_poc
+        family = args.rodzina or basal_poc.family_from_path(args.plik)
+        if family is None:
+            print(f"Nie rozpoznaję rodziny z nazwy {args.plik} - podaj --rodzina ({', '.join(basal_poc.FAMILIES)}).")
+            return
         rows = basal_poc.load_sample(args.plik)
-        print(f"{len(rows)} ofert z {args.plik} -> basal {args.url}", flush=True)
+        print(f"{len(rows)} ofert z {args.plik} (rodzina {family}) -> basal {args.url}", flush=True)
         try:
-            results, summary = basal_poc.run_test(rows, args.rodzina, args.url,
+            results, summary = basal_poc.run_test(rows, family, args.url,
                                                   with_tricky=not args.bez_testowych,
+                                                  parallel=args.rownolegle,
                                                   say=lambda text: print(text, flush=True))
         except httpx.HTTPError as exc:
             print(f"Basal niedostępny pod {args.url}: {exc!r} - uruchom serwer (BASAL_GPU.md, krok 1).")
             return
         print("\n" + json.dumps(summary, ensure_ascii=False, indent=1))
-        print(f"Wyniki: {basal_poc.save_results(results, summary, args.plik)}")
+        if args.etykieta:
+            summary = {"model": args.etykieta, **summary}
+        print(f"Wyniki: {basal_poc.save_results(results, summary, args.plik, args.etykieta)}")
     elif args.command == "sample":
         from .sample import export
         print(f"Otwieram bazę {cfg.db_path} ...", flush=True)

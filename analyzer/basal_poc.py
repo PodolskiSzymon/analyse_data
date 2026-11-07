@@ -44,8 +44,10 @@ CONDITION_PART = _q("Co dokładnie jest sprzedawane i w jakim stanie? Czytaj ca�
                         "sprawna": "sprawna rzecz (karta / pamięć / dysk / procesor) - działa",
                         "uszkodzona": "uszkodzona, nie działa, nie jest wykrywana, artefakty, brak obrazu, błędy, "
                                       "na części",
-                        "czesc": "tylko część / akcesorium / pudełko / chłodzenie / adapter - bez samej rzeczy",
-                        "zestaw": "w zestawie z inną dużą częścią (np. procesor z płytą, karta z komputerem)",
+                        "czesc": "tylko część / akcesorium / pudełko / chłodzenie / sam wiatrak lub wentylator / "
+                                 "adapter - bez samej rzeczy",
+                        "zestaw": "razem z inną DUŻĄ częścią (procesor + płyta główna, karta w całym komputerze, "
+                                  "kilka różnych rzeczy w pakiecie). Dodatek jak chłodzenie BOX czy etui to NIE zestaw",
                         "inna_rzecz": "to nie jest sprzedaż tej rzeczy: kupię / zamienię / nazwa tylko dla porównania "
                                       "albo przedmiot spoza kategorii. Inny wariant tej samej rzeczy (inny typ pamięci, "
                                       "inny model karty) to NIE inna_rzecz - oceń jego stan",
@@ -158,8 +160,11 @@ def rules_nvme(text):
     return {"model": model, "pojemnosc": cap, "sztuk": rule_quantity({"title": text, "description": ""})}
 
 
-I5_MODELS = ("8400", "8500", "8600", "9400", "9500", "9600", "10400", "10500", "10600", "11400", "12400", "12600",
-             "13400", "13600", "14400", "14600")
+# Desktopowe i5 2.-14. generacji (07.11: w próbce 17 z 30 ofert było spoza dawnej listy 8400-14600).
+I5_MODELS = ("2400", "2500", "3470", "3570", "4460", "4570", "4590", "4690", "6400", "6500", "6600", "7400", "7500",
+             "7600", "8400", "8500", "8600", "9400", "9500", "9600", "10400", "10500", "10600", "11400", "11500",
+             "11600", "12400", "12500", "12600", "13400", "13500", "13600", "14400", "14500", "14600")
+I5_SUFFIXES = {"": "brak", "f": "f", "k": "k", "kf": "kf", "t": "t", "s": "s"}
 
 
 def rules_i5(text):
@@ -168,7 +173,7 @@ def rules_i5(text):
     models = {m for m, _s in found if m in I5_MODELS}
     model = models.pop() if len(models) == 1 else (UNKNOWN if not models else "sprzeczne")
     suffixes = {s for m, s in found if m in I5_MODELS}
-    suffix = {"": "brak", "f": "f", "k": "k", "kf": "kf", "t": "t"}.get(suffixes.pop(), UNKNOWN) \
+    suffix = I5_SUFFIXES.get(suffixes.pop(), UNKNOWN) \
         if len(suffixes) == 1 else (UNKNOWN if not suffixes else "sprzeczne")
     return {"model": model, "sufiks": suffix, "sztuk": rule_quantity({"title": text, "description": ""})}
 
@@ -357,13 +362,20 @@ FAMILIES = {
         "rules": rules_i5, "flags": PART_FLAGS, "price": 350,
         "questions": {
             "model": _q("Który model procesora Intel Core i5 (numer)? Gdy nie wiadomo - nie zgaduj.",
-                        {**{m: f"i5-{m}" for m in I5_MODELS}, "inny": "inny procesor albo inna rzecz",
+                        {**{m: f"i5-{m}" for m in I5_MODELS},
+                         "inny": "inny procesor (i5 spoza listy, i3, i7, AMD) albo inna rzecz",
                          UNKNOWN: "nie da się ustalić"}),
-            "sufiks": _q("Jaka końcówka numeru? F = bez grafiki zintegrowanej, K = odblokowany, KF = odblokowany bez "
-                         "grafiki, T = energooszczędny, brak = zwykły z grafiką. Uwaga: „i5 9400 f” = 9400F; „nie F”, "
-                         "„z grafiką” = bez F.",
-                         {"brak": "bez litery (zwykły, z grafiką)", "f": "F", "k": "K", "kf": "KF", "t": "T",
-                          UNKNOWN: "nie da się ustalić"}),
+            "sufiks": _q("Jaka litera stoi BEZPOŚREDNIO po numerze modelu SPRZEDAWANEGO procesora? Liczy się tylko "
+                         "ten numer - nie procesory wymienione dla porównania i nie litery w innych słowach („CPU-k”, "
+                         "„OC”). „i5 9400 f” = F; „wersja F”, „bez grafiki zintegrowanej” = F; „nie F”, „ma grafikę” "
+                         "= bez litery. Numer podany bez litery i nic o F / K = bez litery.",
+                         {"brak": "bez litery po numerze (np. i5-12400, i5-6500) - zwykły, z grafiką",
+                          "f": "F po numerze (np. i5-10400F, i5-9400F) - bez grafiki",
+                          "k": "K po numerze (np. i5-9600K, i5-6600K) - odblokowany",
+                          "kf": "KF po numerze (np. i5-12600KF) - odblokowany, bez grafiki",
+                          "t": "T po numerze (np. i5-8500T) - energooszczędny",
+                          "s": "S po numerze (np. i5-4570S) - obniżony pobór",
+                          UNKNOWN: "nie da się ustalić (np. nie wiadomo nawet, który to model)"}),
             "stan": CONDITION_PART, "sztuk": QUANTITY},
         "tricky": [
             ("Intel i5 9400 f", "Sam procesor, sprawny.", {"model": "9400", "sufiks": "f"}),
@@ -375,6 +387,10 @@ FAMILIES = {
                                                                             "stan": "zestaw"}, 600),
             ("Intel i5 8. generacji", "Procesor desktop, model 8400.", {"model": "8400"}),
             ("Chłodzenie do i5", "Sam cooler, procesora brak.", {"stan": "czesc"}, 30),
+            ("Intel core i5 (sam wiatrak)", "Wiatrak do procesora i5, nowy.", {"stan": "czesc"}, 30),
+            ("Intel Core i5-6500", "Sprawny, z chłodzeniem BOX gratis.", {"model": "6500", "sufiks": "brak",
+                                                                          "stan": "sprawna"}, 110),
+            ("I5-8600K", "Wydajność jak i5-10400F, sprawny.", {"model": "8600", "sufiks": "k"}, 220),
         ],
     },
 }
@@ -556,9 +572,19 @@ TEST_CONDITION = "Bardzo dobry"      # stan z formularza dla przypadków testowy
 CONFIDENT = 0.7                     # próg pewności bramkarza (podsumowanie: trafność powyżej / poniżej)
 
 
-def run_test(rows, family="gtx1060", url="http://127.0.0.1:8000", client=None, with_tricky=True, say=print):
-    """Każda oferta → POST /v1/systemone. → (wyniki, podsumowanie). Rzuca httpx.HTTPError przy braku serwera."""
+def _ask(client, url, offer, family):
+    started = time.perf_counter()
+    response = client.post(f"{url.rstrip('/')}/v1/systemone", json=build_request(offer, family))
+    response.raise_for_status()
+    return response.json().get("answers") or {}, (time.perf_counter() - started) * 1000
+
+
+def run_test(rows, family="gtx1060", url="http://127.0.0.1:8000", client=None, with_tricky=True, say=print,
+             parallel=1):
+    """Każda oferta → POST /v1/systemone. → (wyniki, podsumowanie). Rzuca httpx.HTTPError przy braku serwera.
+    parallel > 1: tyle ofert naraz (llama-server -np N, basal-serve --http-parallel N) - więcej pracy dla karty."""
     import httpx
+    from concurrent.futures import ThreadPoolExecutor
     fam = FAMILIES[family]
     cases = [dict(r, expected={}) for r in rows]
     if with_tricky:
@@ -570,16 +596,15 @@ def run_test(rows, family="gtx1060", url="http://127.0.0.1:8000", client=None, w
     before = vram_used()
     peak = before[0] if before else None
     results, times = [], []
+    started_all = time.perf_counter()
+    pool = ThreadPoolExecutor(max_workers=max(1, parallel))
     try:
-        for n, offer in enumerate(cases, 1):
-            started = time.perf_counter()
-            response = client.post(f"{url.rstrip('/')}/v1/systemone", json=build_request(offer, family))
-            response.raise_for_status()
-            wall = (time.perf_counter() - started) * 1000
-            answers = response.json().get("answers") or {}
-            now = vram_used()
-            if now and (peak is None or now[0] > peak):
-                peak = now[0]
+        replies = pool.map(lambda offer: _ask(client, url, offer, family), cases)
+        for n, (offer, (answers, wall)) in enumerate(zip(cases, replies), 1):
+            if n % 10 == 0 or n == len(cases):
+                now = vram_used()
+                if now and (peak is None or now[0] > peak):
+                    peak = now[0]
             times.append(wall)
             got = {q: (answers.get(q) or {}).get("choice") for q in fam["questions"]}
             conf = {q: (answers.get(q) or {}).get("confidence") for q in fam["questions"]}
@@ -607,11 +632,15 @@ def run_test(rows, family="gtx1060", url="http://127.0.0.1:8000", client=None, w
             if marks:
                 say("      " + "; ".join(marks))
     finally:
+        pool.shutdown(wait=True, cancel_futures=True)
         if own:
             client.close()
+    elapsed = time.perf_counter() - started_all
     summary = {"ofert": len(results),
                "czas_ms": {"średnio": round(statistics.mean(times)), "mediana": round(statistics.median(times)),
-                           "max": round(max(times)), "pierwsza (z rozgrzewką)": round(times[0])} if times else {},
+                           "max": round(max(times)), "pierwsza (z rozgrzewką)": round(times[0]),
+                           "ofert na minutę": round(len(results) / elapsed * 60), "naraz": parallel}
+               if times else {},
                "vram_mb": {"przed": before[0] if before else None, "szczyt": peak,
                            "karta": before[2] if before else None, "razem_mb": before[1] if before else None},
                "przypadki_testowe": {}, "zgodność z regułami (tytuł + opis)": {}}
@@ -645,8 +674,15 @@ def confidence_split(results, fam, threshold=CONFIDENT):
     return out
 
 
-def save_results(results, summary, sample_path):
-    path = Path(sample_path).with_name(Path(sample_path).stem + f"_wyniki_{datetime.now():%H%M}.json")
+def family_from_path(path):
+    """gtx1060_20261107_1225.jsonl → gtx1060 (rodzina z początku nazwy próbki); None, gdy nie pasuje."""
+    name = Path(path).name.split("_")[0]
+    return name if name in FAMILIES else None
+
+
+def save_results(results, summary, sample_path, label=""):
+    tag = f"{label}_" if label else ""
+    path = Path(sample_path).with_name(Path(sample_path).stem + f"_wyniki_{tag}{datetime.now():%H%M}.json")
     path.write_text(json.dumps({"podsumowanie": summary, "wyniki": results}, ensure_ascii=False, indent=1),
                     encoding="utf-8")
     return path

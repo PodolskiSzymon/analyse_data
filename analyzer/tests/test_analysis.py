@@ -1509,6 +1509,12 @@ def test_basal_poc_variants(monkeypatch):
     assert "Cena: 40 zł" in next(b["state"] for b in tests if "Chłodzenie GTX 1060" in b["state"])
     split = summary["pewność ≥ 70% (wzorzec: oczekiwane, inaczej reguły)"]
     assert split["model"].startswith("pewne ") and "niepewne" in split["sztuk"]
+    # kilka ofert naraz: ta sama kolejność wyników, przepustowość w podsumowaniu
+    seen.clear()
+    again, summary2 = basal_poc.run_test(rows, family="gtx1060", url="http://basal", client=client, say=lambda _t: None,
+                                         parallel=3)
+    assert [r["id"] for r in again] == [r["id"] for r in results] and len(seen) == len(results)
+    assert summary2["czas_ms"]["naraz"] == 3 and summary2["czas_ms"]["ofert na minutę"] > 0
     assert set(basal_poc.FAMILIES) == {"s23", "gtx1060", "rtx3060", "ddr4", "nvme", "i5"}
 
 
@@ -1519,6 +1525,8 @@ def test_basal_rules_and_signals():
     assert rules_ddr4("SODIMM DDR4 PC4-3200AA")["mhz"] == "3200" and rules_ddr4("SODIMM DDR4")["forma"] == "laptop"
     assert rules_i5("Intel i5 9400 f") ["sufiks"] == "f" and rules_i5("i5-9600KF")["sufiks"] == "kf"
     assert rules_i5("Intel Core i5-12400")["sufiks"] == "brak"
+    assert rules_i5("Intel Core i5-6500")["model"] == "6500" and rules_i5("i5-4570S")["sufiks"] == "s"
+    assert rules_i5("Intel Core i5 14500 tray")["model"] == "14500"
     assert rules_rtx3060("RTX 3060 Ti")["vram"] == "8gb" and rules_rtx3060("RTX 3060")["vram"] == "nie_wiadomo"
     from analyzer.basal_poc import rules_gtx1060
     assert rules_gtx1060("Gainward GTX 1060 Phoenix 3072MB")["vram"] == "3gb"
@@ -1549,3 +1557,8 @@ def test_basal_sample_line_breaks(tmp_path):
     old = tmp_path / "stara.jsonl"
     old.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
     assert basal_poc.load_sample(old) == rows
+    assert basal_poc.family_from_path(r"D:\\basal\\gtx1060_20261107_1225.jsonl".replace("\\", "/")) == "gtx1060"
+    assert basal_poc.family_from_path("ddr4_20261107_1225.jsonl") == "ddr4"
+    assert basal_poc.family_from_path("probka.jsonl") is None
+    out = basal_poc.save_results([], {"ofert": 0}, path, "45b")
+    assert "_wyniki_45b_" in out.name

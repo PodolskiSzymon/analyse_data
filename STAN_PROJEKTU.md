@@ -225,11 +225,11 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
 00. (07.11) **Wyniki testu basala na PC z GTX 1060** (`BASAL_GPU.md`, rodziny `s23 gtx1060 rtx3060 ddr4 nvme
-   i5`). Mini przyszło (ddr4, rtx3060, nvme; i5 tylko zrzut; s23 wywalił się na U+2028 - naprawione): ocena
-   w `BASAL_GPU.md` §F. Po poprawkach testu (ceny w przypadkach testowych, typy RAM DDR2–DDR5, 990 EVO Plus,
-   liczba sztuk bez „PCIe x4” / „Ventus 2X”, podział „pewność ≥ 70%”) czekamy na: ponowny przebieg mini dla 6
-   rodzin (ten sam plik próbki), pliki `gtx1060_…_wyniki_*` i `i5_…_wyniki_*`, potem 4.5B. Kroki 4–5 dopiero po
-   akceptacji wyników przez użytkownika.
+   i5`). Mini przyszło dla 5 rodzin (s23 wywalił się na U+2028 - naprawione): ocena w `BASAL_GPU.md` §F. Po
+   poprawkach testu (ceny w przypadkach testowych, typy RAM DDR2–DDR5, 990 EVO Plus, i5 2.–14. gen., liczba sztuk
+   bez „PCIe x4” / „Ventus 2X”, „pewność ≥ 70%”, `--rownolegle`, `--etykieta`, rodzina z nazwy pliku) czekamy na:
+   wyniki `*_wyniki_mini_*` i `*_wyniki_45b_*` dla 6 rodzin (te same próbki `D:\basal\*.jsonl` na PC; kod na
+   pendrive `D:\analyse_data` trzeba odświeżyć z laptopa). Kroki 4–5 dopiero po akceptacji wyników.
 
 0a. (01.11) Wybór modelu AI: wynik `python -m sniper.bench --warianty haiku55,haiku55_low --ref zapisane --bez-bramki
    --last 50` (klucz ANTHROPIC_API_KEY, ~$0,3) - czy Haiku 5.5 trafia jedyną prawdziwą okazję ze złotego zbioru bez
