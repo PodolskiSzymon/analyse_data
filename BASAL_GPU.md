@@ -146,8 +146,9 @@ hf download Remek/basal-2.0-mini-GGUF --include "*Q5_K_M*" --local-dir C:\basal-
 hf download Remek/basal-2.0-4.5B-GGUF --include "*Q5_K_M*" --local-dir C:\basal-models\4.5b
 dir C:\basal-models\mini C:\basal-models\4.5b
 ```
-(4.5B ~3,5 GB do pobrania.) Do testu skryptem z analizatora: `git clone` repo `analyse_data` na PC (albo skopiuj
-folder z laptopa) i w tym samym środowisku `pip install -r sniper\requirements.txt`.
+(4.5B ~3,5 GB do pobrania.) Do testu skryptem z analizatora: skopiuj folder `analyse_data` z laptopa na PC
+(bez `data`) i w tym samym środowisku `pip install httpx python-dotenv` - `basal-test` nie potrzebuje bazy,
+proxy ani reszty bibliotek Snipera (sprawdzone 07.11).
 
 ## D. Na PC: test mini (2 okna cmd + 1 do testu)
 
