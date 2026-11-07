@@ -897,7 +897,7 @@ def main(argv=None):
     elif args.command == "basal-test":
         import httpx
         from . import basal_poc
-        rows = [json.loads(line) for line in Path(args.plik).read_text(encoding="utf-8").splitlines() if line.strip()]
+        rows = basal_poc.load_sample(args.plik)
         print(f"{len(rows)} ofert z {args.plik} -> basal {args.url}", flush=True)
         try:
             results, summary = basal_poc.run_test(rows, args.rodzina, args.url,

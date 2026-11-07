@@ -42,13 +42,18 @@ def _q(instructions, criteria):
 CONDITION_PART = _q("Co dokładnie jest sprzedawane i w jakim stanie? Czytaj cały opis - zaprzeczenia („bez "
                     "artefaktów”, „nie uszkodzona”) zmieniają znaczenie.", {
                         "sprawna": "sprawna rzecz (karta / pamięć / dysk / procesor) - działa",
-                        "uszkodzona": "uszkodzona, nie działa, artefakty, brak obrazu, błędy, na części",
+                        "uszkodzona": "uszkodzona, nie działa, nie jest wykrywana, artefakty, brak obrazu, błędy, "
+                                      "na części",
                         "czesc": "tylko część / akcesorium / pudełko / chłodzenie / adapter - bez samej rzeczy",
                         "zestaw": "w zestawie z inną dużą częścią (np. procesor z płytą, karta z komputerem)",
-                        "inna_rzecz": "zupełnie inna rzecz (nazwa modelu tylko dla porównania) albo kupię / zamienię",
+                        "inna_rzecz": "to nie jest sprzedaż tej rzeczy: kupię / zamienię / nazwa tylko dla porównania "
+                                      "albo przedmiot spoza kategorii. Inny wariant tej samej rzeczy (inny typ pamięci, "
+                                      "inny model karty) to NIE inna_rzecz - oceń jego stan",
                     })
 QUANTITY = _q("Ile sztuk (kości, dysków, kart, procesorów) dostaje kupujący za PODANĄ cenę? Zestaw 2x8 GB = 2 kości. "
-              "„Cena za sztukę, mam 4” = 1.", {
+              "„Cena za sztukę, mam 4” = 1. To NIE liczba sztuk: „Dual”, „Twin”, „2X”, „3X” w nazwie karty (ASUS Dual, "
+              "MSI Ventus 2X, Gigabyte WINDFORCE 3X - liczba wentylatorów), „PCIe x4”, „x16”, „Gen4 x4” (złącze), "
+              "„1Rx8”, „2Rx8” (budowa kości). Bez żadnej wzmianki o kilku sztukach = 1.", {
                   "1": "jedna sztuka (także: cena za sztukę z kilku dostępnych)", "2": "dwie sztuki",
                   "3": "trzy sztuki", "4": "cztery sztuki", "5+": "pięć lub więcej", UNKNOWN: "nie da się ustalić"})
 PART_FLAGS = {
@@ -87,28 +92,56 @@ def rules_rtx3060(text):
     return {"model": model, "vram": vram}
 
 
-PC4_SPEED = {"17000": "2133", "19200": "2400", "21300": "2666", "23400": "2933", "24000": "3000", "25600": "3200",
-             "28800": "3600"}
-RAM_SPEEDS = ("2133", "2400", "2666", "2933", "3000", "3200", "3600")
+# Taktowania znamionowe (MT/s) jako odpowiedzi: DDR2 / DDR3 / DDR4 / DDR5 (07.11: było tylko DDR4).
+RAM_SPEEDS = ("1600", "1866", "2133", "2400", "2666", "2933", "3000", "3200", "3600", "4800", "5200", "5600")
+SPEED_LABELS = {"do_1333": "1333 MHz lub mniej (DDR2, starsze DDR3: 800 / 1066 / 1333)",
+                **{s: f"{s} MHz" for s in RAM_SPEEDS[:9]}, "3733_4600": "od 3733 do 4600 MHz (szybkie DDR4)",
+                **{s: f"{s} MHz" for s in RAM_SPEEDS[9:]}, "6000+": "6000 MHz lub więcej (DDR5)"}
+KNOWN_MTS = {266, 333, 400, 533, 667, 800, 1066, 1333, 1600, 1866, 2133, 2400, 2666, 2800, 2933, 3000, 3200, 3333,
+             3466, 3600, 3733, 3866, 4000, 4133, 4266, 4400, 4600, 4800, 5200, 5600, 6000, 6200, 6400, 6800, 7200, 8000}
+OLD_RAM = re.compile(r"\bsimm\b|\bedo\b|\bfpm\b|\bddr\s?-?\s?(?:1|[234]00|333|266)\b|\bpc2-|\bpc-?(?:100|133)\b")
+
+
+def speed_label(mts):
+    """MT/s → odpowiedź pytania „mhz” (1333 i mniej razem, 3733-4600 razem, 6000+ razem, reszta - najbliższa)."""
+    if mts <= 1400:
+        return "do_1333"
+    if 3700 <= mts <= 4650:
+        return "3733_4600"
+    if mts >= 5900:
+        return "6000+"
+    return min(RAM_SPEEDS, key=lambda s: abs(int(s) - mts))
 
 
 def rules_ddr4(text):
+    """Pamięć RAM dowolnego typu (nazwa rodziny „ddr4” została dla zgodności komend)."""
     t = text.lower()
-    types = set(re.findall(r"\bddr\s?([345])l?\b", t)) | {"3" for _ in re.findall(r"\bpc3l?-", t)} | \
-        {"4" for _ in re.findall(r"\bpc4-", t)}
-    typ = f"ddr{types.pop()}" if len(types) == 1 else (UNKNOWN if not types else "sprzeczne")
-    speeds = {m for m in re.findall(r"\b(\d{4})\s?(?:mhz|mt/?s)\b", t) if m in RAM_SPEEDS or int(m) > 3600}
-    speeds |= {PC4_SPEED[m] for m in re.findall(r"\bpc4-(\d{5})", t) if m in PC4_SPEED}
-    speeds |= set(re.findall(r"\bpc4-(\d{4})[a-z]", t)) & set(RAM_SPEEDS)
-    speeds = {"3600+" if int(x) >= 3600 else x for x in speeds}
-    mhz = speeds.pop() if len(speeds) == 1 else (UNKNOWN if not speeds else "sprzeczne")
-    forma = ("laptop" if re.search(r"so-?dimm|laptop|notebook|\bpc4-\d{4,5}[a-z]{0,2}-s", t) else
+    types = {f"ddr{x}" for x in re.findall(r"\bddr\s?-?\s?([2345])l?\b", t)}
+    types |= {f"ddr{x}" for x in re.findall(r"\bpc([345])l?-", t)}
+    types = {"ddr2_starsza" if x == "ddr2" else x for x in types}
+    if OLD_RAM.search(t):
+        types.add("ddr2_starsza")
+    if not types and re.search(r"\bsd-?ram\b|\bddr\b(?![\s-]?\d)", t):    # „SDRAM”, samo „DDR” (DDR4 SDRAM = DDR4)
+        types.add("ddr2_starsza")
+    typ = types.pop() if len(types) == 1 else (UNKNOWN if not types else "sprzeczne")
+    speeds = {int(m) for m in re.findall(r"\b(\d{3,4})\s?(?:mhz|mt/?s)\b", t) if 300 <= int(m) <= 9000}
+    speeds |= {int(m) for m in re.findall(r"\bddr[2345]?l?\s?-?\s?(\d{3,4})\b", t) if int(m) in KNOWN_MTS}  # DDR4 2666
+    speeds |= {int(m) // 8 for m in re.findall(r"\bpc[23]l?-(\d{4,5})", t)}             # PC2-6400, PC3L-12800S
+    speeds |= {int(m) // 8 for m in re.findall(r"\bpc[45]-(\d{5})", t)}                 # PC4-21300, PC5-38400
+    speeds |= {int(m) for m in re.findall(r"\bpc[45]-(\d{4})[a-z]", t)}                              # PC4-3200AA
+    labels = {speed_label(x) for x in speeds}
+    mhz = labels.pop() if len(labels) == 1 else (UNKNOWN if not labels else "sprzeczne")
+    t = re.sub(r"(?:not for|nie do|nie dla|nie pasuje do|nie nadaje si[eę] do)\s+(?:\w+\s+)?(?:laptop|notebook)\w*",
+               " ", t)                                                    # „Not for laptops” ≠ laptop
+    forma = ("laptop" if re.search(r"so-?\s?dimm|laptop|notebook|\bpc[345]l?-\d{4,5}[a-z]{0,2}-s|\bpc3l?-\d{4,5}s\b",
+                                   t) else
              "serwer" if re.search(r"\becc\b|rdimm|registered|\breg\b", t) else
-             "pc" if re.search(r"\b(?:u-?)?dimm\b|desktop|stacjonar|\bpc4-\d{4,5}[a-z]{0,2}-u", t) else UNKNOWN)
+             "pc" if re.search(r"\b(?:u-?)?dimm\b|desktop|stacjonar|\bpc[345]l?-\d{4,5}[a-z]{0,2}-u|"
+                               r"\bpc3l?-\d{4,5}u\b", t) else UNKNOWN)
     return {"typ": typ, "mhz": mhz, "forma": forma, "sztuk": rule_quantity({"title": text, "description": ""})}
 
 
-NVME_MODELS = (("990evo", r"990\s?evo"), ("990pro", r"990\s?pro"), ("980pro", r"980\s?pro"),
+NVME_MODELS = (("990evoplus", r"990\s?evo\s?(?:plus|\+)"), ("990evo", r"990\s?evo"), ("990pro", r"990\s?pro"), ("980pro", r"980\s?pro"),
                ("970evoplus", r"970\s?evo\s?(?:plus|\+)"), ("970pro", r"970\s?pro"), ("970evo", r"970\s?evo"),
                ("980", r"\b980\b"))
 
@@ -154,15 +187,26 @@ def rules_s23(text):
 
 
 _WORDS = {"dwie": 2, "dwa": 2, "dwóch": 2, "dwoch": 2, "trzy": 3, "cztery": 4}
+# „x4” / „2X” / „1Rx8”, które NIE są liczbą sztuk (07.11: 17 z 30 dysków NVMe reguły liczyły jako 4 sztuki).
+_NOT_QUANTITY = re.compile(
+    r"pci-?e?\w*[\s.\d,/-]{0,12}?(?:gen\s*\d\s*)?[x×]\s*\d+|"                 # PCIe 3.0 x4, PCI-E x16
+    r"\b(?:gen|nvme|lanes?|interfejs\w*|express)\s*\d?(?:\.\d)?\s*[x×]\s*\d+|"    # Gen4 x4, NVMe x4
+    r"\b[2-6]\.0\s*[x×]\s*\d+|"                                                     # „4.0 x4 / 5.0 x2”
+    r"\b[x×]\s*(?:1|4|8|16)\s*(?:pci|gen|lane|nvme)|"                            # x4 PCIe
+    r"\b(?:ventus|windforce|twin|dual|eagle|gaming|frozr|torx|jetstream|phoenix|aero|pegasus|vision|turbo|storm|"
+    r"ichill|mech|pulse|nitro|amp|aorus)\s*\d\s*[x×]|"                              # MSI Ventus 2X, WINDFORCE 3X
+    r"\b\d\s*[x×]\s*(?:fan|wentylator|went|hdmi|dp\b|displayport|dvi|vga|usb|m\.?2|sata|\d?-?pin|nvme|slot|"
+    r"z[lł][aą]cz|port|wiatrak)\w*|"                                              # 3x wentylator, 2x HDMI
+    r"\b\d+\s*[x×]\s*\d+\s*(?:mm|cm)\b|\b\d+rx\d+\b|\b\d+[mg]\s*x\s*\d+-?bit", re.I)  # 120x120mm, 1Rx8
 
 
 def rule_quantity(offer):
     """Liczba sztuk z prostych reguł („2x8GB”, „x3”, „3 szt”, „dwie”, „cena za sztukę” = 1)."""
-    text = f"{offer['title']} {offer.get('description') or ''}".lower()
-    if re.search(r"za sztuk|za szt\b|za jedn", text):
+    text = _NOT_QUANTITY.sub(" ", f"{offer['title']} {offer.get('description') or ''}".lower())
+    if re.search(r"za sztuk|za szt\b|za jedn|za 1 ?szt", text):
         return "1"
-    for pattern in (r"\b(\d)\s*[x×]\s*\d+\s*(?:gb|tb)", r"\b(\d)\s*[x×]\s", r"\b[x×]\s*(\d)\b",
-                    r"\b(\d+)\s*(?:szt|sztuk)"):
+    for pattern in (r"\b(\d+)\s*(?:szt|sztuk)", r"\b(\d)\s*[x×]\s*\d+\s*(?:gb|tb)", r"\b(\d)\s*[x×]\s*\d{1,2}\b", r"\b(\d)\s*[x×]\s",
+                    r"\b[x×]\s*(\d)\b"):
         match = re.search(pattern, text)
         if match and int(match.group(1)) >= 1:
             n = int(match.group(1))
@@ -179,6 +223,7 @@ FAMILIES = {
     "s23": {
         "name": "Samsung Galaxy S23 (telefony)", "category": "phone",
         "title": re.compile(r"(?<![a-z0-9])s\s?23(?!\d)", re.I), "rules": rules_s23, "flags": PHONE_FLAGS,
+        "price": 1500,
         "questions": {"etykieta": _q("Co dokładnie jest sprzedawane? Czytaj cały opis - zaprzeczenia („nie FE”, "
                                      "„nie uszkodzony”) zmieniają znaczenie.", {
             "s23_base": "Samsung Galaxy S23 - podstawowy model (nie FE, nie Plus, nie Ultra), sprawny telefon",
@@ -192,16 +237,18 @@ FAMILIES = {
         "tricky": [
             ("Samsung Galaxy S23 128GB (nie FE!)", "Oryginalny S23, nie wersja FE. Bez rys, sprawny.",
              {"etykieta": "s23_base"}),
-            ("Samsung S23 256GB", "Zbita szybka z tyłu, ekran pęknięty w rogu, działa.", {"etykieta": "uszkodzony"}),
-            ("Etui do Samsung S23 Ultra", "Sprzedam etui silikonowe, telefon niedostępny.", {"etykieta": "akcesorium"}),
+            ("Samsung S23 256GB", "Zbita szybka z tyłu, ekran pęknięty w rogu, działa.", {"etykieta": "uszkodzony"},
+             700),
+            ("Etui do Samsung S23 Ultra", "Sprzedam etui silikonowe, telefon niedostępny.", {"etykieta": "akcesorium"},
+             25),
             ("Samsung Galaxy S23 FE 128GB", "Sprzedaję S23 FE zamiast zwykłego S23 - pomyłka.", {"etykieta": "s23_fe"}),
             ("Samsung s23 + etui", "Telefon S23 z etui w zestawie, sprawny.", {"etykieta": "s23_base"}),
-            ("Samsung S23 Ultra Mod 16/512", "Dual SIM, to nie jest oryginał Samsunga.", {"etykieta": "podrobka"}),
+            ("Samsung S23 Ultra Mod 16/512", "Dual SIM, to nie jest oryginał Samsunga.", {"etykieta": "podrobka"}, 450),
         ],
     },
     "gtx1060": {
         "name": "karty graficzne - GeForce GTX 1060", "category": "gpu", "title": re.compile(r"1060"),
-        "rules": rules_gtx1060, "flags": PART_FLAGS,
+        "rules": rules_gtx1060, "flags": PART_FLAGS, "price": 300,
         "questions": {
             "model": _q("Jaka karta jest sprzedawana? Uwaga: „wydajność jak GTX 1060” w opisie innej karty = inna "
                         "karta.", {"gtx1060": "GeForce GTX 1060 (desktop)",
@@ -217,13 +264,14 @@ FAMILIES = {
             ("Karta graficzna GTX 970", "Wydajność podobna do GTX 1060 6GB, w pełni sprawna.", {"model": "inna"}),
             ("GTX 1060", "Sprawna karta, wymieniłem na nowszą.", {"vram": UNKNOWN}),
             ("GTX 1060 6GB x2", "Dwie karty, cena za sztukę.", {"vram": "6gb", "sztuk": "1"}),
-            ("GTX 1060 3GB", "Brak obrazu, wentylatory się kręcą.", {"vram": "3gb", "stan": "uszkodzona"}),
-            ("Chłodzenie GTX 1060", "Sam radiator z wentylatorami, karty brak.", {"stan": "czesc"}),
+            ("GTX 1060 3GB", "Brak obrazu, wentylatory się kręcą.", {"vram": "3gb", "stan": "uszkodzona"}, 120),
+            ("Chłodzenie GTX 1060", "Sam radiator z wentylatorami, karty brak.", {"stan": "czesc"}, 40),
+            ("MSI GTX 1060 Gaming X 6G", "Karta do gier, chłodzenie Twin Frozr, 2X wentylatory.", {"sztuk": "1"}),
         ],
     },
     "rtx3060": {
         "name": "karty graficzne - GeForce RTX 3060 / 3060 Ti", "category": "gpu", "title": re.compile(r"3060"),
-        "rules": rules_rtx3060, "flags": PART_FLAGS,
+        "rules": rules_rtx3060, "flags": PART_FLAGS, "price": 950,
         "questions": {
             "model": _q("Który dokładnie model? RTX 3060 i RTX 3060 Ti to różne karty (Ti szybsza i droższa).",
                         {"rtx3060": "GeForce RTX 3060 (bez Ti)", "rtx3060ti": "GeForce RTX 3060 Ti",
@@ -237,21 +285,25 @@ FAMILIES = {
              {"model": "rtx3060", "vram": "8gb"}),
             ("RTX 3060 12GB", "Karta w pełni sprawna, bez artefaktów.", {"model": "rtx3060", "stan": "sprawna"}),
             ("RTX 3060", "Sprawna, używana do gier.", {"vram": UNKNOWN}),
-            ("RTX3060 Ti Heatsink with Fan", "Sam radiator z wentylatorem, bez układu.", {"stan": "czesc"}),
-            ("Komputer gamingowy RTX 3060 Ryzen 5", "Cały zestaw PC.", {"stan": "zestaw"}),
+            ("RTX3060 Ti Heatsink with Fan", "Sam radiator z wentylatorem, bez układu.", {"stan": "czesc"}, 60),
+            ("Komputer gamingowy RTX 3060 Ryzen 5", "Cały zestaw PC.", {"stan": "zestaw"}, 2800),
+            ("MSI RTX 3060 Ventus 2X 12G OC", "Sprawna, złącze PCIe 4.0 x16.", {"vram": "12gb", "sztuk": "1"}),
+            ("Asus Dual RTX 3060 Ti", "Grafikminne 8GB GDDR6, fungerar perfekt.", {"model": "rtx3060ti", "vram": "8gb"}),
         ],
     },
     "ddr4": {
-        "name": "pamięć RAM (DDR4 i podobne)", "category": "ram", "title": re.compile(r"ddr|ram|pc4|pc3", re.I),
-        "rules": rules_ddr4, "flags": PART_FLAGS,
+        "name": "pamięć RAM (wszystkie typy: DDR2 i starsze, DDR3, DDR4, DDR5)", "category": "ram",
+        "title": re.compile(r"ddr|ram|pc[2345]|simm|dimm", re.I), "rules": rules_ddr4, "flags": PART_FLAGS,
+        "price": 150,
         "questions": {
-            "typ": _q("Jaki typ pamięci? Uwaga: „to nie DDR3”, „PC3” = DDR3, „PC4” = DDR4.",
-                      {"ddr3": "DDR3 / DDR3L", "ddr4": "DDR4", "ddr5": "DDR5", UNKNOWN: "nie da się ustalić"}),
+            "typ": _q("Jaki typ pamięci? Uwaga: „to nie DDR3”; „PC2” = DDR2, „PC3” / „PC3L” = DDR3, „PC4” = DDR4, "
+                      "„PC5” = DDR5; SIMM, EDO, SDRAM (bez DDR) i samo „DDR” = stare.",
+                      {"ddr2_starsza": "DDR2 albo starsza (DDR, SDRAM, SIMM, EDO)", "ddr3": "DDR3 / DDR3L",
+                       "ddr4": "DDR4", "ddr5": "DDR5", UNKNOWN: "nie da się ustalić"}),
             "mhz": _q("Jakie jest ZNAMIONOWE taktowanie kości (z naklejki / specyfikacji / XMP), nie to, na którym "
-                      "pracowały w komputerze? PC4-17000 = 2133, 19200 = 2400, 21300 = 2666, 25600 = 3200; "
-                      "„PC4-3200AA” = 3200. Gdy nie wiadomo - nie zgaduj.",
-                      {**{s: f"{s} MHz" for s in RAM_SPEEDS[:-1]}, "3600+": "3600 MHz lub więcej",
-                       UNKNOWN: "nie da się ustalić"}),
+                      "pracowały w komputerze? Kod z naklejki: liczba / 8, np. PC3-12800 = 1600, PC4-17000 = 2133, "
+                      "PC4-21300 = 2666, PC4-25600 = 3200, PC5-38400 = 4800; „PC4-3200AA” = 3200, "
+                      "„DDR4-2400” = 2400. Gdy nie wiadomo - nie zgaduj.", {**SPEED_LABELS, UNKNOWN: "nie da się ustalić"}),
             "forma": _q("Do czego jest pamięć? Kość do laptopa (SO-DIMM) jest krótka, kod naklejki PC4-…-S; do PC "
                         "(DIMM) długa, PC4-…-U; serwerowa ECC / registered.",
                         {"pc": "do komputera stacjonarnego (DIMM)", "laptop": "do laptopa (SO-DIMM)",
@@ -259,23 +311,31 @@ FAMILIES = {
             "stan": CONDITION_PART, "sztuk": QUANTITY},
         "tricky": [
             ("Pamięć RAM 16GB DDR4", "Kości 3200 MHz, w moim komputerze pracowały na 2133.", {"mhz": "3200"}),
+            ("Pamięć RAM 2x16 MB EDO", "Stare kości SIMM do komputera retro.", {"typ": "ddr2_starsza"}, 40),
+            ("Hynix 4GB PC3L-12800S", "Z laptopa, sprawna.", {"typ": "ddr3", "mhz": "1600", "forma": "laptop"}, 30),
+            ("Pamięć 8GB DDR4 2666", "Not for laptops - desktop DIMM.", {"forma": "pc"}),
+            ("Kingston HyperX DDR2 4x1GB", "Komplet 4 kości 1066 MHz.", {"typ": "ddr2_starsza", "mhz": "do_1333",
+                                                                       "sztuk": "4"}, 60),
             ("RAM 8GB 1600MHz", "Pamięć DDR3, nie DDR4 - uwaga przy zakupie.", {"typ": "ddr3"}),
             ("Kingston 8GB PC4-21300", "Do PC, jedna kość.", {"typ": "ddr4", "mhz": "2666", "forma": "pc"}),
             ("RAM DDR4 16GB 2x8", "Kości SO-DIMM z laptopa Dell, 2400 MHz.", {"forma": "laptop", "mhz": "2400",
                                                                            "sztuk": "2"}),
             ("Pamięć DDR4 3200", "Opis z naklejki: PC4-2133P-UA0. Działa.", {"mhz": "2133"}),
             ("RAM DDR4 8GB", "Cena za sztukę, mam 4 kości.", {"sztuk": "1"}),
-            ("Corsair Vengeance 16GB", "Zestaw 2x8 GB DDR4, XMP 3600, bez XMP 2133.", {"mhz": "3600+", "sztuk": "2"}),
+            ("Corsair Vengeance 16GB", "Zestaw 2x8 GB DDR4, XMP 3600, bez XMP 2133.", {"mhz": "3600", "sztuk": "2"}),
+            ("Kość SK Hynix 8GB DDR4 2400MHz 1Rx8", "Jedna kość, sprawna.", {"mhz": "2400", "sztuk": "1"}),
             ("Samsung 16GB DDR4 ECC", "Serwerowa, registered.", {"forma": "serwer"}),
         ],
     },
     "nvme": {
         "name": "dyski - Samsung 970 / 980 / 990", "category": "storage", "title": re.compile(r"\b9[789]0\b"),
-        "rules": rules_nvme, "flags": PART_FLAGS,
+        "rules": rules_nvme, "flags": PART_FLAGS, "price": 300,
         "questions": {
-            "model": _q("Który dokładnie model dysku Samsung? 970 EVO, 970 EVO Plus, 980 i 980 PRO to różne dyski.",
+            "model": _q("Który dokładnie model dysku Samsung? 970 EVO, 970 EVO Plus, 980, 980 PRO, 990 EVO, 990 EVO Plus "
+                        "i 990 PRO to różne dyski. Samego „990” (bez PRO / EVO) nie ma - wtedy nie zgaduj.",
                         {"970evo": "970 EVO (bez Plus)", "970evoplus": "970 EVO Plus", "970pro": "970 PRO",
-                         "980": "980 (bez PRO)", "980pro": "980 PRO", "990pro": "990 PRO", "990evo": "990 EVO",
+                         "980": "980 (bez PRO)", "980pro": "980 PRO", "990pro": "990 PRO",
+                         "990evo": "990 EVO (bez Plus)", "990evoplus": "990 EVO Plus",
                          "inny": "inny dysk albo inna rzecz", UNKNOWN: "nie da się ustalić"}),
             "pojemnosc": _q("Jaka pojemność TEGO dysku? Gdy nie wiadomo - nie zgaduj.",
                             {"250gb": "250 GB", "500gb": "500 GB", "1tb": "1 TB", "2tb": "2 TB", "4tb": "4 TB",
@@ -286,14 +346,15 @@ FAMILIES = {
                                                                                 "pojemnosc": "1tb"}),
             ("Samsung 980 Pro 1TB", "To zwykły 980 (bez PRO), pomyłka w tytule.", {"model": "980"}),
             ("Dysk Samsung 980 PRO", "Pojemność 2 TB, sprawny.", {"pojemnosc": "2tb", "stan": "sprawna"}),
-            ("Samsung 970 EVO Plus 500GB", "Dysk nie jest wykrywany przez BIOS.", {"stan": "uszkodzona"}),
-            ("Radiator do Samsung 980 PRO", "Sam radiator, dysku brak.", {"stan": "czesc"}),
-            ("Samsung 990 PRO 2TB x2", "Dwa dyski, cena za całość.", {"sztuk": "2"}),
+            ("Samsung 970 EVO Plus 500GB", "Dysk nie jest wykrywany przez BIOS.", {"stan": "uszkodzona"}, 60),
+            ("Radiator do Samsung 980 PRO", "Sam radiator, dysku brak.", {"stan": "czesc"}, 30),
+            ("Samsung 990 PRO 2TB x2", "Dwa dyski, cena za całość.", {"sztuk": "2"}, 1100),
+            ("Samsung 990 EVO Plus 1TB", "Nowy, PCIe 4.0 x4 / 5.0 x2.", {"model": "990evoplus", "sztuk": "1"}),
         ],
     },
     "i5": {
         "name": "procesory - Intel Core i5", "category": "cpu", "title": re.compile(r"\bi5", re.I),
-        "rules": rules_i5, "flags": PART_FLAGS,
+        "rules": rules_i5, "flags": PART_FLAGS, "price": 350,
         "questions": {
             "model": _q("Który model procesora Intel Core i5 (numer)? Gdy nie wiadomo - nie zgaduj.",
                         {**{m: f"i5-{m}" for m in I5_MODELS}, "inny": "inny procesor albo inna rzecz",
@@ -311,9 +372,9 @@ FAMILIES = {
             ("Procesor i5 12400", "Sprawny, z boxowym chłodzeniem.", {"model": "12400", "sufiks": "brak",
                                                                      "stan": "sprawna"}),
             ("i5-9600K + płyta Z390", "Zestaw procesor i płyta, działają.", {"model": "9600", "sufiks": "k",
-                                                                            "stan": "zestaw"}),
+                                                                            "stan": "zestaw"}, 600),
             ("Intel i5 8. generacji", "Procesor desktop, model 8400.", {"model": "8400"}),
-            ("Chłodzenie do i5", "Sam cooler, procesora brak.", {"stan": "czesc"}),
+            ("Chłodzenie do i5", "Sam cooler, procesora brak.", {"stan": "czesc"}, 30),
         ],
     },
 }
@@ -436,8 +497,24 @@ def print_sample(rows, counts):
 def save_sample(rows, family, out_dir):
     path = Path(out_dir) / "basal" / f"{family}_{datetime.now():%Y%m%d_%H%M}.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+    path.write_text("".join(dumps_line(r) + "\n" for r in rows), encoding="utf-8")
     return path
+
+
+_LINE_BREAKS = {"\u2028": "\\u2028", "\u2029": "\\u2029", "\x85": "\\u0085"}
+
+
+def dumps_line(row):
+    """JSON w jednej linii także dla edytorów i splitlines() (znaki U+2028 / U+2029 / U+0085 jako \\uXXXX)."""
+    text = json.dumps(row, ensure_ascii=False)
+    for char, escaped in _LINE_BREAKS.items():
+        text = text.replace(char, escaped)
+    return text
+
+
+def load_sample(path):
+    """Próbka JSONL → lista słowników. Dzieli tylko po \\n (stare próbki mają w opisach U+2028 bez ucieczki)."""
+    return [json.loads(line) for line in Path(path).read_text(encoding="utf-8").split("\n") if line.strip()]
 
 
 # ---------------------------------------------------------------------------------------------- krok 3: test basal
@@ -475,14 +552,19 @@ def _pct(p):
     return "?" if p is None else f"{p:.0%}"
 
 
+TEST_CONDITION = "Bardzo dobry"      # stan z formularza dla przypadków testowych (jak w prawdziwych ofertach)
+CONFIDENT = 0.7                     # próg pewności bramkarza (podsumowanie: trafność powyżej / poniżej)
+
+
 def run_test(rows, family="gtx1060", url="http://127.0.0.1:8000", client=None, with_tricky=True, say=print):
     """Każda oferta → POST /v1/systemone. → (wyniki, podsumowanie). Rzuca httpx.HTTPError przy braku serwera."""
     import httpx
     fam = FAMILIES[family]
     cases = [dict(r, expected={}) for r in rows]
     if with_tricky:
-        cases += [{"id": f"test{i}", "title": t, "description": d, "price": None, "condition": None, "hint": "[test]",
-                   "expected": e} for i, (t, d, e) in enumerate(fam["tricky"], 1)]
+        for i, (title, desc, expected, *price) in enumerate(fam["tricky"], 1):
+            cases.append({"id": f"test{i}", "title": title, "description": desc, "price": (price or [fam["price"]])[0],
+                          "condition": TEST_CONDITION, "hint": "[test]", "expected": expected})
     own = client is None
     client = client or httpx.Client(timeout=120.0, trust_env=False)
     before = vram_used()
@@ -541,7 +623,26 @@ def run_test(rows, family="gtx1060", url="http://127.0.0.1:8000", client=None, w
         if known:
             summary["zgodność z regułami (tytuł + opis)"][q] = \
                 f"{sum(r['answers'][q] == r['rules_all'][q] for r in known)}/{len(known)}"
+    summary[f"pewność ≥ {CONFIDENT:.0%} (wzorzec: oczekiwane, inaczej reguły)"] = confidence_split(results, fam)
     return results, summary
+
+
+def confidence_split(results, fam, threshold=CONFIDENT):
+    """Per pytanie: ile odpowiedzi pewnych (≥ progu) i ile z nich zgodnych ze wzorcem, to samo dla niepewnych.
+    Wzorzec = oczekiwana odpowiedź przypadku testowego, a dla prawdziwych ofert reguły z tytułu + opisu (gdy znane)."""
+    out = {}
+    for q in fam["questions"]:
+        sure, unsure = [0, 0], [0, 0]
+        for r in results:
+            want = r["expected"].get(q) if r["expected"] else r["rules_all"].get(q)
+            if want in (None, UNKNOWN, "sprzeczne") and q not in r["expected"]:
+                continue
+            bucket = sure if (r["confidence"].get(q) or 0) >= threshold else unsure
+            bucket[0] += r["answers"].get(q) == want
+            bucket[1] += 1
+        if sure[1] or unsure[1]:
+            out[q] = f"pewne {sure[0]}/{sure[1]} zgodnych, niepewne {unsure[0]}/{unsure[1]}"
+    return out
 
 
 def save_results(results, summary, sample_path):

@@ -13,7 +13,7 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (271), w `unreachable_sniper`
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (272), w `unreachable_sniper`
    `python -m pytest sniper/tests -q` (286 + 1 pominięty). Oba przed każdym pushem.
 
 ## Jak odpowiadać użytkownikowi (preferencje – ważne, sprawdzone w rozmowach)
@@ -225,9 +225,11 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
 00. (07.11) **Wyniki testu basala na PC z GTX 1060** (`BASAL_GPU.md`, rodziny `s23 gtx1060 rtx3060 ddr4 nvme
-   i5`): pliki `..._wyniki_*.json` dla mini i 4.5B (trafność per pytanie, przypadki testowe OK/BŁĄD, czas, VRAM)
-   albo błędy z `basal-serve --mode llamacpp` (+ `basal-serve --help`, `basal-export-gguf --help`). Kroki 4–5 dopiero
-   po akceptacji wyników przez użytkownika.
+   i5`). Mini przyszło (ddr4, rtx3060, nvme; i5 tylko zrzut; s23 wywalił się na U+2028 - naprawione): ocena
+   w `BASAL_GPU.md` §F. Po poprawkach testu (ceny w przypadkach testowych, typy RAM DDR2–DDR5, 990 EVO Plus,
+   liczba sztuk bez „PCIe x4” / „Ventus 2X”, podział „pewność ≥ 70%”) czekamy na: ponowny przebieg mini dla 6
+   rodzin (ten sam plik próbki), pliki `gtx1060_…_wyniki_*` i `i5_…_wyniki_*`, potem 4.5B. Kroki 4–5 dopiero po
+   akceptacji wyników przez użytkownika.
 
 0a. (01.11) Wybór modelu AI: wynik `python -m sniper.bench --warianty haiku55,haiku55_low --ref zapisane --bez-bramki
    --last 50` (klucz ANTHROPIC_API_KEY, ~$0,3) - czy Haiku 5.5 trafia jedyną prawdziwą okazję ze złotego zbioru bez

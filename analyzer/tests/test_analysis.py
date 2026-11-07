@@ -1504,6 +1504,11 @@ def test_basal_poc_variants(monkeypatch):
     assert results[0]["rules_all"]["vram"] == "3gb"
     assert "vram" in summary["przypadki_testowe"] and summary["vram_mb"]["karta"].startswith("NVIDIA")
     assert any("vram: 3gb (80%)" in line for line in out)
+    tests = [body for body in seen[1:]]
+    assert tests and all("Cena: ?" not in b["state"] and "Bardzo dobry" in b["state"] for b in tests)
+    assert "Cena: 40 zł" in next(b["state"] for b in tests if "Chłodzenie GTX 1060" in b["state"])
+    split = summary["pewność ≥ 70% (wzorzec: oczekiwane, inaczej reguły)"]
+    assert split["model"].startswith("pewne ") and "niepewne" in split["sztuk"]
     assert set(basal_poc.FAMILIES) == {"s23", "gtx1060", "rtx3060", "ddr4", "nvme", "i5"}
 
 
@@ -1521,3 +1526,26 @@ def test_basal_rules_and_signals():
     assert rule_quantity({"title": "Samsung 980 Pro 1TB", "description": "Cena za sztukę, mam 2."}) == "1"
     assert "tytuł bez: vram (jest w opisie)" in variant_signals("GTX 1060", "Wersja 6 GB.", "gtx1060")
     assert "opis zmienia: mhz" in variant_signals("DDR4 3200MHz", "Naklejka PC4-2133P-UA0.", "ddr4")
+    # 07.11 (wyniki z GTX 1060): wszystkie typy RAM, taktowania DDR3 / DDR5, „Not for laptops”, 990 EVO Plus
+    assert rules_ddr4("Pamięć RAM 2x16 MB EDO")["typ"] == "ddr2_starsza"
+    assert rules_ddr4("Corsair DDR4 SDRAM 16GB")["typ"] == "ddr4"
+    assert rules_ddr4("Hynix 4GB PC3L-12800S") == {"typ": "ddr3", "mhz": "1600", "forma": "laptop", "sztuk": "1"}
+    assert rules_ddr4("DDR5 5600 32GB")["mhz"] == "5600" and rules_ddr4("DDR4 4000MHz")["mhz"] == "3733_4600"
+    assert rules_ddr4("Pamięć 8GB DDR4 2666\nNot for laptops - desktop DIMM.")["forma"] == "pc"
+    assert rules_nvme("Samsung 990 EVO Plus 1TB PCIe 4.0 x4 / 5.0 x2") == {"model": "990evoplus", "pojemnosc": "1tb",
+                                                                          "sztuk": "1"}
+    for title in ("SSD Samsung 970 EVO Plus NVMe PCIe 3.0 x4", "MSI RTX 3060 Ti Ventus 2X OC", "Asus Dual RTX 3060",
+                  "Gigabyte WINDFORCE 3X", "SK Hynix 8GB DDR4 1Rx8", "Wentylator 3x fan 120x120mm"):
+        assert rule_quantity({"title": title}) == "1", title
+    assert rule_quantity({"title": "RAM DDR4 16GB 2x8"}) == "2" and rule_quantity({"title": "4 sztuki (2x2GB)"}) == "4"
+
+
+def test_basal_sample_line_breaks(tmp_path):
+    """s23 (07.11): opis z U+2028 - zapis z ucieczką, odczyt starych próbek tylko po \\n."""
+    from analyzer import basal_poc
+    rows = [{"id": 1, "title": "S23", "description": "a\u2028b\u2029c\x85d"}, {"id": 2, "title": "x", "description": ""}]
+    path = basal_poc.save_sample(rows, "s23", tmp_path)
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 2 and basal_poc.load_sample(path) == rows
+    old = tmp_path / "stara.jsonl"
+    old.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+    assert basal_poc.load_sample(old) == rows
