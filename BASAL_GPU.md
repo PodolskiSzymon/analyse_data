@@ -177,21 +177,31 @@ python -m analyzer basal-test --plik C:\basal\s23.jsonl
 ```
 (`--template-prefix off` – dokumentacja basal wymaga go tylko dla 4.5B.)
 
-## F. Podzespoły: liczba sztuk (07.11)
+## F. Rodziny wariantów (07.11 – sedno testu)
 
-Te same okna serwera (mini albo 4.5B). Na laptopie: próbki, potem pliki na PC i test (każda rodzina osobno):
-```
-python -m analyzer basal-sample --rodzina ram --limit 30
-python -m analyzer basal-sample --rodzina dyski --limit 30
-python -m analyzer basal-sample --rodzina karty --limit 30
-python -m analyzer basal-sample --rodzina procesory --limit 30
-python -m analyzer basal-test --rodzina ram --plik C:\basal\ram.jsonl
-```
-(`--rodzina` przy `basal-test` musi być ta sama co przy próbce.) Od 07.11 `basal-sample` bierze **trudne przypadki językowe**: zaprzeczenia („bez artefaktów”), cena za sztukę, zestawy, część / pudełko / adapter zamiast rzeczy, zamiana / kupię, kopanie krypto, „lub / chyba”, inny model w opisie niż w tytule, opis po obcemu - w nawiasie przy ofercie lista pułapek. Dawne losowanie: `--zwykle`. Dodatkowe pytania: **ile sztuk za podaną cenę**
-(1 / 2 / 3 / 4 / 5+ / nie wiadomo; „2x8 GB” = 2, „cena za sztukę, mam 4” = 1) i **czy cena jest za jedną sztukę
-z kilku**. Wydruk: `-> etykieta -> pewność | sztuk: N (pewność)`, przy ofertach z bazy `sztuk ≠ reguły: N`
-(porównanie z prostymi regułami), przy przypadkach testowych `sztuk OK / BŁĄD`. Karty mają w testach dwie prawdziwe
-oferty z 06.11 (RTX 2060 Super „brak obrazu”, GTX 1070 „czerwony ekran”).
+Każda rodzina to JEDEN model z wariantami, które tytuł często pomija albo podaje źle (jak S23 Ultra / FE / Plus):
+
+| `--rodzina` | kategoria | pytania do basala (wybór z listy + pewność) |
+|---|---|---|
+| `s23` | telefony | etykieta: S23 / Plus / Ultra / FE / uszkodzony / akcesorium / podróbka |
+| `gtx1060` | karty | model (1060 czy „jak 1060”), **VRAM 3 / 5 / 6 GB**, stan, liczba sztuk |
+| `rtx3060` | karty | **3060 czy 3060 Ti**, **VRAM 8 / 12 GB**, stan, liczba sztuk |
+| `ddr4` | RAM | **typ DDR3 / 4 / 5**, **taktowanie znamionowe 2133…3600+** (PC4-21300 = 2666, „pracowały na 2133”), forma PC / laptop / serwer, stan, liczba sztuk |
+| `nvme` | dyski | **970 EVO / EVO Plus / PRO / 980 / 980 PRO / 990**, pojemność, stan, liczba sztuk |
+| `i5` | procesory | model i5-8400…14600, **końcówka brak / F / K / KF / T** („i5 9400 f”, „to nie F”), stan, liczba sztuk |
+
+Wszędzie też tak/nie: „czy cena jest za jedną sztukę z kilku”. Odpowiedź `nie_wiadomo` jest poprawna, gdy ogłoszenie
+naprawdę nie mówi wariantu (basal ma NIE zgadywać).
+
+Próbka (`basal-sample`) bierze najpierw oferty, gdzie **tytuł nie podaje wariantu** („tytuł bez: vram (jest w
+opisie)”), **opis zmienia wariant** („opis zmienia: mhz”), potem pułapki językowe (zaprzeczenia, cena za sztukę,
+zestawy, „jak GTX 1060”, „pomyłka w tytule”, XMP / „pracowały na”, obcy język). Przykłady z bazy: „Gainward GTX 1060
+3072MB” (3 GB w MB), „Geforce 1060 3GT OC”, „Corsair Vengeance RGB Light Enhancement Kit (DDR4)” (atrapy bez
+pamięci!), „Kingston 4GB DDR3L … 4 sticks + 1 opened”.
+
+Wydruk `basal-test`: przy każdej ofercie odpowiedzi z pewnością; `≠ reguły: X` (regex z tytułu + opisu mówi co innego),
+`basal wie (X), reguły nie` (wariant tylko z kontekstu); przy przypadkach testowych `OK` / `BŁĄD (oczekiwane X)`.
+Podsumowanie: trafność per pytanie na przypadkach testowych, zgodność z regułami, czasy, VRAM.
 
 Do oceny wyślij oba pliki `..._wyniki_<godz>.json` (albo wydruki): etykiety, przypadki testowe OK / BŁĄD,
 czasy, VRAM. Gdy `basal-serve --mode llamacpp` nie ruszy – wklej błąd; awaryjnie wariant A (`basal-export-gguf

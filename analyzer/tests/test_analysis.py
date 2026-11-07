@@ -1376,37 +1376,6 @@ def test_guides_for_new_part_catalogs(market, tmp_path):
     aconn.close()
 
 
-def test_basal_poc_request_and_results(monkeypatch):
-    """Test basal (06.11): zapytanie /v1/systemone z etykietami rodziny + flagi; wynik = etykieta, pewność, czas."""
-    import httpx
-    from analyzer import basal_poc
-    seen = []
-
-    def handler(request):
-        body = json.loads(request.content)
-        seen.append(body)
-        label = "s23_fe" if "FE" in body["state"] else "s23_base"
-        return httpx.Response(200, json={"answers": {
-            "etykieta": {"type": "choice", "choice": label, "confidence": 0.91, "probabilities": {label: 0.91}},
-            "uszkodzony": {"type": "noul", "noul": 0.04}, "akcesorium": {"type": "noul", "noul": 0.02}},
-            "usage": {"latency_ms": 120}})
-
-    monkeypatch.setattr(basal_poc, "vram_used", lambda: (900, 2048, "NVIDIA GeForce 920M"))
-    client = httpx.Client(transport=httpx.MockTransport(handler))
-    rows = [{"id": 1, "title": "Samsung Galaxy S23 FE 128GB", "description": "stan bdb", "price": 1100.0,
-             "condition": "Bardzo dobry", "hint": "FE"}]
-    out = []
-    results, summary = basal_poc.run_test(rows, url="http://basal", client=client, say=out.append)
-    q = seen[0]["questions"]
-    assert set(q["etykieta"]["criteria"]) >= {"s23_base", "s23_fe", "uszkodzony", "akcesorium"}
-    assert q["uszkodzony"]["type"] == "noul" and "Tytuł: Samsung Galaxy S23 FE" in seen[0]["state"]
-    assert results[0]["label"] == "s23_fe" and results[0]["rule"] == "s23_fe"
-    assert len(results) == 1 + len(basal_poc.FAMILIES["s23"]["tricky"])
-    assert summary["vram_mb"]["karta"] == "NVIDIA GeForce 920M" and summary["przypadki_testowe"]
-    assert any("-> s23_fe -> 91%" in line for line in out)
-    assert basal_poc.rule_label({"title": "Etui do Samsung S23", "description": ""}) == "akcesorium"
-
-
 def test_photos_clean_only_old_deleted(tmp_path):
     """photos-clean (07.11): usuwa tylko zdjęcia ofert deleted od ≥ N dni; sprzedane, aktywne i świeżo usunięte
     zostają; wpis w index.db znika (oferta, która wróci, dostanie zdjęcia od nowa)."""
@@ -1508,8 +1477,8 @@ def test_proxy_health_alerts_once_and_on_recovery():
     assert len(sent) == 1 and "407" in sent[0][1]
 
 
-def test_basal_poc_parts_quantity():
-    """Podzespoły (07.11): pytanie o liczbę sztuk + „cena za sztukę”; reguły jako porównanie."""
+def test_basal_poc_variants(monkeypatch):
+    """Test basal (07.11): warianty jednego modelu - pytania rodziny, reguły z tytułu i z opisu, przypadki testowe."""
     import httpx
     from analyzer import basal_poc
     seen = []
@@ -1517,37 +1486,38 @@ def test_basal_poc_parts_quantity():
     def handler(request):
         body = json.loads(request.content)
         seen.append(body)
-        qty = "2" if "2x8" in body["state"] else "1"
+        vram = "3gb" if "3G" in body["state"] or "3 GB" in body["state"] else "6gb"
         return httpx.Response(200, json={"answers": {
-            "etykieta": {"choice": "ddr4_pc", "confidence": 0.8},
-            "sztuk": {"choice": qty, "confidence": 0.7},
-            "uszkodzony": {"noul": 0.1}, "cena_za_sztuke": {"noul": 0.2}}})
+            "model": {"choice": "gtx1060", "confidence": 0.9}, "vram": {"choice": vram, "confidence": 0.8},
+            "stan": {"choice": "sprawna", "confidence": 0.7}, "sztuk": {"choice": "1", "confidence": 0.95},
+            "cena_za_sztuke": {"noul": 0.1}}})
 
+    monkeypatch.setattr(basal_poc, "vram_used", lambda: (900, 6144, "NVIDIA GeForce GTX 1060 6GB"))
     client = httpx.Client(transport=httpx.MockTransport(handler))
-    rows = [{"id": 1, "title": "Kingston 16GB (2x8GB) DDR4", "description": "", "price": 150.0,
-             "condition": "Dobry", "hint": "kilka sztuk?"}]
+    rows = [{"id": 1, "title": "GTX 1060", "description": "Karta MSI, wersja 3 GB.", "price": 200.0,
+             "condition": "Dobry", "hint": "tytuł bez: vram (jest w opisie)"}]
     out = []
-    results, summary = basal_poc.run_test(rows, family="ram", url="http://basal", client=client, say=out.append)
+    results, summary = basal_poc.run_test(rows, family="gtx1060", url="http://basal", client=client, say=out.append)
     q = seen[0]["questions"]
-    assert q["sztuk"]["type"] == "choice" and "5+" in q["sztuk"]["criteria"] and q["cena_za_sztuke"]["type"] == "noul"
-    assert "kategoria: pamięć RAM" in seen[0]["state"]
-    assert results[0]["quantity"] == "2" and results[0]["rule_quantity"] == "2"
-    assert summary["sztuk_przypadki_testowe"] and "sztuk: 2 (70%)" in out[0]
-    rq = basal_poc.rule_quantity
-    assert rq({"title": "Samsung 980 Pro 1TB", "description": "Cena za sztukę, mam 2."}) == "1"
-    assert rq({"title": "Dyski SSD 512GB x3", "description": ""}) == "3"
-    assert rq({"title": "4x4GB DDR3", "description": ""}) == "4"
-    assert rq({"title": "RX 580", "description": "Dwie karty"}) == "2"
-    assert set(basal_poc.FAMILIES) == {"s23", "ram", "dyski", "karty", "procesory"}
+    assert set(q) >= {"model", "vram", "stan", "sztuk", "cena_za_sztuke"} and q["vram"]["type"] == "choice"
+    assert results[0]["answers"]["vram"] == "3gb" and results[0]["rules_title"]["vram"] == "nie_wiadomo"
+    assert results[0]["rules_all"]["vram"] == "3gb"
+    assert "vram" in summary["przypadki_testowe"] and summary["vram_mb"]["karta"].startswith("NVIDIA")
+    assert any("vram: 3gb (80%)" in line for line in out)
+    assert set(basal_poc.FAMILIES) == {"s23", "gtx1060", "rtx3060", "ddr4", "nvme", "i5"}
 
 
-def test_basal_language_signals():
-    """Trudne próbki (07.11): pułapki językowe zamiast losowych ofert."""
-    from analyzer.basal_poc import language_signals
-    assert "zaprzeczenie uszkodzenia" in language_signals("RX 570 8GB", "W pełni sprawna, bez artefaktów.", "karty")
-    assert "cena za sztukę" in language_signals("RAM DDR4 8GB", "Mam 4, cena za sztukę.", "ram")
-    assert "inny model / typ w opisie niż w tytule" in language_signals("GTX 970", "Wydajność jak GTX 1060.", "karty")
-    assert "opis po obcemu" in language_signals("RX 480 8gb", "Se vinde placa din imagini, a fost folosita foarte "
-                                                "putin, sigiliile sunt intacte.", "karty")
-    assert "uszkodzenie / niepewny stan" not in language_signals("Samsung S23", "Smartfon w stanie idealnym.", "s23")
-    assert language_signals("Samsung S23 128GB", "Sprzedam telefon, stan bardzo dobry.", "s23") == []
+def test_basal_rules_and_signals():
+    from analyzer.basal_poc import rule_quantity, rules_ddr4, rules_i5, rules_nvme, rules_rtx3060, variant_signals
+    assert rules_ddr4("Kingston 8GB PC4-21300 DIMM") == {"typ": "ddr4", "mhz": "2666", "forma": "pc", "sztuk": "1"}
+    assert rules_ddr4("RAM 8GB DDR3 1600MHz")["typ"] == "ddr3"
+    assert rules_ddr4("SODIMM DDR4 PC4-3200AA")["mhz"] == "3200" and rules_ddr4("SODIMM DDR4")["forma"] == "laptop"
+    assert rules_i5("Intel i5 9400 f") ["sufiks"] == "f" and rules_i5("i5-9600KF")["sufiks"] == "kf"
+    assert rules_i5("Intel Core i5-12400")["sufiks"] == "brak"
+    assert rules_rtx3060("RTX 3060 Ti")["vram"] == "8gb" and rules_rtx3060("RTX 3060")["vram"] == "nie_wiadomo"
+    from analyzer.basal_poc import rules_gtx1060
+    assert rules_gtx1060("Gainward GTX 1060 Phoenix 3072MB")["vram"] == "3gb"
+    assert rules_nvme("Samsung 970 EVO Plus 1TB") == {"model": "970evoplus", "pojemnosc": "1tb", "sztuk": "1"}
+    assert rule_quantity({"title": "Samsung 980 Pro 1TB", "description": "Cena za sztukę, mam 2."}) == "1"
+    assert "tytuł bez: vram (jest w opisie)" in variant_signals("GTX 1060", "Wersja 6 GB.", "gtx1060")
+    assert "opis zmienia: mhz" in variant_signals("DDR4 3200MHz", "Naklejka PC4-2133P-UA0.", "ddr4")

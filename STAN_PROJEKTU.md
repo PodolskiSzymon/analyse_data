@@ -1,4 +1,4 @@
-# STAN PROJEKTU – punkt startowy nowej rozmowy (2026-11-06)
+# STAN PROJEKTU – punkt startowy nowej rozmowy (2026-11-07)
 
 > **„wykonaj md” = przeczytaj CAŁY ten plik i działaj wg §6–§7.** `CLAUDE.md` wczytuje się sam. Innych plików nie
 > czytaj na zapas – mapa w §9 mówi, co otworzyć przy danym temacie. Archiwum decyzji z liczbami: `HISTORIA.md`
@@ -13,8 +13,56 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (272), w `unreachable_sniper`
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (271), w `unreachable_sniper`
    `python -m pytest sniper/tests -q` (286 + 1 pominięty). Oba przed każdym pushem.
+
+## Jak odpowiadać użytkownikowi (preferencje – ważne, sprawdzone w rozmowach)
+
+* **Po polsku, krótko, konkretnie.** Najpierw odpowiedź / decyzja („bierz X, bo…”), potem szczegóły. Tabele do
+  porównań (oferty, karty, warianty). Bez lania wody i bez powtarzania tego, co już ustalone.
+* **Komendy do skopiowania (Ctrl+C / Ctrl+V):** każda komenda w OSOBNYM bloku, **po kolei**, z **pełnymi ścieżkami**
+  (`C:\Users\szymo\analyse_data`, `C:\Users\szymo\unreachable_sniper`, baza
+  `C:\Users\szymo\category_analyzer\data\analyzer.db`), bez `$`, bez wymyślonych placeholderów, gdy da się podać
+  prawdziwą ścieżkę; gdy placeholder konieczny (nazwa pliku z `dir`) – napisz, skąd go wziąć. Windows: cmd (PowerShell
+  tylko, gdy trzeba – i powiedz to). Po każdej komendzie: **co powinno się pokazać** i co zrobić, gdy nie.
+* **Instrukcje krok po kroku**, numerowane, z punktami kontrolnymi („przyślij mi wynik X”). Użytkownik uczy się
+  narzędzi (DB Browser, WizTree, cmd, sterowniki) – rozpisuj kliknięcia, gdy to GUI.
+* **SQL dla DB Browser for SQLite** (użytkownik go używa): pełne zapytanie do wklejenia w „Wykonaj SQL”, kolumny po
+  polsku, link `https://www.vinted.pl/items/<id>`; uprzedź o fałszywych dopasowaniach (opisy zagraniczne!).
+  Wyniki przysyła jako PDF – czytaj je i oceniaj oferty (pułapki: uszkodzone w obcym języku, laptopowe RAM-y).
+* **Uczciwie o niepewności**: co sprawdzone (testy na atrapie), czego nie (sprzęt, Vinted na żywo); nie zgaduj
+  endpointów Vinted ani parametrów sprzętu – przyznaj się do błędu od razu (np. sterownik 920M = 425.31).
+* **Doradztwo zakupowe** (karty, RAM, obudowy, PC): oceniaj konkretne ogłoszenia ze zrzutów, wskazuj ryzyka (opis
+  „uszkodzona” po tłumaczeniu, zasilacz, wtyczki, SAS vs SATA, laptopowe kości), dawaj ranking i jedną rekomendację.
+* Zmiany w kodzie: od razu z testem, commit + push, w odpowiedzi 1–2 zdania „co zmieniłem” + komendy do wdrożenia
+  na serwerze (`git pull` + restart). Nie proś o wklejanie haseł / kluczy do czatu.
+
+## Zrzut stanu (07.11) – co zrobione ostatnio i co dalej
+
+* **Basal (lokalny model decyzyjny jako „bramkarz”)** – plan użytkownika: regex na tytule → basal przy wątpliwościach
+  → mediany; **kroki 1–3 gotowe, czekamy na wyniki testu; kroki 4–5 (regexy rodzin, kaskada w Sniperze) DOPIERO po
+  akceptacji wyników przez użytkownika.** `BASAL_GPU.md` (instrukcja), `analyzer/basal_poc.py`
+  (`basal-sample` / `basal-test`). Test na **PC użytkownika z GTX 1060 6 GB** (Windows, llama.cpp CUDA 12 + CUDA 12.4
+  DLLs, `basal-serve --mode llamacpp`, modele `Remek/basal-2.0-mini-GGUF` i `Remek/basal-2.0-4.5B-GGUF` Q5_K_M);
+  na PC wystarczy `pip install httpx python-dotenv` + skopiowany folder `analyse_data`. Rodziny wariantów (07.11,
+  użytkownik: „konkretny model, warianty, które naturalny język myli”): `s23`, `gtx1060`, `rtx3060`, `ddr4`,
+  `nvme`, `i5` (BASAL_GPU.md §F). Niesprawdzone na żywo: `basal-serve --mode llamacpp`, `basal-export-gguf
+  --systemone`. basal-omni (zdjęcia) wymaga ~16 GB VRAM (tylko tryb eager/vllm), GGUF = sam tekst.
+* **Sprzęt:** laptop-serwer (i5-5200U, 4 GB, GeForce 920M = Kepler, sterownik 425.31, Vulkan 1.1 → GPU dla llama.cpp
+  odpada). Plan: serwer na **stację roboczą** (MSI Z270 Tomahawk, i5-7400, 8 GB DDR4, zasilacz 1000 W; dysk 512 GB
+  z laptopa; obudowa ATX do kupienia) z **Ubuntu Server 24.04** (Sniper / watch / pilot mają już ścieżki Linux;
+  zamienniki `.bat` → systemd do napisania); alternatywa rozważana: Fujitsu Esprimo D7011 (i3-10105, 16 GB, ~15 W,
+  tylko karta low-profile). Karta pod basal na serwer: na Linuksie RX 570 8 GB (RADV) OK, na Windows sterownik AMD
+  Polaris ryzykowny; GTX 1060 6 GB pewna. Zdjęcia: archiwum `data\photos` ~292 GB (active 227, unlisted 38, deleted
+  17,5 GB) – plan: używany HDD 8 TB SATA (CMR), `ANALYZER_PHOTOS_DIR`, przeniesienie `robocopy` (instrukcja była w
+  czacie 07.11); `photos-clean` usuwa zdjęcia `deleted` (unlisted ZOSTAJĄ – decyzja użytkownika).
+* **Ostatnie zmiany w kodzie (01–07.11):** Sniper – padnięte proxy nie blokuje innych (blokada przeglądarki na jedną
+  próbę, 407 od razu, rosnąca przerwa, ntfy), mediany szczegółowe (stan nowy/używany, 5G/LTE, kod modelu, RAM, bez
+  „całej rodziny”) po fałszywej okazji Samsung A17; analizator – `comparables.db` ze stanem, wiersze „(nowe)”,
+  ekstrakcja v4, `photos-clean`, ntfy o padniętym proxy w watch (`analyzer/proxy_health.py`), test basala.
+* **Do zrobienia po teście basala:** (a) ocena wyników → decyzja mini / 4.5B / wcale; (b) kroki 4–5 planu
+  (regexy rodzin + kaskada regex → basal → mediany w Sniperze); (c) przeprowadzka serwera na Linuksa (plan krok po
+  kroku); (d) ew. zmniejszanie zdjęć (1024 px, JPEG q80, −60–70%) – zaproponowane, użytkownik nie zdecydował.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
 
@@ -176,11 +224,10 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
-00. (06.11) **Basal 2.0 Mini na GeForce 920M** (plan użytkownika: regex → lokalny model decyzyjny → mediany; kroki
-   1–3 gotowe, `BASAL_GPU.md`, `analyzer/basal_poc.py`): **GPU odpada** (06.11: sterownik 425.31 = Vulkan 1.1,
-   llama.cpp wymaga 1.2) → llama.cpp CPU, `-ngl 0`; czekamy na `basal-export-gguf --help`, potem wydruk / plik wyników
-   `basal-test` (etykiety S23, przypadki z zaprzeczeniami, czas, VRAM). **Kroki 4–5 (regexy rodzin, kaskada) dopiero
-   po akceptacji wyników przez użytkownika.**
+00. (07.11) **Wyniki testu basala na PC z GTX 1060** (`BASAL_GPU.md`, rodziny `s23 gtx1060 rtx3060 ddr4 nvme
+   i5`): pliki `..._wyniki_*.json` dla mini i 4.5B (trafność per pytanie, przypadki testowe OK/BŁĄD, czas, VRAM)
+   albo błędy z `basal-serve --mode llamacpp` (+ `basal-serve --help`, `basal-export-gguf --help`). Kroki 4–5 dopiero
+   po akceptacji wyników przez użytkownika.
 
 0a. (01.11) Wybór modelu AI: wynik `python -m sniper.bench --warianty haiku55,haiku55_low --ref zapisane --bez-bramki
    --last 50` (klucz ANTHROPIC_API_KEY, ~$0,3) - czy Haiku 5.5 trafia jedyną prawdziwą okazję ze złotego zbioru bez

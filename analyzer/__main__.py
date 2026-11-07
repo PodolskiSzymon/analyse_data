@@ -592,14 +592,14 @@ def main(argv=None):
     p_sample.add_argument("--per-category", type=int, default=150)
     p_bs = sub.add_parser("basal-sample", help="test basal, krok 2: oferty jednej rodziny (np. s23) z opisem -> "
                           "data/basal/*.jsonl + wydruk (bez sieci)")
-    p_bs.add_argument("--rodzina", default="s23", choices=("s23", "ram", "dyski", "karty", "procesory"))
+    p_bs.add_argument("--rodzina", default="s23", choices=("s23", "gtx1060", "rtx3060", "ddr4", "nvme", "i5"))
     p_bs.add_argument("--limit", type=int, default=40)
     p_bs.add_argument("--zwykle", action="store_true", help="dawne losowanie warstwowe zamiast trudnych przypadków "
                       "językowych (zaprzeczenia, cena za sztukę, zestawy, inny model w opisie, obcy język...)")
     p_bt = sub.add_parser("basal-test", help="test basal, krok 3: próbka -> lokalny basal (POST /v1/systemone) -> "
                           "etykieta, pewność, czas, VRAM (BASAL_GPU.md)")
     p_bt.add_argument("--plik", required=True, help="plik z basal-sample")
-    p_bt.add_argument("--rodzina", default="s23", choices=("s23", "ram", "dyski", "karty", "procesory"))
+    p_bt.add_argument("--rodzina", default="s23", choices=("s23", "gtx1060", "rtx3060", "ddr4", "nvme", "i5"))
     p_bt.add_argument("--url", default="http://127.0.0.1:8000", help="adres basal-serve / llama-server --systemone")
     p_bt.add_argument("--bez-testowych", action="store_true", help="bez dopisanych przypadków z zaprzeczeniami")
     sub.add_parser("classify-report", help="klasyfikacja ofert z kategorii mieszanych - bez sieci")

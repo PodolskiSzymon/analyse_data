@@ -1,17 +1,22 @@
-"""Test (proof of concept) lokalnego modelu decyzyjnego basal-2.0-mini jako „bramkarza” przed medianami
-(2026-11-06, plan użytkownika: regex → mały model na GPU → mediany; tu kroki 2-3, krok 1 w BASAL_GPU.md).
+"""Test (proof of concept) lokalnego modelu decyzyjnego basal jako „bramkarza” przed medianami
+(2026-11-06, plan użytkownika: regex → mały model na GPU → mediany; krok 1 w BASAL_GPU.md).
 
-    python -m analyzer basal-sample --rodzina s23 --limit 40      # krok 2: próbka z bazy → data/basal/*.jsonl
-    python -m analyzer basal-test --plik data/basal/s23_....jsonl   # krok 3: basal → etykieta + pewność + czas + VRAM
+    python -m analyzer basal-sample --rodzina gtx1060 --limit 30   # krok 2: próbka z bazy → data/basal/*.jsonl
+    python -m analyzer basal-test --rodzina gtx1060 --plik data/basal/gtx1060_....jsonl   # krok 3: basal → odpowiedzi
 
-Rodziny: s23 (telefony), ram, dyski, karty, procesory (07.11: także LICZBA SZTUK - „2x8 GB” = 2, „cena za sztukę,
-mam 5” = 1 za podaną cenę - i czy cena jest za jedną sztukę z kilku; ważne przy podzespołach).
+Sedno (07.11, użytkownik): rozróżnianie WARIANTÓW jednego modelu, gdy tytuł bywa zbyt ogólny albo myli - jak przy S23
+(Ultra / FE / Plus): GTX 1060 3 / 6 GB, RTX 3060 / 3060 Ti / 8 / 12 GB, RAM DDR3 / DDR4 i taktowanie (2133 ≠ 3200),
+procesor z „F” / „K” / „KF” albo bez, Samsung 970 EVO / EVO Plus / 980 PRO i pojemność. Każda rodzina ma pytania
+(basal wybiera jedną odpowiedź z listy, z pewnością), reguły regex jako porównanie (z samego tytułu i z tytułu +
+opisu) i krótkie przypadki testowe z oczekiwanymi odpowiedziami (zaprzeczenia, „jak GTX 1060”, „PC4-21300”,
+„pracowały na 2133”, „i5 9400 f”).
+
+Próbka (`sample`): oferty rodziny z opisem, najpierw te, gdzie tytuł nie mówi wariantu, opis go zmienia albo mówi coś
+innego niż tytuł, potem pułapki językowe (zaprzeczenia, cena za sztukę, zestawy, obcy język...).
 
 basal (github.com/rkinas/basal) NIE generuje tekstu: dostaje stan (ogłoszenie) i pytania z listą dozwolonych
-odpowiedzi, zwraca skalibrowane prawdopodobieństwa (POST /v1/systemone; serwer: basal-serve albo llama-server
-z GGUF po `basal-export-gguf --systemone`). Dlatego „czysty JSON z etykietą” = wybór z naszej listy etykiet + pewność.
-Baza użytkownika to SQLite (analyzer.db), nie PostgreSQL. Bez danych sprzedawców; e-mail / telefon / linki w opisach
-maskowane (sample.redact).
+odpowiedzi, zwraca skalibrowane prawdopodobieństwa (POST /v1/systemone). Baza użytkownika to SQLite (analyzer.db).
+Bez danych sprzedawców; e-mail / telefon / linki w opisach maskowane (sample.redact).
 """
 import json
 import random
@@ -24,317 +29,135 @@ from pathlib import Path
 
 from .sample import redact
 
-DESCRIPTION_CHARS = 1200            # basal-2.0-mini: kontekst 8k tokenów, ale krótszy prompt = szybciej na 920M
+DESCRIPTION_CHARS = 1200
+UNKNOWN = "nie_wiadomo"
 
-# Rodziny do testu. Etykiety = odpowiedzi, z których basal wybiera (klucz → opis dla modelu).
-FAMILIES = {
-    "s23": {
-        "name": "Samsung Galaxy S23",
-        "title": re.compile(r"(?<![a-z0-9])s\s?23(?!\d)", re.I),
-        "labels": {
-            "s23_base": "Samsung Galaxy S23 - podstawowy model (nie FE, nie Plus, nie Ultra), sprawny telefon",
-            "s23_plus": "Samsung Galaxy S23+ / S23 Plus, sprawny telefon",
-            "s23_ultra": "Samsung Galaxy S23 Ultra, sprawny telefon",
-            "s23_fe": "Samsung Galaxy S23 FE (Fan Edition, tańsza wersja), sprawny telefon",
-            "uszkodzony": "telefon S23 dowolnej wersji, ale uszkodzony, zbity, na części, nie działa albo zablokowany",
-            "akcesorium": "nie telefon, tylko akcesorium albo część: etui, szkło, ładowarka, pudełko, obudowa, wyświetlacz",
-            "podrobka": "podróbka / klon / replika („Ultra Mod”, nieznany producent), nie oryginalny Samsung",
-            "inny": "inny telefon albo nie da się ustalić",
-        },
-        # Krótkie przypadki z zaprzeczeniami i pułapkami - dopisywane do testu (oznaczone [test]).
-        "tricky": [
-            ("Samsung Galaxy S23 128GB (nie FE!)", "Oryginalny S23, nie wersja FE. Bez rys, w pełni sprawny.",
-             "s23_base"),
-            ("Samsung S23 - nie uszkodzony, ekran bez rys", "Telefon działa idealnie, żadnych pęknięć.", "s23_base"),
-            ("Samsung S23 256GB", "Zbita szybka z tyłu, ekran pęknięty w rogu, działa.", "uszkodzony"),
-            ("Etui do Samsung S23 Ultra", "Sprzedam etui silikonowe, telefon niedostępny.", "akcesorium"),
-            ("Samsung Galaxy S23 FE 128GB", "Sprzedaję S23 FE zamiast zwykłego S23 - pomyłka przy zakupie.", "s23_fe"),
-            ("S23 Ultra 256GB + etui gratis", "Telefon sprawny, w zestawie etui i szkło.", "s23_ultra"),
-            ("Samsung S23 Ultra Mod 16/512 nowy", "Dual SIM, Android 13, nie jest to oryginał Samsunga.", "podrobka"),
-            ("Samsung S23", "Na części - nie włącza się po zalaniu.", "uszkodzony"),
-        ],
-    },
+
+def _q(instructions, criteria):
+    return {"instructions": instructions, "criteria": criteria}
+
+
+# ---------------------------------------------------------------------------------------------- pytania wspólne
+
+CONDITION_PART = _q("Co dokładnie jest sprzedawane i w jakim stanie? Czytaj cały opis - zaprzeczenia („bez "
+                    "artefaktów”, „nie uszkodzona”) zmieniają znaczenie.", {
+                        "sprawna": "sprawna rzecz (karta / pamięć / dysk / procesor) - działa",
+                        "uszkodzona": "uszkodzona, nie działa, artefakty, brak obrazu, błędy, na części",
+                        "czesc": "tylko część / akcesorium / pudełko / chłodzenie / adapter - bez samej rzeczy",
+                        "zestaw": "w zestawie z inną dużą częścią (np. procesor z płytą, karta z komputerem)",
+                        "inna_rzecz": "zupełnie inna rzecz (nazwa modelu tylko dla porównania) albo kupię / zamienię",
+                    })
+QUANTITY = _q("Ile sztuk (kości, dysków, kart, procesorów) dostaje kupujący za PODANĄ cenę? Zestaw 2x8 GB = 2 kości. "
+              "„Cena za sztukę, mam 4” = 1.", {
+                  "1": "jedna sztuka (także: cena za sztukę z kilku dostępnych)", "2": "dwie sztuki",
+                  "3": "trzy sztuki", "4": "cztery sztuki", "5+": "pięć lub więcej", UNKNOWN: "nie da się ustalić"})
+PART_FLAGS = {
+    "cena_za_sztuke": "Czy podana cena dotyczy JEDNEJ sztuki z kilku, które ma sprzedawca (np. „cena za sztukę”, "
+                      "„mam 5 sztuk”, „cena za jedną kość”)?",
 }
-
-QUESTIONS_FLAGS = {
+PHONE_FLAGS = {
     "uszkodzony": "Czy z ogłoszenia wynika, że telefon jest uszkodzony, zbity, na części, nie działa albo zablokowany? "
                   "Uwaga na zaprzeczenia: „nie uszkodzony”, „bez rys” = sprawny.",
     "akcesorium": "Czy sprzedawane jest TYLKO akcesorium albo część (etui, szkło, ładowarka, pudełko) zamiast telefonu? "
                   "Etui dodane gratis do telefonu = nie.",
 }
-PART_FLAGS = {
-    "uszkodzony": "Czy z ogłoszenia wynika, że sprzedawana rzecz jest uszkodzona, nie działa, ma błędy albo jest na "
-                  "części? Uwaga na zaprzeczenia: „sprawna, bez artefaktów” = nie.",
-    "cena_za_sztuke": "Czy podana cena dotyczy JEDNEJ sztuki z kilku, które ma sprzedawca (np. „cena za sztukę”, "
-                      "„mam 5 sztuk”, „cena za jedną kość”)?",
-}
-# Ile sztuk dostaje kupujący za podaną cenę (klucze krótkie - basal wybiera jedną odpowiedź).
-QUANTITY = {
-    "1": "jedna sztuka (także: cena za sztukę z kilku dostępnych)",
-    "2": "dwie sztuki (np. zestaw 2x8 GB, dwa dyski, dwie karty)",
-    "3": "trzy sztuki",
-    "4": "cztery sztuki (np. 4x4 GB)",
-    "5+": "pięć lub więcej sztuk",
-    "nie_wiadomo": "nie da się ustalić",
-}
-QUANTITY_QUESTION = ("Ile sztuk (kości RAM, dysków, kart graficznych, procesorów) dostaje kupujący za PODANĄ cenę? "
-                     "Zestaw 2x8 GB = 2 kości. „Cena za sztukę, mam 4” = 1.")
 
-FAMILIES.update({
-    "ram": {
-        "name": "pamięć RAM", "category": "ram", "title": None, "flags": PART_FLAGS, "quantity": True,
-        "labels": {
-            "ddr4_pc": "DDR4 do komputera stacjonarnego (DIMM), sprawna",
-            "ddr4_laptop": "DDR4 do laptopa (SO-DIMM), sprawna",
-            "ddr3": "DDR3 / DDR3L (PC albo laptop), sprawna",
-            "ddr5": "DDR5, sprawna",
-            "uszkodzony": "pamięć uszkodzona albo choć jedna kość nie działa",
-            "inny": "nie pamięć RAM (sam radiator, inna część) albo nie da się ustalić",
-        },
-        "tricky": [
-            ("Kingston Fury 16GB (2x8GB) DDR4 3200", "Zestaw dwóch kości po 8 GB, sprawne.", "ddr4_pc", "2"),
-            ("Pamięć RAM DDR4 8GB 2666 - cena za sztukę", "Mam 4 sztuki, cena dotyczy jednej kości.", "ddr4_pc", "1"),
-            ("4x4GB DDR3 1600 PC3-12800", "Cztery kości wyjęte z działającego komputera.", "ddr3", "4"),
-            ("SODIMM DDR4 16GB 3200", "Z laptopa Lenovo, jedna kość.", "ddr4_laptop", "1"),
-            ("RAM DDR4 32GB", "Komplet 2 x 16 GB do PC. To nie DDR3!", "ddr4_pc", "2"),
-            ("Pamięć DDR5 2x16GB", "Jedna kość nie działa, druga OK - sprzedaję obie.", "uszkodzony", "2"),
-        ],
-    },
-    "dyski": {
-        "name": "dyski", "category": "storage", "title": None, "flags": PART_FLAGS, "quantity": True,
-        "labels": {
-            "ssd_nvme": "dysk SSD M.2 NVMe / PCIe, sprawny",
-            "ssd_sata": "dysk SSD SATA (2,5\" albo M.2 SATA), sprawny",
-            "hdd": "dysk talerzowy HDD, sprawny",
-            "zewnetrzny": "dysk zewnętrzny / przenośny (USB), sprawny",
-            "akcesorium": "sama obudowa / kieszeń / adapter / radiator - bez dysku",
-            "uszkodzony": "dysk uszkodzony (bad sectory, błędy SMART, nie wykrywa się)",
-            "inny": "inna rzecz albo nie da się ustalić",
-        },
-        "tricky": [
-            ("Dyski SSD 512GB x3", "Trzy dyski Samsung 870 EVO, cena za całość.", "ssd_sata", "3"),
-            ("Samsung 980 Pro 1TB NVMe", "Cena za sztukę, mam 2.", "ssd_nvme", "1"),
-            ("Obudowa na dysk M.2 NVMe", "Sama kieszeń USB-C, dysku brak.", "akcesorium", "1"),
-            ("WD Blue 1TB HDD", "Bad sectory, SMART pokazuje błędy.", "uszkodzony", "1"),
-            ("Dysk 2TB", "Dwa dyski HDD po 1 TB w zestawie, sprawne.", "hdd", "2"),
-        ],
-    },
-    "karty": {
-        "name": "karty graficzne", "category": "gpu", "title": None, "flags": PART_FLAGS, "quantity": True,
-        "labels": {
-            "karta": "sprawna karta graficzna",
-            "uszkodzona": "karta uszkodzona (brak obrazu, artefakty, czerwony / czarny ekran, nie działa, na części)",
-            "chlodzenie": "samo chłodzenie / radiator / wentylatory / backplate - bez karty",
-            "akcesorium": "riser, przejściówka, kabel, karta przechwytująca, inna część",
-            "inny": "nie da się ustalić",
-        },
-        # Dwa pierwsze to prawdziwe oferty z 06.11 (opisy tłumaczone przez Vinted - w bazie w innym języku).
-        "tricky": [
-            ("rtx 2060 super", "Sprzedam kartę RTX 2060 Super Gigabyte WindForce. Sprzedawana jako uszkodzona, brak "
-             "obrazu.", "uszkodzona", "1"),
-            ("GTX 1070 ti 8gb", "Nie wiem, co się stało. Urządzenie wyświetla czerwony ekran, a wentylatory się "
-             "kręcą.", "uszkodzona", "1"),
-            ("RTX3060 Ti Heatsink with Fan", "Sam radiator z wentylatorem do karty, bez układu.", "chlodzenie", "1"),
-            ("2x RX 580 8GB", "Dwie karty, obie sprawne.", "karta", "2"),
-            ("GTX 1060 6GB", "Cena za sztukę, mam 3 sztuki, wszystkie sprawne.", "karta", "1"),
-            ("RX 570 8GB", "W pełni sprawna, bez artefaktów, nie kopała.", "karta", "1"),
-        ],
-    },
-    "procesory": {
-        "name": "procesory", "category": "cpu", "title": None, "flags": PART_FLAGS, "quantity": True,
-        "labels": {
-            "procesor": "sam procesor, sprawny",
-            "zestaw": "procesor z płytą główną (i ewentualnie RAM)",
-            "uszkodzony": "procesor uszkodzony (wygięte / urwane piny, nie działa)",
-            "chlodzenie": "samo chłodzenie procesora - bez procesora",
-            "inny": "nie da się ustalić",
-        },
-        "tricky": [
-            ("Intel i5-9400F", "Sam procesor, bez chłodzenia, sprawny.", "procesor", "1"),
-            ("Ryzen 5 3600 + płyta B450", "Zestaw: procesor i płyta, działają.", "zestaw", "1"),
-            ("Ryzen 7 2700X", "Wygięte 3 piny, nie testowany.", "uszkodzony", "1"),
-            ("Chłodzenie do i7", "Sam cooler boxowy Intel, procesora brak.", "chlodzenie", "1"),
-            ("Procesory Intel i3-6100 x2", "Dwie sztuki, cena za obie.", "procesor", "2"),
-        ],
-    },
-})
-FAMILIES["s23"].update(category="phone", flags=QUESTIONS_FLAGS, quantity=False)
-FAMILIES["s23"]["tricky"] = [(t, d, e, None) for t, d, e in FAMILIES["s23"]["tricky"]]
+# ---------------------------------------------------------------------------------------------- reguły (porównanie)
 
 
-# ---------------------------------------------------------------------------------------------- krok 2: próbka
-
-_MANY = re.compile(r"\d\s*[x×]\s*\d|\b[x×]\s*\d\b|\d\s*[x×]\b|\bszt|zestaw|komplet|\bkit\b|\bdwie\b|\bdwa\b|"
-                   r"\btrzy\b|\bcztery\b|za sztuk", re.I)
-
-
-def _part_hint(title, description):
-    t, d = title.lower(), (description or "").lower()
-    if _MANY.search(t + " " + d):
-        return "kilka sztuk?"
-    if re.search(r"uszkodz|nie dzia|na cz[eę]ści|artefakt|brak obrazu|bad sector|wygi[eę]t|broken|defekt", t + " " + d):
-        return "uszkodzenie?"
-    if re.search(r"obudow|kiesze|adapter|radiator|heatsink|chłodzen|chlodzen|cooler|wentylator|riser", t):
-        return "akcesorium?"
-    if re.search(r"\bnie\b|\bbez\b|\bnot\b", d):
-        return "zaprzeczenie w opisie"
-    return "zwykły"
+def _gb(text, allowed):
+    found = [int(m.group(1)) for m in re.finditer(r"(?<![\d.,])(\d{1,2})\s?(?:gb|g)\b", text)]
+    found += [round(int(m.group(1)) / 1024) for m in re.finditer(r"(?<![\d.,])(\d{4,5})\s?mb\b", text)]   # 3072MB
+    found = [x for x in found if x in allowed]
+    return f"{found[0]}gb" if len(set(found)) == 1 else (UNKNOWN if not found else "sprzeczne")
 
 
-def _hint(title, description, family="s23"):
-    """Grupa do losowania warstwowego (żeby w próbce były trudne przypadki, nie same „S23 Ultra 256 GB”)."""
-    if family != "s23":
-        return _part_hint(title, description)
-    t, d = title.lower(), (description or "").lower()
-    if re.search(r"\b(etui|case|husa|obudow|szk[lł]o|folia|ładowar|pude[lł]k)", t):
-        return "akcesorium?"
-    if re.search(r"zbit|pęk|pek|uszkodz|na cz[eę]ści|nie dzia|blokad|crack|broken|zalan", t + " " + d):
-        return "uszkodzenie?"
-    if re.search(r"\bmod\b|klon|replik|copy|kopia", t + " " + d):
-        return "podróbka?"
-    if re.search(r"\bnie\b|\bbez\b|zamiast|\bnot\b", d):
-        return "zaprzeczenie w opisie"
+def rules_gtx1060(text):
+    t = text.lower()
+    model = "gtx1060" if re.search(r"1060", t) else UNKNOWN
+    return {"model": model, "vram": _gb(t, {3, 5, 6})}
+
+
+def rules_rtx3060(text):
+    t = text.lower()
+    model = "rtx3060ti" if re.search(r"3060\s?-?\s?ti\b", t) else "rtx3060" if "3060" in t else UNKNOWN
+    vram = _gb(t, {8, 12})
+    if model == "rtx3060ti" and vram == UNKNOWN:
+        vram = "8gb"                                     # 3060 Ti ma zawsze 8 GB
+    return {"model": model, "vram": vram}
+
+
+PC4_SPEED = {"17000": "2133", "19200": "2400", "21300": "2666", "23400": "2933", "24000": "3000", "25600": "3200",
+             "28800": "3600"}
+RAM_SPEEDS = ("2133", "2400", "2666", "2933", "3000", "3200", "3600")
+
+
+def rules_ddr4(text):
+    t = text.lower()
+    types = set(re.findall(r"\bddr\s?([345])l?\b", t)) | {"3" for _ in re.findall(r"\bpc3l?-", t)} | \
+        {"4" for _ in re.findall(r"\bpc4-", t)}
+    typ = f"ddr{types.pop()}" if len(types) == 1 else (UNKNOWN if not types else "sprzeczne")
+    speeds = {m for m in re.findall(r"\b(\d{4})\s?(?:mhz|mt/?s)\b", t) if m in RAM_SPEEDS or int(m) > 3600}
+    speeds |= {PC4_SPEED[m] for m in re.findall(r"\bpc4-(\d{5})", t) if m in PC4_SPEED}
+    speeds |= set(re.findall(r"\bpc4-(\d{4})[a-z]", t)) & set(RAM_SPEEDS)
+    speeds = {"3600+" if int(x) >= 3600 else x for x in speeds}
+    mhz = speeds.pop() if len(speeds) == 1 else (UNKNOWN if not speeds else "sprzeczne")
+    forma = ("laptop" if re.search(r"so-?dimm|laptop|notebook|\bpc4-\d{4,5}[a-z]{0,2}-s", t) else
+             "serwer" if re.search(r"\becc\b|rdimm|registered|\breg\b", t) else
+             "pc" if re.search(r"\b(?:u-?)?dimm\b|desktop|stacjonar|\bpc4-\d{4,5}[a-z]{0,2}-u", t) else UNKNOWN)
+    return {"typ": typ, "mhz": mhz, "forma": forma, "sztuk": rule_quantity({"title": text, "description": ""})}
+
+
+NVME_MODELS = (("990evo", r"990\s?evo"), ("990pro", r"990\s?pro"), ("980pro", r"980\s?pro"),
+               ("970evoplus", r"970\s?evo\s?(?:plus|\+)"), ("970pro", r"970\s?pro"), ("970evo", r"970\s?evo"),
+               ("980", r"\b980\b"))
+
+
+def rules_nvme(text):
+    t = text.lower()
+    model = next((k for k, p in NVME_MODELS if re.search(p, t)), UNKNOWN)
+    caps = set()
+    for n, unit in re.findall(r"(?<![\d.,])(\d{1,4})\s?(gb|tb)\b", t):
+        value = int(n) * (1000 if unit == "tb" else 1)
+        if value in (250, 500, 1000, 2000, 4000):
+            caps.add({250: "250gb", 500: "500gb", 1000: "1tb", 2000: "2tb", 4000: "4tb"}[value])
+    cap = caps.pop() if len(caps) == 1 else (UNKNOWN if not caps else "sprzeczne")
+    return {"model": model, "pojemnosc": cap, "sztuk": rule_quantity({"title": text, "description": ""})}
+
+
+I5_MODELS = ("8400", "8500", "8600", "9400", "9500", "9600", "10400", "10500", "10600", "11400", "12400", "12600",
+             "13400", "13600", "14400", "14600")
+
+
+def rules_i5(text):
+    t = text.lower()
+    found = re.findall(r"\bi5\s?-?\s?(\d{4,5})\s?([a-z]{0,2})\b", t)
+    models = {m for m, _s in found if m in I5_MODELS}
+    model = models.pop() if len(models) == 1 else (UNKNOWN if not models else "sprzeczne")
+    suffixes = {s for m, s in found if m in I5_MODELS}
+    suffix = {"": "brak", "f": "f", "k": "k", "kf": "kf", "t": "t"}.get(suffixes.pop(), UNKNOWN) \
+        if len(suffixes) == 1 else (UNKNOWN if not suffixes else "sprzeczne")
+    return {"model": model, "sufiks": suffix, "sztuk": rule_quantity({"title": text, "description": ""})}
+
+
+def rules_s23(text):
+    t = text.lower()
+    if re.search(r"\b(etui|case|husa|szk[lł]o|folia)\b", t) and not re.search(r"\d{2,3}\s*gb", t):
+        return {"etykieta": "akcesorium"}
     if re.search(r"\bfe\b|s23\s?fe", t):
-        return "FE"
+        return {"etykieta": "s23_fe"}
     if "ultra" in t:
-        return "Ultra"
-    if re.search(r"plus|\+", t):
-        return "Plus"
-    return "zwykły"
-
-
-# Trudne przypadki językowe (07.11, użytkownik: „zbyt ogólne próbki, daj takie, gdzie mogą być błędy przez naturalny
-# język”). Każdy sygnał to osobna pułapka dla prostych reguł; oferta może mieć kilka (wyżej w kolejce).
-_DAMAGE = (r"uszkodz|nie dzia|niedzia|na cz[eę][sś]ci|artefakt|brak obrazu|czarny ekran|czerwony ekran|bad ?sector|"
-           r"smart\W{0,3}(?:\d|status|b[lł][eę]d|error|warn|ostrze)|wygi[eę]t|nie wykrywa|nie odpala|nie w[lł][aą]cza|nie startuje|zbit|p[eę]kni|broken|defekt|"
-           r"faulty|not working|for parts|ремонт|сломан|nefunk|nem m[uű]k|nu func")
-SIGNALS = {
-    "zaprzeczenie uszkodzenia": re.compile(
-        r"\b(?:nie|bez|brak|[zż]adn\w*|zero|no|not|nicht|nem|fara|nie by[lł]\w*)\W+(?:\w+\W+){0,3}?"
-        r"(?:uszkodz|artefakt|wad|problem|b[lł][eę]d|rys|p[eę]kni|zbit|kopan|koparc|damage|issue)", re.I),
-    "uszkodzenie / niepewny stan": re.compile(_DAMAGE + r"|nie testowan|nietestowan|niesprawdzon|nie sprawdzan|"
-                                              r"stan nieznany|jak jest|as is|bez gwarancji dzia", re.I),
-    "cena za sztukę": re.compile(r"za sztuk|za szt\b|za szt\.|za jedn|cena za 1|za ko[sś][cć]|za dysk\b|za kart[eę]|"
-                                 r"per piece|each\b|za kus|darab", re.I),
-    "kilka sztuk / zestaw": re.compile(r"\d\s*[x×]\s*\d|\b[x×]\s*\d\b|\d\s*[x×]\b|\b\d+\s*szt|komplet|\bkit\b|"
-                                       r"\bdwie\b|\bdwa\b|\btrzy\b|\bcztery\b|\bpi[eę][cć]\b|\bpar[ay]\b|zestaw", re.I),
-    "część / akcesorium / pudełko": re.compile(r"radiator|heatsink|ch[lł]odzeni|wentylator|backplate|obudow|kiesze[nń]|"
-                                              r"adapter|riser|pude[lł]k|\bbox\b|bez karty|bez dysku|bez procesora|"
-                                              r"sam[aoy]?\s+(?:radiator|ch[lł]odzenie|pude[lł]ko|obudowa|p[lł]yta)", re.I),
-    "zamiana / kupię": re.compile(r"zamian|zamieni|wymieni[eę]|kupi[eę]|szukam|swap|\bwtb\b|\bkaufe\b", re.I),
-    "kopanie krypto": re.compile(r"kopa[lł]|kopani|koparka|mining|minin|crypto|kryptow|ethereum|\beth\b", re.I),
-    "warunki / „lub”": re.compile(r"\b(?:lub|albo|ewentualnie|mo[zż]liwe [zż]e|chyba|prawdopodobnie|maybe|not sure)\b",
-                                  re.I),
-}
-_MODEL_CODE = {
-    "karty": re.compile(r"\b(?:rtx|gtx|gt|rx|hd)\s?-?(\d{3,4})\b", re.I),
-    "ram": re.compile(r"\b(ddr[2345])\b", re.I),
-    "procesory": re.compile(r"\b(i[3579])\s?-?\s?\d{4,5}|\bryzen\s?([3579])\b", re.I),
-    "dyski": re.compile(r"\b(\d{3,4})\s?(?:gb|tb)\b", re.I),
-    "s23": re.compile(r"\bs\s?(2[0-9])\b", re.I),
-}
-_POLISH = re.compile(r"\b(?:jest|nie|się|sie|bardzo|stan|sprzedam|karta|dysk|pami[eę][cć]|procesor|telefon|dzia[lł]a)\b",
-                     re.I)
-
-
-def language_signals(title, description, family):
-    """Lista pułapek językowych oferty (nazwy z SIGNALS + „inny model / typ w opisie”, „opis po obcemu”)."""
-    text = f"{title or ''}\n{description or ''}"
-    found = [name for name, pattern in SIGNALS.items() if pattern.search(text)]
-    code = _MODEL_CODE.get(family)
-    if code and description:
-        in_title = {"".join(g for g in m.groups() if g).lower() for m in code.finditer(title or "")}
-        in_desc = {"".join(g for g in m.groups() if g).lower() for m in code.finditer(description)}
-        if in_title and in_desc - in_title:
-            found.append("inny model / typ w opisie niż w tytule")
-    if description and len(description) > 40 and not _POLISH.search(description):
-        found.append("opis po obcemu")
-    return found
-
-
-def sample(conn, family="s23", limit=40, seed=7, hard=True):
-    """Oferty rodziny z opisem (tytuł + opis + cena + stan) → lista słowników.
-    hard=True (domyślnie, 07.11): tylko oferty z pułapkami językowymi (`language_signals`), po kolei z każdego rodzaju
-    pułapki, najpierw te z największą liczbą pułapek naraz; hard=False - dawne losowanie warstwowe (`_hint`)."""
-    fam = FAMILIES[family]
-    sql = """SELECT l.id, l.title, l.price_now, l.sold_price, l.state, l.status_label, d.description
-             FROM listings l JOIN details d ON d.listing_id = l.id
-             WHERE l.category = ? AND d.description IS NOT NULL"""
-    groups, signals_of = {}, {}
-    for r in conn.execute(sql, (fam["category"],)):
-        if fam["title"] is not None and not fam["title"].search(r[1] or ""):
-            continue
-        if hard:
-            found = language_signals(r[1], r[6], family)
-            if not found:
-                continue
-            signals_of[r[0]] = found
-            for name in found:
-                groups.setdefault(name, []).append(r)
-        else:
-            groups.setdefault(_hint(r[1], r[6], family), []).append(r)
-    rnd = random.Random(seed)
-    for rows in groups.values():
-        rnd.shuffle(rows)
-        if hard:                                  # najpierw oferty z kilkoma pułapkami naraz
-            rows.sort(key=lambda r: -len(signals_of[r[0]]))
-    picked, seen, i = [], set(), 0
-    while len(picked) < limit and any(i < len(g) for g in groups.values()):
-        for name in sorted(groups):
-            if i < len(groups[name]) and len(picked) < limit and groups[name][i][0] not in seen:
-                seen.add(groups[name][i][0])
-                picked.append((name, groups[name][i]))
-        i += 1
-    out = []
-    for name, r in picked:
-        price = r[3] if r[4] == "sold" and r[3] else r[2]
-        hint = " + ".join(signals_of[r[0]]) if hard else name
-        out.append({"id": r[0], "title": r[1], "price": price, "state": r[4], "condition": r[5], "hint": hint,
-                    "description": redact((r[6] or "")[:DESCRIPTION_CHARS])})
-    return out, {k: len(v) for k, v in groups.items()}
-
-
-def print_sample(rows, counts):
-    print(f"Grupy w bazie: {', '.join(f'{k} {v}' for k, v in sorted(counts.items()))}")
-    for n, r in enumerate(rows, 1):
-        desc = " ".join(r["description"].split())[:140]
-        price = f"{r['price']:.0f} zł" if r["price"] else "? zł"
-        print(f"\n{n:>3}. [{r['hint']}] {r['title']} | {price} | {r['condition'] or '?'} | {r['state']}")
-        print(f"     {desc}")
-
-
-def save_sample(rows, family, out_dir):
-    path = Path(out_dir) / "basal" / f"{family}_{datetime.now():%Y%m%d_%H%M}.jsonl"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-    return path
-
-
-# ---------------------------------------------------------------------------------------------- krok 3: test basal
-
-def state_text(offer, family="s23"):
-    price = f"{offer['price']:.0f} zł" if offer.get("price") else "?"
-    return (f"Ogłoszenie z Vinted (kategoria: {FAMILIES[family]['name']}).\nTytuł: {offer['title']}\nCena: {price}\n"
-            f"Stan (formularz): {offer.get('condition') or '?'}\nOpis: {offer.get('description') or ''}")
-
-
-def build_request(offer, family):
-    fam = FAMILIES[family]
-    questions = {
-        "etykieta": {"type": "choice", "instructions": f"Co dokładnie jest sprzedawane? (rodzina: {fam['name']}). "
-                     "Czytaj cały opis - zaprzeczenia („nie FE”, „nie uszkodzony”) zmieniają znaczenie.",
-                     "criteria": fam["labels"]},
-        **{k: {"type": "noul", "instructions": v} for k, v in fam["flags"].items()}}
-    if fam.get("quantity"):
-        questions["sztuk"] = {"type": "choice", "instructions": QUANTITY_QUESTION, "criteria": QUANTITY}
-    return {"state": state_text(offer, family), "questions": questions}
+        return {"etykieta": "s23_ultra"}
+    if re.search(r"plus|s23\s?\+", t):
+        return {"etykieta": "s23_plus"}
+    return {"etykieta": "s23_base"}
 
 
 _WORDS = {"dwie": 2, "dwa": 2, "dwóch": 2, "dwoch": 2, "trzy": 3, "cztery": 4}
 
 
 def rule_quantity(offer):
-    """Dla porównania: liczba sztuk z prostych reguł („2x8GB”, „x3”, „3 szt”, „dwie”, „cena za sztukę” = 1)."""
+    """Liczba sztuk z prostych reguł („2x8GB”, „x3”, „3 szt”, „dwie”, „cena za sztukę” = 1)."""
     text = f"{offer['title']} {offer.get('description') or ''}".lower()
     if re.search(r"za sztuk|za szt\b|za jedn", text):
         return "1"
@@ -350,26 +173,288 @@ def rule_quantity(offer):
     return "1"
 
 
-def rule_label(offer, family="s23"):
-    """Dla porównania: co powiedziałyby same reguły (tylko telefony S23; podzespoły - None)."""
-    if family != "s23":
-        return None
-    from .extract import CRACKED, FOR_PARTS, LOCKED, has_fault, norm
-    t, d = norm(offer["title"]), norm(offer.get("description") or "")
-    if re.search(r"\b(etui|case|husa|szklo|folia)\b", t) and not re.search(r"\d{2,3}\s*gb", t):
-        return "akcesorium"
-    if any(has_fault(p, f"{t}\n{d}") for p in (FOR_PARTS, CRACKED, LOCKED)):
-        return "uszkodzony"
-    if re.search(r"\bfe\b|s23\s?fe", t):
-        return "s23_fe"
-    if "ultra" in t:
-        return "s23_ultra"
-    if re.search(r"plus|\+", t):
-        return "s23_plus"
-    return "s23_base"
+# ---------------------------------------------------------------------------------------------- rodziny
+
+FAMILIES = {
+    "s23": {
+        "name": "Samsung Galaxy S23 (telefony)", "category": "phone",
+        "title": re.compile(r"(?<![a-z0-9])s\s?23(?!\d)", re.I), "rules": rules_s23, "flags": PHONE_FLAGS,
+        "questions": {"etykieta": _q("Co dokładnie jest sprzedawane? Czytaj cały opis - zaprzeczenia („nie FE”, "
+                                     "„nie uszkodzony”) zmieniają znaczenie.", {
+            "s23_base": "Samsung Galaxy S23 - podstawowy model (nie FE, nie Plus, nie Ultra), sprawny telefon",
+            "s23_plus": "Samsung Galaxy S23+ / S23 Plus, sprawny telefon",
+            "s23_ultra": "Samsung Galaxy S23 Ultra, sprawny telefon",
+            "s23_fe": "Samsung Galaxy S23 FE (Fan Edition, tańsza wersja), sprawny telefon",
+            "uszkodzony": "telefon S23 dowolnej wersji, ale uszkodzony, zbity, na części, nie działa albo zablokowany",
+            "akcesorium": "nie telefon, tylko akcesorium albo część: etui, szkło, ładowarka, pudełko, obudowa",
+            "podrobka": "podróbka / klon / replika („Ultra Mod”, nieznany producent), nie oryginalny Samsung",
+            "inny": "inny telefon albo nie da się ustalić"})},
+        "tricky": [
+            ("Samsung Galaxy S23 128GB (nie FE!)", "Oryginalny S23, nie wersja FE. Bez rys, sprawny.",
+             {"etykieta": "s23_base"}),
+            ("Samsung S23 256GB", "Zbita szybka z tyłu, ekran pęknięty w rogu, działa.", {"etykieta": "uszkodzony"}),
+            ("Etui do Samsung S23 Ultra", "Sprzedam etui silikonowe, telefon niedostępny.", {"etykieta": "akcesorium"}),
+            ("Samsung Galaxy S23 FE 128GB", "Sprzedaję S23 FE zamiast zwykłego S23 - pomyłka.", {"etykieta": "s23_fe"}),
+            ("Samsung s23 + etui", "Telefon S23 z etui w zestawie, sprawny.", {"etykieta": "s23_base"}),
+            ("Samsung S23 Ultra Mod 16/512", "Dual SIM, to nie jest oryginał Samsunga.", {"etykieta": "podrobka"}),
+        ],
+    },
+    "gtx1060": {
+        "name": "karty graficzne - GeForce GTX 1060", "category": "gpu", "title": re.compile(r"1060"),
+        "rules": rules_gtx1060, "flags": PART_FLAGS,
+        "questions": {
+            "model": _q("Jaka karta jest sprzedawana? Uwaga: „wydajność jak GTX 1060” w opisie innej karty = inna "
+                        "karta.", {"gtx1060": "GeForce GTX 1060 (desktop)",
+                                   "inna": "inna karta albo inna rzecz (GTX 1060 tylko dla porównania)",
+                                   UNKNOWN: "nie da się ustalić"}),
+            "vram": _q("Ile pamięci (VRAM) ma TA karta? GTX 1060 występuje jako 3 GB, 5 GB i 6 GB. Szukaj w opisie, "
+                       "naklejkach (np. „GTX 1060 3G”, „6G”, „GV-N1060…6GD”), nazwach modeli. Gdy nie wiadomo - "
+                       "nie zgaduj.", {"3gb": "3 GB", "5gb": "5 GB", "6gb": "6 GB", UNKNOWN: "nie da się ustalić"}),
+            "stan": CONDITION_PART, "sztuk": QUANTITY},
+        "tricky": [
+            ("GTX 1060", "Karta MSI GTX 1060 Gaming X, 6 GB GDDR5, sprawna.", {"vram": "6gb", "stan": "sprawna"}),
+            ("GTX 1060 6GB", "Pomyłka w tytule - to wersja 3 GB (naklejka GTX 1060 3G).", {"vram": "3gb"}),
+            ("Karta graficzna GTX 970", "Wydajność podobna do GTX 1060 6GB, w pełni sprawna.", {"model": "inna"}),
+            ("GTX 1060", "Sprawna karta, wymieniłem na nowszą.", {"vram": UNKNOWN}),
+            ("GTX 1060 6GB x2", "Dwie karty, cena za sztukę.", {"vram": "6gb", "sztuk": "1"}),
+            ("GTX 1060 3GB", "Brak obrazu, wentylatory się kręcą.", {"vram": "3gb", "stan": "uszkodzona"}),
+            ("Chłodzenie GTX 1060", "Sam radiator z wentylatorami, karty brak.", {"stan": "czesc"}),
+        ],
+    },
+    "rtx3060": {
+        "name": "karty graficzne - GeForce RTX 3060 / 3060 Ti", "category": "gpu", "title": re.compile(r"3060"),
+        "rules": rules_rtx3060, "flags": PART_FLAGS,
+        "questions": {
+            "model": _q("Który dokładnie model? RTX 3060 i RTX 3060 Ti to różne karty (Ti szybsza i droższa).",
+                        {"rtx3060": "GeForce RTX 3060 (bez Ti)", "rtx3060ti": "GeForce RTX 3060 Ti",
+                         "inna": "inna karta albo inna rzecz", UNKNOWN: "nie da się ustalić"}),
+            "vram": _q("Ile pamięci (VRAM) ma TA karta? RTX 3060: 12 GB albo 8 GB; RTX 3060 Ti: 8 GB. Gdy nie "
+                       "wiadomo - nie zgaduj.", {"8gb": "8 GB", "12gb": "12 GB", UNKNOWN: "nie da się ustalić"}),
+            "stan": CONDITION_PART, "sztuk": QUANTITY},
+        "tricky": [
+            ("RTX 3060", "Gigabyte RTX 3060 Eagle 12G, sprawna, nie kopała.", {"model": "rtx3060", "vram": "12gb"}),
+            ("RTX 3060 Ti", "Uwaga: to zwykła RTX 3060 8GB, nie Ti - pomyliłem się w tytule.",
+             {"model": "rtx3060", "vram": "8gb"}),
+            ("RTX 3060 12GB", "Karta w pełni sprawna, bez artefaktów.", {"model": "rtx3060", "stan": "sprawna"}),
+            ("RTX 3060", "Sprawna, używana do gier.", {"vram": UNKNOWN}),
+            ("RTX3060 Ti Heatsink with Fan", "Sam radiator z wentylatorem, bez układu.", {"stan": "czesc"}),
+            ("Komputer gamingowy RTX 3060 Ryzen 5", "Cały zestaw PC.", {"stan": "zestaw"}),
+        ],
+    },
+    "ddr4": {
+        "name": "pamięć RAM (DDR4 i podobne)", "category": "ram", "title": re.compile(r"ddr|ram|pc4|pc3", re.I),
+        "rules": rules_ddr4, "flags": PART_FLAGS,
+        "questions": {
+            "typ": _q("Jaki typ pamięci? Uwaga: „to nie DDR3”, „PC3” = DDR3, „PC4” = DDR4.",
+                      {"ddr3": "DDR3 / DDR3L", "ddr4": "DDR4", "ddr5": "DDR5", UNKNOWN: "nie da się ustalić"}),
+            "mhz": _q("Jakie jest ZNAMIONOWE taktowanie kości (z naklejki / specyfikacji / XMP), nie to, na którym "
+                      "pracowały w komputerze? PC4-17000 = 2133, 19200 = 2400, 21300 = 2666, 25600 = 3200; "
+                      "„PC4-3200AA” = 3200. Gdy nie wiadomo - nie zgaduj.",
+                      {**{s: f"{s} MHz" for s in RAM_SPEEDS[:-1]}, "3600+": "3600 MHz lub więcej",
+                       UNKNOWN: "nie da się ustalić"}),
+            "forma": _q("Do czego jest pamięć? Kość do laptopa (SO-DIMM) jest krótka, kod naklejki PC4-…-S; do PC "
+                        "(DIMM) długa, PC4-…-U; serwerowa ECC / registered.",
+                        {"pc": "do komputera stacjonarnego (DIMM)", "laptop": "do laptopa (SO-DIMM)",
+                         "serwer": "serwerowa (ECC / registered)", UNKNOWN: "nie da się ustalić"}),
+            "stan": CONDITION_PART, "sztuk": QUANTITY},
+        "tricky": [
+            ("Pamięć RAM 16GB DDR4", "Kości 3200 MHz, w moim komputerze pracowały na 2133.", {"mhz": "3200"}),
+            ("RAM 8GB 1600MHz", "Pamięć DDR3, nie DDR4 - uwaga przy zakupie.", {"typ": "ddr3"}),
+            ("Kingston 8GB PC4-21300", "Do PC, jedna kość.", {"typ": "ddr4", "mhz": "2666", "forma": "pc"}),
+            ("RAM DDR4 16GB 2x8", "Kości SO-DIMM z laptopa Dell, 2400 MHz.", {"forma": "laptop", "mhz": "2400",
+                                                                           "sztuk": "2"}),
+            ("Pamięć DDR4 3200", "Opis z naklejki: PC4-2133P-UA0. Działa.", {"mhz": "2133"}),
+            ("RAM DDR4 8GB", "Cena za sztukę, mam 4 kości.", {"sztuk": "1"}),
+            ("Corsair Vengeance 16GB", "Zestaw 2x8 GB DDR4, XMP 3600, bez XMP 2133.", {"mhz": "3600+", "sztuk": "2"}),
+            ("Samsung 16GB DDR4 ECC", "Serwerowa, registered.", {"forma": "serwer"}),
+        ],
+    },
+    "nvme": {
+        "name": "dyski - Samsung 970 / 980 / 990", "category": "storage", "title": re.compile(r"\b9[789]0\b"),
+        "rules": rules_nvme, "flags": PART_FLAGS,
+        "questions": {
+            "model": _q("Który dokładnie model dysku Samsung? 970 EVO, 970 EVO Plus, 980 i 980 PRO to różne dyski.",
+                        {"970evo": "970 EVO (bez Plus)", "970evoplus": "970 EVO Plus", "970pro": "970 PRO",
+                         "980": "980 (bez PRO)", "980pro": "980 PRO", "990pro": "990 PRO", "990evo": "990 EVO",
+                         "inny": "inny dysk albo inna rzecz", UNKNOWN: "nie da się ustalić"}),
+            "pojemnosc": _q("Jaka pojemność TEGO dysku? Gdy nie wiadomo - nie zgaduj.",
+                            {"250gb": "250 GB", "500gb": "500 GB", "1tb": "1 TB", "2tb": "2 TB", "4tb": "4 TB",
+                             UNKNOWN: "nie da się ustalić"}),
+            "stan": CONDITION_PART, "sztuk": QUANTITY},
+        "tricky": [
+            ("Samsung 970 EVO 1TB", "Wersja Plus, kupiona w 2021, zdrowie 98%.", {"model": "970evoplus",
+                                                                                "pojemnosc": "1tb"}),
+            ("Samsung 980 Pro 1TB", "To zwykły 980 (bez PRO), pomyłka w tytule.", {"model": "980"}),
+            ("Dysk Samsung 980 PRO", "Pojemność 2 TB, sprawny.", {"pojemnosc": "2tb", "stan": "sprawna"}),
+            ("Samsung 970 EVO Plus 500GB", "Dysk nie jest wykrywany przez BIOS.", {"stan": "uszkodzona"}),
+            ("Radiator do Samsung 980 PRO", "Sam radiator, dysku brak.", {"stan": "czesc"}),
+            ("Samsung 990 PRO 2TB x2", "Dwa dyski, cena za całość.", {"sztuk": "2"}),
+        ],
+    },
+    "i5": {
+        "name": "procesory - Intel Core i5", "category": "cpu", "title": re.compile(r"\bi5", re.I),
+        "rules": rules_i5, "flags": PART_FLAGS,
+        "questions": {
+            "model": _q("Który model procesora Intel Core i5 (numer)? Gdy nie wiadomo - nie zgaduj.",
+                        {**{m: f"i5-{m}" for m in I5_MODELS}, "inny": "inny procesor albo inna rzecz",
+                         UNKNOWN: "nie da się ustalić"}),
+            "sufiks": _q("Jaka końcówka numeru? F = bez grafiki zintegrowanej, K = odblokowany, KF = odblokowany bez "
+                         "grafiki, T = energooszczędny, brak = zwykły z grafiką. Uwaga: „i5 9400 f” = 9400F; „nie F”, "
+                         "„z grafiką” = bez F.",
+                         {"brak": "bez litery (zwykły, z grafiką)", "f": "F", "k": "K", "kf": "KF", "t": "T",
+                          UNKNOWN: "nie da się ustalić"}),
+            "stan": CONDITION_PART, "sztuk": QUANTITY},
+        "tricky": [
+            ("Intel i5 9400 f", "Sam procesor, sprawny.", {"model": "9400", "sufiks": "f"}),
+            ("Intel Core i5-9400", "Wersja F, czyli bez grafiki - potrzebna karta.", {"model": "9400", "sufiks": "f"}),
+            ("i5-10400F", "Uwaga: to nie F - ma grafikę, w tytule pomyłka.", {"model": "10400", "sufiks": "brak"}),
+            ("Procesor i5 12400", "Sprawny, z boxowym chłodzeniem.", {"model": "12400", "sufiks": "brak",
+                                                                     "stan": "sprawna"}),
+            ("i5-9600K + płyta Z390", "Zestaw procesor i płyta, działają.", {"model": "9600", "sufiks": "k",
+                                                                            "stan": "zestaw"}),
+            ("Intel i5 8. generacji", "Procesor desktop, model 8400.", {"model": "8400"}),
+            ("Chłodzenie do i5", "Sam cooler, procesora brak.", {"stan": "czesc"}),
+        ],
+    },
+}
+
+# ---------------------------------------------------------------------------------------------- pułapki językowe
+
+_DAMAGE = (r"uszkodz|nie dzia|niedzia|na cz[eę][sś]ci|artefakt|brak obrazu|czarny ekran|czerwony ekran|bad ?sector|"
+           r"smart\W{0,3}(?:\d|status|b[lł][eę]d|error|warn|ostrze)|wygi[eę]t|nie wykrywa|nie odpala|nie w[lł][aą]cza|"
+           r"nie startuje|zbit|p[eę]kni|broken|defekt|faulty|not working|for parts|nefunk|nem m[uű]k|nu func")
+SIGNALS = {
+    "zaprzeczenie": re.compile(
+        r"\b(?:nie|bez|brak|[zż]adn\w*|zero|no|not|nicht|nem|fara)\W+(?:\w+\W+){0,3}?"
+        r"(?:uszkodz|artefakt|wad|problem|b[lł][eę]d|rys|p[eę]kni|zbit|kopan|koparc|damage|issue|ddr\d|ti\b|f\b|"
+        r"pro\b|plus|fe\b)", re.I),
+    "uszkodzenie / niepewny stan": re.compile(_DAMAGE + r"|nie testowan|nietestowan|niesprawdzon|stan nieznany|"
+                                              r"jak jest|as is", re.I),
+    "cena za sztukę": re.compile(r"za sztuk|za szt\b|za szt\.|za jedn|cena za 1|za ko[sś][cć]|per piece|each\b|darab",
+                                 re.I),
+    "kilka sztuk / zestaw": re.compile(r"\d\s*[x×]\s*\d|\b[x×]\s*\d\b|\d\s*[x×]\b|\b\d+\s*szt|komplet|\bkit\b|"
+                                       r"\bdwie\b|\bdwa\b|\btrzy\b|\bcztery\b", re.I),
+    "część / akcesorium": re.compile(r"radiator|heatsink|ch[lł]odzeni|wentylator|backplate|obudow|kiesze[nń]|adapter|"
+                                     r"riser|pude[lł]k|\bbox\b|bez karty|bez dysku|bez procesora", re.I),
+    "porównanie z innym modelem": re.compile(r"\bjak\b|podobn|odpowiednik|lepsz\w* ni[zż]|wydajno[sś][cć]|"
+                                             r"zamiast|vs\.?\b|\bniż\b", re.I),
+    "pomyłka / korekta": re.compile(r"pomy[lł]|b[lł][aą]d w tytule|w tytule|tak naprawd|uwaga|sprostow|w rzeczywisto",
+                                    re.I),
+    "taktowanie inne niż znamionowe": re.compile(r"pracowa[lł]\w* na|dzia[lł]a\w* na|\bxmp\b|podkr[eę]c|\boc\b|"
+                                                 r"overclock", re.I),
+    "zamiana / kupię": re.compile(r"zamian|zamieni|kupi[eę]|szukam|swap|\bwtb\b", re.I),
+}
+_POLISH = re.compile(r"\b(?:jest|nie|się|sie|bardzo|stan|sprzedam|karta|dysk|pami[eę][cć]|procesor|telefon|dzia[lł]a)\b",
+                     re.I)
 
 
-# Starsze sterowniki (np. 425.31 - ostatni dla laptopowych Keplerów, GeForce 920M) nie dodają nvidia-smi do PATH.
+def variant_signals(title, description, family):
+    """Pułapki wariantu: tytuł nie mówi X / opis zmienia X (reguły rodziny z tytułu vs z tytułu + opisu)."""
+    rules = FAMILIES[family]["rules"]
+    by_title = rules(title or "")
+    by_all = rules(f"{title or ''}\n{description or ''}")
+    out = []
+    for key, value in by_title.items():
+        full = by_all.get(key)
+        if key == "sztuk":
+            if rule_quantity({"title": title or "", "description": description or ""}) != value:
+                out.append("liczba sztuk z opisu")
+            continue
+        if value == UNKNOWN and full not in (UNKNOWN, None):
+            out.append(f"tytuł bez: {key} (jest w opisie)")
+        elif value == UNKNOWN:
+            out.append(f"tytuł bez: {key} (nigdzie)")
+        elif full != value:
+            out.append(f"opis zmienia: {key}")
+    return out
+
+
+def language_signals(title, description, family):
+    text = f"{title or ''}\n{description or ''}"
+    found = [name for name, pattern in SIGNALS.items() if pattern.search(text)]
+    if description and len(description) > 40 and not _POLISH.search(description):
+        found.append("opis po obcemu")
+    return found
+
+
+# ---------------------------------------------------------------------------------------------- krok 2: próbka
+
+def _is_variant(group):
+    return group.startswith(("tytuł bez", "opis zmienia", "liczba sztuk"))
+
+
+def sample(conn, family="gtx1060", limit=30, seed=7, hard=True):
+    """Oferty rodziny z opisem → (lista słowników, liczby ofert na pułapkę).
+    hard=True: tylko oferty z pułapką; najpierw pułapki WARIANTU (tytuł bez wariantu, opis zmienia wariant), potem
+    językowe; po kolei z każdego rodzaju, w obrębie rodzaju - najwięcej pułapek naraz. hard=False - losowo."""
+    fam = FAMILIES[family]
+    sql = """SELECT l.id, l.title, l.price_now, l.sold_price, l.state, l.status_label, d.description
+             FROM listings l JOIN details d ON d.listing_id = l.id
+             WHERE l.category = ? AND d.description IS NOT NULL"""
+    groups, signals_of = {}, {}
+    for r in conn.execute(sql, (fam["category"],)):
+        if fam["title"] is not None and not fam["title"].search(r[1] or ""):
+            continue
+        variant = variant_signals(r[1], r[6], family)
+        found = variant + language_signals(r[1], r[6], family)
+        if hard and not found:
+            continue
+        signals_of[r[0]] = (variant, found)
+        for name in (found if hard else ["losowo"]):
+            groups.setdefault(name, []).append(r)
+    rnd = random.Random(seed)
+    for rows in groups.values():
+        rnd.shuffle(rows)
+        rows.sort(key=lambda r: (-len(signals_of[r[0]][0]), -len(signals_of[r[0]][1])))
+    order = sorted(groups, key=lambda g: (not _is_variant(g), g))
+    picked, seen, i = [], set(), 0
+    while len(picked) < limit and any(i < len(groups[g]) for g in order):
+        for name in order:
+            if i < len(groups[name]) and len(picked) < limit and groups[name][i][0] not in seen:
+                seen.add(groups[name][i][0])
+                picked.append(groups[name][i])
+        i += 1
+    out = []
+    for r in picked:
+        price = r[3] if r[4] == "sold" and r[3] else r[2]
+        out.append({"id": r[0], "title": r[1], "price": price, "state": r[4], "condition": r[5],
+                    "hint": " + ".join(signals_of[r[0]][1]) or "losowo",
+                    "description": redact((r[6] or "")[:DESCRIPTION_CHARS])})
+    return out, {k: len(v) for k, v in groups.items()}
+
+
+def print_sample(rows, counts):
+    print("Pułapki w bazie (ofert): " + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())))
+    for n, r in enumerate(rows, 1):
+        desc = " ".join(r["description"].split())[:160]
+        price = f"{r['price']:.0f} zł" if r["price"] else "? zł"
+        print(f"\n{n:>3}. {r['title']} | {price} | {r['condition'] or '?'} | {r['state']}")
+        print(f"     [{r['hint']}]")
+        print(f"     {desc}")
+
+
+def save_sample(rows, family, out_dir):
+    path = Path(out_dir) / "basal" / f"{family}_{datetime.now():%Y%m%d_%H%M}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+    return path
+
+
+# ---------------------------------------------------------------------------------------------- krok 3: test basal
+
+def state_text(offer, family):
+    price = f"{offer['price']:.0f} zł" if offer.get("price") else "?"
+    return (f"Ogłoszenie z Vinted (kategoria: {FAMILIES[family]['name']}).\nTytuł: {offer['title']}\nCena: {price}\n"
+            f"Stan (formularz): {offer.get('condition') or '?'}\nOpis: {offer.get('description') or ''}")
+
+
+def build_request(offer, family):
+    fam = FAMILIES[family]
+    questions = {name: {"type": "choice", **q} for name, q in fam["questions"].items()}
+    questions.update({k: {"type": "noul", "instructions": v} for k, v in fam["flags"].items()})
+    return {"state": state_text(offer, family), "questions": questions}
+
+
 NVIDIA_SMI = ("nvidia-smi", r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe")
 
 
@@ -386,14 +471,18 @@ def vram_used():
     return None
 
 
-def run_test(rows, family="s23", url="http://127.0.0.1:8000", client=None, with_tricky=True, say=print):
+def _pct(p):
+    return "?" if p is None else f"{p:.0%}"
+
+
+def run_test(rows, family="gtx1060", url="http://127.0.0.1:8000", client=None, with_tricky=True, say=print):
     """Każda oferta → POST /v1/systemone. → (wyniki, podsumowanie). Rzuca httpx.HTTPError przy braku serwera."""
     import httpx
     fam = FAMILIES[family]
-    cases = [dict(r, expected=None, expected_qty=None) for r in rows]
+    cases = [dict(r, expected={}) for r in rows]
     if with_tricky:
         cases += [{"id": f"test{i}", "title": t, "description": d, "price": None, "condition": None, "hint": "[test]",
-                   "expected": e, "expected_qty": q} for i, (t, d, e, q) in enumerate(fam["tricky"], 1)]
+                   "expected": e} for i, (t, d, e) in enumerate(fam["tricky"], 1)]
     own = client is None
     client = client or httpx.Client(timeout=120.0, trust_env=False)
     before = vram_used()
@@ -405,67 +494,54 @@ def run_test(rows, family="s23", url="http://127.0.0.1:8000", client=None, with_
             response = client.post(f"{url.rstrip('/')}/v1/systemone", json=build_request(offer, family))
             response.raise_for_status()
             wall = (time.perf_counter() - started) * 1000
-            data = response.json()
-            answers = data.get("answers") or {}
-            label = (answers.get("etykieta") or {}).get("choice")
-            conf = (answers.get("etykieta") or {}).get("confidence")
-            flags = {k: (answers.get(k) or {}).get("noul") for k in fam["flags"]}
-            qty = (answers.get("sztuk") or {}).get("choice")
-            qty_conf = (answers.get("sztuk") or {}).get("confidence")
-            server_ms = (data.get("usage") or {}).get("latency_ms")
+            answers = response.json().get("answers") or {}
             now = vram_used()
             if now and (peak is None or now[0] > peak):
                 peak = now[0]
             times.append(wall)
-            rule = rule_label(offer, family)
-            rule_qty = rule_quantity(offer) if fam.get("quantity") else None
-            res = {"id": offer["id"], "title": offer["title"], "label": label, "confidence": conf, "flags": flags,
-                   "quantity": qty, "quantity_confidence": qty_conf, "rule": rule, "rule_quantity": rule_qty,
-                   "expected": offer["expected"], "expected_quantity": offer["expected_qty"], "ms": round(wall),
-                   "server_ms": server_ms}
-            results.append(res)
-            marks = []
-            if offer["expected"]:
-                marks.append("OK" if label == offer["expected"] else f"BŁĄD (oczekiwane {offer['expected']})")
-                if offer["expected_qty"]:
-                    marks.append("sztuk OK" if qty == offer["expected_qty"] else
-                                 f"sztuk BŁĄD (oczekiwane {offer['expected_qty']})")
-            else:
-                if rule is not None and rule != label:
-                    marks.append(f"≠ reguły: {rule}")
-                if rule_qty is not None and qty != rule_qty:
-                    marks.append(f"sztuk ≠ reguły: {rule_qty}")
-            head = f"{n:>3}. {offer['title'][:60]:<60} -> {label} -> {_pct(conf)}"
-            if fam.get("quantity"):
-                head += f" | sztuk: {qty} ({_pct(qty_conf)})"
-            say(head)
-            say(f"      {', '.join(f'{k.replace(chr(95), chr(32))} {_pct(v)}' for k, v in flags.items())} | "
-                f"{wall:.0f} ms" + (f"  {'; '.join(marks)}" if marks else ""))
+            got = {q: (answers.get(q) or {}).get("choice") for q in fam["questions"]}
+            conf = {q: (answers.get(q) or {}).get("confidence") for q in fam["questions"]}
+            flags = {k: (answers.get(k) or {}).get("noul") for k in fam["flags"]}
+            by_title = fam["rules"](offer["title"])
+            by_all = fam["rules"](f"{offer['title']}\n{offer.get('description') or ''}")
+            if "sztuk" in fam["questions"]:
+                by_all["sztuk"] = rule_quantity(offer)
+            results.append({"id": offer["id"], "title": offer["title"], "answers": got, "confidence": conf,
+                            "flags": flags, "rules_title": by_title, "rules_all": by_all,
+                            "expected": offer["expected"], "ms": round(wall)})
+            say(f"{n:>3}. {offer['title'][:70]}")
+            say("      " + " | ".join(f"{q}: {got[q]} ({_pct(conf[q])})" for q in fam["questions"]) +
+                (" | " + ", ".join(f"{k.replace('_', ' ')} {_pct(v)}" for k, v in flags.items()) if flags else "") +
+                f" | {wall:.0f} ms")
+            marks = [f"{q} OK" if got.get(q) == want else f"{q} BŁĄD (oczekiwane {want})"
+                     for q, want in offer["expected"].items()]
+            if not offer["expected"]:
+                for q in fam["questions"]:
+                    rule = by_all.get(q)
+                    if rule not in (None, UNKNOWN, "sprzeczne") and got[q] != rule:
+                        marks.append(f"{q} ≠ reguły: {rule}")
+                    elif rule in (None, UNKNOWN, "sprzeczne") and got[q] not in (None, UNKNOWN) and q in by_title:
+                        marks.append(f"{q}: basal wie ({got[q]}), reguły nie")
+            if marks:
+                say("      " + "; ".join(marks))
     finally:
         if own:
             client.close()
-    tricky = [r for r in results if r["expected"]]
-    summary = {
-        "ofert": len(results),
-        "czas_ms": {"średnio": round(statistics.mean(times)), "mediana": round(statistics.median(times)),
-                    "max": round(max(times)), "pierwsza (z rozgrzewką)": round(times[0])} if times else {},
-        "vram_mb": {"przed": before[0] if before else None, "szczyt": peak, "karta": before[2] if before else None,
-                    "razem_mb": before[1] if before else None},
-        "przypadki_testowe": f"{sum(r['label'] == r['expected'] for r in tricky)}/{len(tricky)}" if tricky else None,
-    }
-    real = [r for r in results if not r["expected"]]
-    if family == "s23":
-        summary["zgodność z regułami"] = f"{sum(r['label'] == r['rule'] for r in real)}/{len(real)}"
-    if fam.get("quantity"):
-        with_qty = [r for r in tricky if r["expected_quantity"]]
-        summary["sztuk_przypadki_testowe"] = (f"{sum(r['quantity'] == r['expected_quantity'] for r in with_qty)}/"
-                                              f"{len(with_qty)}") if with_qty else None
-        summary["sztuk_zgodność_z_regułami"] = f"{sum(r['quantity'] == r['rule_quantity'] for r in real)}/{len(real)}"
+    summary = {"ofert": len(results),
+               "czas_ms": {"średnio": round(statistics.mean(times)), "mediana": round(statistics.median(times)),
+                           "max": round(max(times)), "pierwsza (z rozgrzewką)": round(times[0])} if times else {},
+               "vram_mb": {"przed": before[0] if before else None, "szczyt": peak,
+                           "karta": before[2] if before else None, "razem_mb": before[1] if before else None},
+               "przypadki_testowe": {}, "zgodność z regułami (tytuł + opis)": {}}
+    for q in fam["questions"]:
+        tested = [r for r in results if q in r["expected"]]
+        if tested:
+            summary["przypadki_testowe"][q] = f"{sum(r['answers'][q] == r['expected'][q] for r in tested)}/{len(tested)}"
+        known = [r for r in results if not r["expected"] and r["rules_all"].get(q) not in (None, UNKNOWN, "sprzeczne")]
+        if known:
+            summary["zgodność z regułami (tytuł + opis)"][q] = \
+                f"{sum(r['answers'][q] == r['rules_all'][q] for r in known)}/{len(known)}"
     return results, summary
-
-
-def _pct(p):
-    return "?" if p is None else f"{p:.0%}"
 
 
 def save_results(results, summary, sample_path):
