@@ -1506,3 +1506,36 @@ def test_proxy_health_alerts_once_and_on_recovery():
 
     asyncio.run(auth())
     assert len(sent) == 1 and "407" in sent[0][1]
+
+
+def test_basal_poc_parts_quantity():
+    """Podzespoły (07.11): pytanie o liczbę sztuk + „cena za sztukę”; reguły jako porównanie."""
+    import httpx
+    from analyzer import basal_poc
+    seen = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        seen.append(body)
+        qty = "2" if "2x8" in body["state"] else "1"
+        return httpx.Response(200, json={"answers": {
+            "etykieta": {"choice": "ddr4_pc", "confidence": 0.8},
+            "sztuk": {"choice": qty, "confidence": 0.7},
+            "uszkodzony": {"noul": 0.1}, "cena_za_sztuke": {"noul": 0.2}}})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    rows = [{"id": 1, "title": "Kingston 16GB (2x8GB) DDR4", "description": "", "price": 150.0,
+             "condition": "Dobry", "hint": "kilka sztuk?"}]
+    out = []
+    results, summary = basal_poc.run_test(rows, family="ram", url="http://basal", client=client, say=out.append)
+    q = seen[0]["questions"]
+    assert q["sztuk"]["type"] == "choice" and "5+" in q["sztuk"]["criteria"] and q["cena_za_sztuke"]["type"] == "noul"
+    assert "kategoria: pamięć RAM" in seen[0]["state"]
+    assert results[0]["quantity"] == "2" and results[0]["rule_quantity"] == "2"
+    assert summary["sztuk_przypadki_testowe"] and "sztuk: 2 (70%)" in out[0]
+    rq = basal_poc.rule_quantity
+    assert rq({"title": "Samsung 980 Pro 1TB", "description": "Cena za sztukę, mam 2."}) == "1"
+    assert rq({"title": "Dyski SSD 512GB x3", "description": ""}) == "3"
+    assert rq({"title": "4x4GB DDR3", "description": ""}) == "4"
+    assert rq({"title": "RX 580", "description": "Dwie karty"}) == "2"
+    assert set(basal_poc.FAMILIES) == {"s23", "ram", "dyski", "karty", "procesory"}

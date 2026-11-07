@@ -176,6 +176,22 @@ python -m analyzer basal-test --plik C:\basal\s23.jsonl
 ```
 (`--template-prefix off` – dokumentacja basal wymaga go tylko dla 4.5B.)
 
+## F. Podzespoły: liczba sztuk (07.11)
+
+Te same okna serwera (mini albo 4.5B). Na laptopie: próbki, potem pliki na PC i test (każda rodzina osobno):
+```
+python -m analyzer basal-sample --rodzina ram --limit 30
+python -m analyzer basal-sample --rodzina dyski --limit 30
+python -m analyzer basal-sample --rodzina karty --limit 30
+python -m analyzer basal-sample --rodzina procesory --limit 30
+python -m analyzer basal-test --rodzina ram --plik C:\basal\ram.jsonl
+```
+(`--rodzina` przy `basal-test` musi być ta sama co przy próbce.) Dodatkowe pytania: **ile sztuk za podaną cenę**
+(1 / 2 / 3 / 4 / 5+ / nie wiadomo; „2x8 GB” = 2, „cena za sztukę, mam 4” = 1) i **czy cena jest za jedną sztukę
+z kilku**. Wydruk: `-> etykieta -> pewność | sztuk: N (pewność)`, przy ofertach z bazy `sztuk ≠ reguły: N`
+(porównanie z prostymi regułami), przy przypadkach testowych `sztuk OK / BŁĄD`. Karty mają w testach dwie prawdziwe
+oferty z 06.11 (RTX 2060 Super „brak obrazu”, GTX 1070 „czerwony ekran”).
+
 Do oceny wyślij oba pliki `..._wyniki_<godz>.json` (albo wydruki): etykiety, przypadki testowe OK / BŁĄD,
 czasy, VRAM. Gdy `basal-serve --mode llamacpp` nie ruszy – wklej błąd; awaryjnie wariant A (`basal-export-gguf
 --systemone`, wtedy llama-server sam na porcie 8000 i bez okna 2).
