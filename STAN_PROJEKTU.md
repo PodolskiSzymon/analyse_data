@@ -37,32 +37,51 @@
 * Zmiany w kodzie: od razu z testem, commit + push, w odpowiedzi 1–2 zdania „co zmieniłem” + komendy do wdrożenia
   na serwerze (`git pull` + restart). Nie proś o wklejanie haseł / kluczy do czatu.
 
-## Zrzut stanu (07.11) – co zrobione ostatnio i co dalej
+## Zrzut stanu (08.11) – co zrobione ostatnio i co dalej
 
 * **Basal (lokalny model decyzyjny jako „bramkarz”)** – plan użytkownika: regex na tytule → basal przy wątpliwościach
-  → mediany; **kroki 1–3 gotowe, czekamy na wyniki testu; kroki 4–5 (regexy rodzin, kaskada w Sniperze) DOPIERO po
-  akceptacji wyników przez użytkownika.** `BASAL_GPU.md` (instrukcja), `analyzer/basal_poc.py`
-  (`basal-sample` / `basal-test`). Test na **PC użytkownika z GTX 1060 6 GB** (Windows, llama.cpp CUDA 12 + CUDA 12.4
-  DLLs, `basal-serve --mode llamacpp`, modele `Remek/basal-2.0-mini-GGUF` i `Remek/basal-2.0-4.5B-GGUF` Q5_K_M);
-  na PC wystarczy `pip install httpx python-dotenv` + skopiowany folder `analyse_data`. Rodziny wariantów (07.11,
-  użytkownik: „konkretny model, warianty, które naturalny język myli”): `s23`, `gtx1060`, `rtx3060`, `ddr4`,
-  `nvme`, `i5` (BASAL_GPU.md §F). Niesprawdzone na żywo: `basal-serve --mode llamacpp`, `basal-export-gguf
-  --systemone`. basal-omni (zdjęcia) wymaga ~16 GB VRAM (tylko tryb eager/vllm), GGUF = sam tekst.
-* **Sprzęt:** laptop-serwer (i5-5200U, 4 GB, GeForce 920M = Kepler, sterownik 425.31, Vulkan 1.1 → GPU dla llama.cpp
-  odpada). Plan: serwer na **stację roboczą** (MSI Z270 Tomahawk, i5-7400, 8 GB DDR4, zasilacz 1000 W; dysk 512 GB
-  z laptopa; obudowa ATX do kupienia) z **Ubuntu Server 24.04** (Sniper / watch / pilot mają już ścieżki Linux;
-  zamienniki `.bat` → systemd do napisania); alternatywa rozważana: Fujitsu Esprimo D7011 (i3-10105, 16 GB, ~15 W,
-  tylko karta low-profile). Karta pod basal na serwer: na Linuksie RX 570 8 GB (RADV) OK, na Windows sterownik AMD
-  Polaris ryzykowny; GTX 1060 6 GB pewna. Zdjęcia: archiwum `data\photos` ~292 GB (active 227, unlisted 38, deleted
-  17,5 GB) – plan: używany HDD 8 TB SATA (CMR), `ANALYZER_PHOTOS_DIR`, przeniesienie `robocopy` (instrukcja była w
-  czacie 07.11); `photos-clean` usuwa zdjęcia `deleted` (unlisted ZOSTAJĄ – decyzja użytkownika).
-* **Ostatnie zmiany w kodzie (01–07.11):** Sniper – padnięte proxy nie blokuje innych (blokada przeglądarki na jedną
-  próbę, 407 od razu, rosnąca przerwa, ntfy), mediany szczegółowe (stan nowy/używany, 5G/LTE, kod modelu, RAM, bez
-  „całej rodziny”) po fałszywej okazji Samsung A17; analizator – `comparables.db` ze stanem, wiersze „(nowe)”,
-  ekstrakcja v4, `photos-clean`, ntfy o padniętym proxy w watch (`analyzer/proxy_health.py`), test basala.
-* **Do zrobienia po teście basala:** (a) ocena wyników → decyzja mini / 4.5B / wcale; (b) kroki 4–5 planu
-  (regexy rodzin + kaskada regex → basal → mediany w Sniperze); (c) przeprowadzka serwera na Linuksa (plan krok po
-  kroku); (d) ew. zmniejszanie zdjęć (1024 px, JPEG q80, −60–70%) – zaproponowane, użytkownik nie zdecydował.
+  → mediany; **kroki 1–3 gotowe, trwa test v2 na PC; kroki 4–5 (regexy rodzin, kaskada w Sniperze) DOPIERO po
+  akceptacji wyników przez użytkownika.** `BASAL_GPU.md` (instrukcja; §G PC, §H serwer 8 GB), `analyzer/basal_poc.py`.
+  * **v1 (6 rodzin: `s23`, `gtx1060`, `rtx3060`, `ddr4`, `nvme`, `i5`, §F):** 4.5B lepszy od mini w taktowaniu RAM,
+    końcówkach i5, liczbie sztuk; gorszy w RTX 3060 (Ti) → dopisek „bez Ti”. Mini szybszy.
+  * **v2 (07.11) – cały rynek:** `analyzer/basal_families.py` + `basal_specs.py`, tabela `BASAL_RODZINY.md`.
+    173 rodziny (telefony 58, laptopy 33, konsole 22, karty 17, tablety 13, płyty 8, RAM 7, dyski 7, CPU 7,
+    zestawy 1), 4152 próbki (24 / rodzinę) + 1083 przypadki testowe (pułapki wariantów, formularza, języka). Rodzina:
+    regex tytułu → `model_nav` / platforma z formularza → rodziny zapasowe; warianty z tokenów (słowa marki
+    opcjonalne, nakładanie: wygrywa dłuższe / później kończące się). Formularz Vinted podawany basalowi jako
+    „bywa błędny”. CLI: `basal-sample --wszystkie`, `basal-test --katalog --etykieta --pomin-gotowe`,
+    `basal-raport --katalog --etykieta` (`analyzer/basal_report.py`: T testy / R reguły / P pewne ≥ 70%, lista
+    „pewnych błędów”), `basal-rodziny`.
+  * **Pułapki formularza z bazy:** ~11% telefonów ma „256/512 MB” w pamięci; „iPad 9” vs formularz „9.7 (2018)”
+    (51); „iPhone 17e” vs „17” (30); „MacBook Air 2020” Intel / M1 niejednoznaczne (720); laptopy: RAM w polu dysku
+    (367), dysk w polu RAM (359). Zgodność reguł z formularzem: iPhone ~99%, Galaxy S 96–98%; tytuł zna wariant
+    w laptopach / tabletach tylko w 34–81% → **tam basal może dać najwięcej**.
+  * **Wydajność (PC, GTX 1060 6 GB, 4.5B Q5_K_M, ~4,1 GB VRAM):** ~3 s / ofertę; 1 slot (`-np 1`) szybszy niż 4.
+    Całość bazy: 201 766 ofert z opisem ≈ 7 dni, 136 098 aktywnych ≈ 4,7 dnia ciągłej pracy.
+* **Sniper – tryb polowania na kartę pod basala** (`unreachable_sniper` 80ec482): `SNIPER_HUNT_FOR_GPU=true`,
+  `SNIPER_HUNT_FILE` (domyślnie `sniper/hunt_for_basal.md`, 13 celów: RTX 2060 12 GB … 3060 12 GB / 3060 Ti /
+  3070 / 3080 / 4060 (Ti) / 4070+ ≤ 400–500 zł); każda nowa oferta przed filtrami i AI, trafienie = ntfy priorytet 5
+  + `logs/hunt.jsonl`; pomija uszkodzone / części / laptopy / „kupię”. 290 testów Snipera.
+* **Sprzęt – decyzja odłożona (rada 08.11: nic nie kupować przed wynikami v2).** RX 580 8 GB ≈ GTX 1060 (Vulkan,
+  na Windows ryzyko sterownika); lepsza wartość z bazy: GTX 1080 Ti 11 GB ~500 zł (szac. 2–2,5× szybciej), GTX 1070
+  ~400 zł. Do czyszczenia median wystarczy wsadowy basal na obecnym PC (noc / weekend); karta na serwer ma sens
+  dopiero dla basala w czasie rzeczywistym w Sniperze (wymaga też RAM + obudowy). Serwer docelowo: stacja robocza
+  (MSI Z270, i5-7400, 8 GB DDR4, zasilacz 1000 W) z Ubuntu Server 24.04; laptop-serwer (920M Kepler) odpada dla GPU.
+  Zdjęcia: `data\photos` ~292 GB → plan HDD 8 TB (`ANALYZER_PHOTOS_DIR`); `photos-clean` usuwa tylko `deleted`.
+* **Wcześniej (01–07.11):** Sniper – padnięte proxy nie blokuje innych, mediany szczegółowe (stan, 5G/LTE, kod
+  modelu, RAM) po fałszywej okazji Samsung A17; analizator – `comparables.db` ze stanem, ekstrakcja v4,
+  `photos-clean`, ntfy o padniętym proxy w watch, test basala.
+* **Co dalej (kolejność):**
+  1. Wyniki v2 od użytkownika (`D:\basal\v2`: `*_wyniki_45b_*.json` + `raport_45b.txt/.json`) → analiza „pewnych
+     błędów” per rodzina / pytanie → poprawki pytań i reguł w `basal_families.py`, ew. powtórka tylko zmienionych
+     rodzin (`--rodzina`).
+  2. **Policzyć wpływ na mediany** (offline, na kopii bazy): ile ofert basal przenosi do innego wariantu / stanu
+     i jak zmieniają się mediany rodzin – to rozstrzyga, czy basal jest wart wdrożenia (i ew. zakupu karty).
+  3. Jeśli tak: wsadowy przebieg basala na PC po aktywnych ofertach → poprawione specyfikacje do `comparables.db`.
+  4. Kroki 4–5 planu (regexy rodzin + kaskada regex → basal → mediany w Sniperze) – po akceptacji użytkownika.
+  5. Naprawa znanego błędu: prefiks GPU łapie „GeForce 6600” / „FX 5600” jako `rx_6600` / `rx_5600_xt`.
+  6. Przeprowadzka serwera na Linuksa (unity systemd dla llama-server / basal-serve / Snipera / watch), 4.5B Q8_0
+     na karcie 8 GB (§H). Ew. zmniejszanie zdjęć (1024 px, JPEG q80) – nierozstrzygnięte.
 
 ## 0. Dane użytkownika (Claude nie ma dostępu do Vinted ani bazy)
 
@@ -227,7 +246,8 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 00. (07.11) **Basal v2 - test całego rynku** (`BASAL_RODZINY.md`, `BASAL_GPU.md` §G / §H): 173 rodziny
    (telefony 58, laptopy 33, konsole 22, karty 17, tablety 13, płyty 8, RAM 7, dyski 7, procesory 7, zestawy 1),
    próbki 24 / rodzinę z bazy 07.11 + 1083 przypadki testowe. Czekamy na wyniki 4.5B Q5_K_M z GTX 1060 (folder
-   `D:\basal\v2` z `*_wyniki_45b_*.json` i `raport_45b.txt` na Dysku). Potem: poprawki instrukcji (pytań) wg pewnych
+   `D:\basal\v2` z `*_wyniki_45b_*.json` i `raport_45b.txt` na Dysku; test na PC trwa, 1 slot, ~3 s / ofertę).
+   Potem: wpływ na mediany (Zrzut stanu „Co dalej” 2), decyzja o karcie dopiero po nim. Potem: poprawki instrukcji (pytań) wg pewnych
    błędów, docelowo serwer z kartą 8 GB i 4.5B Q8_0. Wcześniej (mini / 4.5B, 6 rodzin v1): 4.5B lepszy w
    taktowaniu RAM, końcówkach i5, liczbie sztuk; mini szybszy (BASAL_GPU.md §F). Kroki 4–5 dopiero po akceptacji.
 
