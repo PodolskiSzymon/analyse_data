@@ -73,8 +73,8 @@
     `basal-test --tylko-testowe --rodziny`, sekcja „pewne rozbieżności z regułami” w raporcie.
 * **`extract.py` v5 (08.11, produkcja):** usterka w zdaniu warunkowym („Jeśli sprzęt będzie uszkodzony - protokół”,
   formułka handlarza), „nigdy nie był uszkodzony”, zaprzeczenia „nu / neturi / nema” i po słowie („defektu nav”),
-  „nie włączany” - na całej bazie 1138 fałszywych „uszkodzonych” mniej (głównie telefony 666, konsole 158, laptopy
-  124), prawdziwych usterek wg AI tylko 18 z 2488 mniej. Watch przelicza cechy sam w pierwszym cyklu po aktualizacji.
+  „nie włączany” - na całej bazie 1138 ofert mniej oznaczonych jako uszkodzone (telefony 666, konsole 158, laptopy
+  124); gdzie jest ocena AI: 1104 z nich sprawne wg AI, 18 uszkodzone (z 2488 łapanych przez regułę). Watch przelicza cechy sam w pierwszym cyklu po aktualizacji.
 * **Płatne AI stanu w analizatorze (pytanie użytkownika 08.11 - „analizator nic nie daje płatnemu AI”):** daje -
   `ai-condition` (Gemini 3.8 Flash, klucz `SNIPER_AI_API_KEY`): 25.10 ręcznie 8696 ofert ze zdjęciami (~$25), potem
   automat w `watch` (`auto.py` krok 2: nowe oferty ze wzmianką o usterce, do 3000 na automat, od 31.10 sam opis,

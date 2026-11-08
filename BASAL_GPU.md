@@ -336,8 +336,8 @@ dla ofert, których reguły nie rozstrzygają; próg pewności 70% (BASAL_RODZIN
 pad); reguły (prefiks kart wg producenta, „+” osobno ≠ Plus, iPad „9,7"”, MacBook 14" / 16", akcesoria tabletu -
 „Smart Folio” to etui, „obsługuje Apple Pencil” to nie rysik w zestawie; „Sprzedam lub zamienię” to sprzedaż);
 `extract.py` v5 (usterka w zdaniu warunkowym, zaprzeczenia w obcych językach i po słowie, „nie włączany”) -
-na całej bazie 1138 fałszywych „uszkodzonych” mniej, żadnej prawdziwej mniej (wg AI: 18 z 2488 przestaje być
-łapanych przez regułę - to te, gdzie usterka jest opisana tylko warunkowo). Raport: nowa sekcja „pewne
+na całej bazie 1138 ofert mniej oznaczonych jako uszkodzone; tam, gdzie jest ocena AI: 1104 z nich AI uznało za
+sprawne, 18 za uszkodzone (z 2488 uszkodzonych, które reguła łapała). Raport: nowa sekcja „pewne
 rozbieżności z regułami” (kto ma rację - do przeglądu).
 
 **Na PC (ten sam układ okien co §G, ale 1 slot - był szybszy):** najpierw nowy kod - skopiuj na pendrive aktualny
