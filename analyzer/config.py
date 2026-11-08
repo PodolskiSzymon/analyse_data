@@ -147,7 +147,7 @@ class AnalyzerConfig:
     # (comparables.db). 2026-10-30, prośba użytkownika: co 2 dni (było 3,5). Termin liczony od ostatniego udanego
     # automatu zapisanego w analysis.db - restart / przerwanie watch go nie przesuwa.
     auto_days: float = _env_float("ANALYZER_AUTO_DAYS", 2.0)
-    auto_ai_limit: int = _env_int("ANALYZER_AUTO_AI_LIMIT", 3000)      # najwyżej tyle ofert do AI w jednym automacie
+    auto_ai_limit: int = _env_int("ANALYZER_AUTO_AI_LIMIT", 3000)      # najwyżej tyle ofert do AI w automacie; 0 = wył.
     # Zdjęć na ofertę przy AI stanu w automacie. 31.10: 0 = sam opis - zdjęcia to ~80% tokenów (śr. 2,6 zdjęcia
     # ≈ 2,8 tys. z ~3,4 tys. tokenów na ofertę; ~1,7 tys. ofert ≈ $5 na automat), a sprawdzamy słowa o usterce z opisu.
     auto_ai_photos: int = _env_int("ANALYZER_AUTO_AI_PHOTOS", 0)

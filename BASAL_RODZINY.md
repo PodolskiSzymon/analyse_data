@@ -1,4 +1,4 @@
-# Rodziny basala v2 – prawie cały rynek z bazy (07.11)
+# Rodziny basala v2 – prawie cały rynek z bazy (07.11, poprawki po teście 08.11)
 
 Basal ma być „bramkarzem” przed medianami: z ogłoszenia (tytuł, opis, formularz Vinted) ustala DOKŁADNY wariant
 i stan, żeby oferta trafiła do właściwej grupy cenowej. Rodzina = jeden model bazowy (albo linia) ze wszystkimi
@@ -22,7 +22,8 @@ Slim 3, „Pavilion 15” dla Pavilion Gaming).
 
 ## Co basal dostaje i o co jest pytany
 
-Stan dla basala: kategoria (nazwa rodziny), tytuł, cena, stan z formularza, **pola formularza Vinted z ostrzeżeniem
+Stan dla basala: kategoria (ogólna – „telefony komórkowe”, „pamięć RAM”; od 08.11 nie nazwa rodziny, bo podpowiadała
+odpowiedź: „Kingston … do PC” w rodzinie „RAM do laptopa” wychodził laptop), tytuł, cena, stan z formularza, **pola formularza Vinted z ostrzeżeniem
 „bywa błędny”** (model, pamięć, bateria, blokada SIM, platforma konsoli, RAM / dysk / procesor / ładowarka laptopa),
 opis (do 1200 znaków, e-mail / telefon / linki zamaskowane). Pytania – wybór jednej odpowiedzi z listy + pewność:
 
@@ -31,15 +32,17 @@ opis (do 1200 znaków, e-mail / telefon / linki zamaskowane). Pytania – wybór
 | telefony | model (wariant), pamięć, RAM, 4G / 5G, bateria (Apple), blokada (konto / simlock), stan (idealny / ślady / pęknięty / usterka / na części), co sprzedawane (telefon / kilka / akcesorium / część / pudełko / podróbka / kupię); tak/nie: nieoryginalne części (Apple) |
 | tablety | model (generacja / rozmiar / chip), pamięć, RAM, Wi-Fi / LTE, rysik / klawiatura, blokada, stan, co sprzedawane |
 | konsole | model, pamięć, napęd (PS5 / Xbox), dock (Switch), pady, gry, przeróbka (CFW / RGH / HEN), stan, co sprzedawane; oryginał / zamiennik (pady) |
-| laptopy | model, generacja (HP G, Lenovo Gen), procesor (rodzina + generacja), karta, RAM, dysk, rok (MacBook), stan, blokada (BIOS / iCloud / MDM), zasilacz, co sprzedawane |
-| karty | model (chip + Ti / Super / XT / 2048SP), VRAM, typ pamięci (GDDR5 / 6 / 6X, DDR4), stan, sztuki; tak/nie: cena za sztukę |
+| laptopy | model, generacja (HP G, Lenovo Gen), procesor = linia (i3 … i9, Ultra, Ryzen 3 … 9) + generacja procesora (pełne listy, 08.11; MacBooki – lista chipów Apple), karta, RAM, dysk, rok (MacBook), stan, blokada (BIOS / iCloud / MDM), zasilacz, co sprzedawane |
+| karty | model (chip + Ti / Super / XT / 2048SP), VRAM, typ pamięci (GDDR5 / 6 / 6X, DDR4), stan, sztuki (z odpowiedzią „cena za sztukę”) |
 | RAM | typ (DDR2 - DDR5), taktowanie znamionowe, forma (PC / laptop / serwer), pojemność razem, stan, sztuki |
 | dyski | model, pojemność, typ (NVMe / SATA / HDD 3,5" / 2,5" / zewnętrzny), stan (zdrowie, bad sectory), sztuki |
 | procesory | model (numer), końcówka (F / K / KF / T / X / X3D / G ...), stan (wygięte piny, z płytą), sztuki |
 | płyty | chipset, DDR3 / 4 / 5, Wi-Fi, format (ATX / mATX / ITX), stan (płyta laptopa / TV = inna płyta) |
 | zestawy | procesor, RAM, co w zestawie (płyta + CPU / + RAM / cały komputer), stan |
 
-Odpowiedź `nie_wiadomo` jest poprawna, gdy ogłoszenie naprawdę nie mówi wariantu – basal ma NIE zgadywać.
+Odpowiedź `nie_wiadomo` jest poprawna, gdy ogłoszenie naprawdę nie mówi wariantu – basal ma NIE zgadywać. Od 08.11
+pytania nie mają liczb w przykładach, które są też odpowiedziami („8/256” → basal odpowiadał 8 GB RAM przy „12/256”,
+„2x8 GB = 16 GB” → 16 GB przy „Kit 8GB (2x4GB)”), a „Kupię” / „tylko zamiana” jest sprawdzane na początku pytania „co”.
 
 ## Próbka
 
@@ -47,9 +50,11 @@ Odpowiedź `nie_wiadomo` jest poprawna, gdy ogłoszenie naprawdę nie mówi wari
 pułapki wariantu (tytuł bez wariantu, opis zmienia wariant), pułapki formularza („256 MB” zamiast 256 GB, model
 w formularzu ≠ tytuł, dysk w polu RAM, inna platforma), każdy wariant (`wariant: X` – żeby każdy był w próbce),
 pułapki językowe (zaprzeczenia, uszkodzenia, cena za sztukę, zestawy, porównania, obcy język). Do tego przypadki
-testowe z oczekiwanymi odpowiedziami (1083, po 4–7 na rodzinę: „nie Pro Max”, wariant tylko w opisie, etui / pudełko
+testowe z oczekiwanymi odpowiedziami (1116, po 3–7 na rodzinę; od 08.11 jak prawdziwe ogłoszenia: nazwy wariantów zamiast
+etykiet grup – `example_name`, `basal_specs.EXAMPLES` –, pamięć / VRAM / procesor zgodne z wariantem, bez trzech sprzecznych
+modeli naraz; „nie Pro Max”, wariant tylko w opisie, etui / pudełko
 zamiast telefonu, iCloud, simlock, replika, „Digital + dokupiony napęd”, hasło BIOS, matryca do laptopa, cena za
-sztukę, radiator bez karty, wygięte piny, płyta z laptopa ...). 173 rodziny × 24 = 4152 oferty + 1083 testy.
+sztukę, radiator bez karty, wygięte piny, płyta z laptopa ...). 173 rodziny × 24 = 4152 oferty + 1116 testów.
 
 ## Wyniki i poprawki
 
@@ -57,7 +62,7 @@ sztukę, radiator bez karty, wygięte piny, płyta z laptopa ...). 173 rodziny �
 zbiorczo per pytanie; lista pewnych błędów. Kolejność poprawek: pewne błędy (basal pewny i zły – najgroźniejsze
 dla bramkarza) → pytania z niską trafnością pewnych odpowiedzi → etykiety, których basal nie używa → przypadki
 z „nie_wiadomo” mimo wariantu w tekście. Wynik docelowy: dla każdej rodziny lista pytań, którym bramkarz ufa
-(pewne ≥ 95% trafne), reszta zostaje regułom / medianom.
+(pewne ≥ 95% trafne), reszta zostaje regułom / medianom. Wyniki pierwszego testu (07/08.11) i poprawki: `BASAL_GPU.md` §I.
 
 ## Lista rodzin
 
@@ -178,41 +183,42 @@ Generowana: `python -m analyzer basal-rodziny` (po zmianie `basal_specs.py` wkle
 | `macbook_air` | Apple MacBook Air (Intel 2010 - 2020, M1 - M5, 13" / 15") | 8: MacBook Air Intel (2010 - 2017, stara obudowa, srebrna ramka), MacBook Air Intel Retina (2018 - 2020), MacBook Air M1 (2020), MacBook Air 13" M2 (2022), MacBook Air 15" M2 (2023), MacBook Air M3 (2024, 13" / 15") … (+2) | model, procesor, karta, ram, dysk, stan, blokada, rok, zasilacz, co |
 | `macbook_pro` | Apple MacBook Pro (13" / 15" Intel, 13" M1 / M2, 14" / 16" M1 Pro - M5) | 6: MacBook Pro 13" Intel (2012 - 2020), MacBook Pro 15" Intel (2012 - 2019), MacBook Pro 16" Intel (2019), MacBook Pro 13" M1 / M2 (2020 - 2022, Touch Bar), MacBook Pro 14" (2021+, M1 Pro / Max ... M5), MacBook Pro 16" (2021+, M1 Pro / Max ... M5) | model, procesor, karta, ram, dysk, stan, blokada, rok, zasilacz, co |
 | `macbook_inne` | Apple MacBook 12" Retina (2015 - 2017), MacBook Neo, stare MacBooki (2006 - 2010) | 3: MacBook 12" Retina (2015 - 2017), MacBook Neo, stary MacBook (2006 - 2010, biały / aluminiowy) | model, procesor, karta, ram, dysk, stan, blokada, rok, zasilacz, co |
-| `thinkpad_t` | Lenovo ThinkPad T (T14 / T14s / T15 / T16 Gen, T4x0 / T5x0) | 18: ThinkPad T14, ThinkPad T14s, ThinkPad T15, ThinkPad T16, ThinkPad T480, ThinkPad T480s … (+12) | model, generacja, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `thinkpad_x` | Lenovo ThinkPad X (X1 Carbon / Yoga / Extreme / Nano Gen, X13, X2x0, X3x0) | 12: ThinkPad X1 Carbon, ThinkPad X1 Yoga, ThinkPad X1 Extreme, ThinkPad X1 Nano, ThinkPad X13, ThinkPad X13 Yoga … (+6) | model, generacja, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `thinkpad_le` | Lenovo ThinkPad L / E (L13 - L16, E14 - E16, L4x0 / L5x0, E4x0 / E5x0) | 18: ThinkPad L13, ThinkPad L13 Yoga, ThinkPad L14, ThinkPad L15, ThinkPad L16, ThinkPad E14 … (+12) | model, generacja, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `thinkpad_p` | Lenovo ThinkPad P (P1, P14s, P15, P15s, P16, P16s, P50 - P53) - mobilne stacje robocze | 10: ThinkPad P1, ThinkPad P14s, ThinkPad P15, ThinkPad P15s, ThinkPad P16, ThinkPad P16s … (+4) | model, generacja, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `ideapad` | Lenovo IdeaPad (1, 3, 5, Slim 3 / 5, Flex 3 / 5, Duet, L340, S340 / S540, 3x0 / 5x0) | 14: IdeaPad 1, IdeaPad 3, IdeaPad 5, IdeaPad Slim 3, IdeaPad Slim 5, IdeaPad Flex 3 … (+8) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `lenovo_gaming` | Lenovo Legion (5 / 5 Pro / 5i / 7 / Pro, Y520 - Y740, Y7000), IdeaPad Gaming, LOQ | 19: Legion 5, Legion 5 Pro, Legion 5i, Legion Pro 5, Legion 7, Legion 7i … (+13) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `lenovo_yoga` | Lenovo Yoga (Slim 6 / 7 / 7i / 7x, Yoga 6 / 7 / 9, Pro 7 / 9, C930 / C940, Book) | 16: Yoga Slim 6, Yoga Slim 7, Yoga Slim 7i, Yoga Slim 7x, Yoga 6, Yoga 7 … (+10) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `asus_vivobook` | Asus Vivobook (14 / 15 / 16 / 17, S, Pro, Go, Flip, E402 / E410) | 13: Vivobook 14, Vivobook 15, Vivobook 16, Vivobook 17, Vivobook S14, Vivobook S15 … (+7) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `asus_zenbook` | Asus Zenbook (13 / 14 / 14X / S / Duo / Pro / Flip, UX) | 10: Zenbook 13, Zenbook 14, Zenbook 14X, Zenbook S13, Zenbook S14, Zenbook Duo … (+4) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `asus_tuf` | Asus TUF Gaming (A14 / A15 / A16 / A17, F15 / F16 / F17, FX50x) | 8: TUF Gaming A14, TUF Gaming A15, TUF Gaming A16, TUF Gaming A17, TUF Gaming F15, TUF Gaming F16 … (+2) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `asus_rog` | Asus ROG (Strix G15 / G16 / G17 / G18 / Scar, Zephyrus G14 / G15 / G16 / M16, Flow) | 14: ROG Strix G15, ROG Strix G16, ROG Strix G17, ROG Strix G18, ROG Strix Scar 15, ROG Strix Scar 16 … (+8) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `hp_elite_zbook` | HP EliteBook (820 - 860, 640 - 665, 735 - 755, x360, 1030 / 1040, Dragonfly) i ZBook | 25: HP EliteBook 820, HP EliteBook 830, HP EliteBook 835, HP EliteBook 840, HP EliteBook 845, HP EliteBook 850 … (+19) | model, generacja, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `hp_probook` | HP ProBook (430 - 470, 640 / 650, G1 - G11) | 10: HP ProBook 430, HP ProBook 440, HP ProBook 445, HP ProBook 450, HP ProBook 455, HP ProBook 460 … (+4) | model, generacja, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `hp_konsumenckie` | HP 250 / 255 / 15s / 14s, Pavilion (14 - 17, x360, Gaming, Aero), Envy, Spectre, OmniBook | 10: HP 250 / 240 (G5 - G10), HP 255 / 245 (G5 - G10), HP 15s / 14s / 15 / 17 (bez serii), HP Pavilion 13 / 14 / 15 / 16 / 17, HP Pavilion x360, HP Pavilion Gaming 15 / 16 / 17 … (+4) | model, generacja, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `hp_omen_victus` | HP Omen (15 / 16 / 17 / Transcend) i Victus (15 / 16) | 6: HP Omen 15, HP Omen 16, HP Omen 17, HP Omen Transcend, HP Victus 15, HP Victus 16 | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `dell_latitude_3_5` | Dell Latitude 3xxx / 5xxx (3410 - 3540, 5280 - 5590) | 29: Dell Latitude 3400, Dell Latitude 3410, Dell Latitude 3420, Dell Latitude 3510, Dell Latitude 3520, Dell Latitude 3540 … (+23) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `dell_latitude_7_9` | Dell Latitude 7xxx / 9xxx (7280 - 7490, 7300 - 7440, 9420) | 15: Dell Latitude 7280, Dell Latitude 7290, Dell Latitude 7300, Dell Latitude 7310, Dell Latitude 7320, Dell Latitude 7330 … (+9) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `dell_inspiron` | Dell Inspiron (13 / 14 / 15 / 16 / 17: 3xxx, 5xxx, 7xxx) | 26: Dell Inspiron 3501, Dell Inspiron 3505, Dell Inspiron 3510, Dell Inspiron 3511, Dell Inspiron 3520, Dell Inspiron 3525 … (+20) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `dell_vostro` | Dell Vostro (3400 - 3520, 5402 - 5515) | 10: Dell Vostro 3400, Dell Vostro 3500, Dell Vostro 3510, Dell Vostro 3520, Dell Vostro 3530, Dell Vostro 5402 … (+4) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `dell_xps` | Dell XPS (13: 93xx, 15: 95xx, 17: 97xx) | 20: Dell XPS 9300, Dell XPS 9305, Dell XPS 9310, Dell XPS 9315, Dell XPS 9320, Dell XPS 9340 … (+14) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `dell_gaming` | Dell G3 / G5 / G7 / G15 / G16 i Alienware (m15, m17, x15, x17, 13 / 15 / 17) | 8: Dell G3 (3579 / 3590), Dell G5 (5587 / 5590 / 5500), Dell G7 (7588 / 7590 / 7790), Dell G15 (5510 / 5511 / 5515 / 5520 / 5530 / 5535), Dell G16 (7620 / 7630), Alienware m15 / m16 / m17 / m18 … (+2) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `dell_precision` | Dell Precision (3xxx, 5xxx, 7xxx - mobilne stacje robocze) | 22: Dell Precision 3530, Dell Precision 3541, Dell Precision 3551, Dell Precision 3561, Dell Precision 3571, Dell Precision 5520 … (+16) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `acer_aspire_swift` | Acer Aspire (1 / 3 / 5 / 7 / Vero / V3), Swift (1 / 3 / 5 / Go / X), Extensa, TravelMate, Spin | 15: Aspire 1, Aspire 3, Aspire 5, Aspire 7, Aspire Vero, Aspire V3 … (+9) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `acer_nitro_predator` | Acer Nitro (5 / 7 / 16 / 17 / V15 / V16, Aspire V Nitro) i Predator (Helios, Triton) | 11: Nitro 5, Nitro 7, Nitro 16, Nitro 17, Nitro V15, Nitro V16 … (+5) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `msi` | MSI (GF63 / GF65 Thin, Katana, Cyborg, Sword, Pulse, Vector, Raider, Stealth, Titan, Creator, Prestige, Modern) | 14: MSI GF63 Thin, MSI GF65 Thin, MSI GL63 / GL65 / GL73 / GL75, MSI Katana (GF66 / GF76 / 15 / 17), MSI Cyborg 15, MSI Sword 15 / 17 … (+8) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `huawei_matebook` | Huawei MateBook (D14, D15, D16, 13, 14, 14s, X, X Pro, 16) | 9: MateBook D14, MateBook D15, MateBook D16, MateBook 13, MateBook 14, MateBook 14s … (+3) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `surface_laptop` | Microsoft Surface (Laptop 1 - 7, Go, Studio, Book 1 - 3, Pro 3 - 11, Go 1 - 4) | 14: Surface Laptop 1 / 2, Surface Laptop 3, Surface Laptop 4, Surface Laptop 5, Surface Laptop 6, Surface Laptop 7 … (+8) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `samsung_razer_gigabyte` | Samsung Galaxy Book, Razer Blade, Gigabyte (G5 / G6 / G7, Aorus, Aero) | 7: Samsung Galaxy Book (2 / 3 / 4 / 5, Pro, 360, Edge, Go), Razer Blade 14, Razer Blade 15, Razer Blade 16 / 17 / 18 / Pro 17, Razer Blade Stealth 13, Gigabyte G5 / G6 / G7 … (+1) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `chromebooki` | Chromebooki (Acer 314 / 315 / 514, HP 11 / 14 / x360, Lenovo, Asus, Samsung) | 6: Acer Chromebook (11, 314, 315, 514, Spin), HP Chromebook (11, 14, x360), Lenovo Chromebook / Duet / IdeaPad Flex, Asus Chromebook (CX1, CM14, C523, Flip), Samsung (Galaxy) Chromebook, Dell Chromebook | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
-| `laptopy_inne` | Inne laptopy (Fujitsu, Toshiba / Dynabook, Medion, Sony Vaio, LG Gram, Panasonic Toughbook, Asus ExpertBook, bez modelu ...) | 13: Fujitsu (Lifebook, Celsius), Toshiba / Dynabook (Satellite, Tecra, Portege), Medion (Akoya, Erazer), Sony Vaio, LG Gram, Panasonic Toughbook / Getac (CF-19, CF-31, CF-54 ...) … (+7) | model, procesor, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `thinkpad_t` | Lenovo ThinkPad T (T14 / T14s / T15 / T16 Gen, T4x0 / T5x0) | 18: ThinkPad T14, ThinkPad T14s, ThinkPad T15, ThinkPad T16, ThinkPad T480, ThinkPad T480s … (+12) | model, generacja, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `thinkpad_x` | Lenovo ThinkPad X (X1 Carbon / Yoga / Extreme / Nano Gen, X13, X2x0, X3x0) | 12: ThinkPad X1 Carbon, ThinkPad X1 Yoga, ThinkPad X1 Extreme, ThinkPad X1 Nano, ThinkPad X13, ThinkPad X13 Yoga … (+6) | model, generacja, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `thinkpad_le` | Lenovo ThinkPad L / E (L13 - L16, E14 - E16, L4x0 / L5x0, E4x0 / E5x0) | 18: ThinkPad L13, ThinkPad L13 Yoga, ThinkPad L14, ThinkPad L15, ThinkPad L16, ThinkPad E14 … (+12) | model, generacja, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `thinkpad_p` | Lenovo ThinkPad P (P1, P14s, P15, P15s, P16, P16s, P50 - P53) - mobilne stacje robocze | 10: ThinkPad P1, ThinkPad P14s, ThinkPad P15, ThinkPad P15s, ThinkPad P16, ThinkPad P16s … (+4) | model, generacja, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `ideapad` | Lenovo IdeaPad (1, 3, 5, Slim 3 / 5, Flex 3 / 5, Duet, L340, S340 / S540, 3x0 / 5x0) | 14: IdeaPad 1, IdeaPad 3, IdeaPad 5, IdeaPad Slim 3, IdeaPad Slim 5, IdeaPad Flex 3 … (+8) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `lenovo_gaming` | Lenovo Legion (5 / 5 Pro / 5i / 7 / Pro, Y520 - Y740, Y7000), IdeaPad Gaming, LOQ | 19: Legion 5, Legion 5 Pro, Legion 5i, Legion Pro 5, Legion 7, Legion 7i … (+13) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `lenovo_yoga` | Lenovo Yoga (Slim 6 / 7 / 7i / 7x, Yoga 6 / 7 / 9, Pro 7 / 9, C930 / C940, Book) | 16: Yoga Slim 6, Yoga Slim 7, Yoga Slim 7i, Yoga Slim 7x, Yoga 6, Yoga 7 … (+10) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `asus_vivobook` | Asus Vivobook (14 / 15 / 16 / 17, S, Pro, Go, Flip, E402 / E410) | 13: Vivobook 14, Vivobook 15, Vivobook 16, Vivobook 17, Vivobook S14, Vivobook S15 … (+7) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `asus_zenbook` | Asus Zenbook (13 / 14 / 14X / S / Duo / Pro / Flip, UX) | 10: Zenbook 13, Zenbook 14, Zenbook 14X, Zenbook S13, Zenbook S14, Zenbook Duo … (+4) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `asus_tuf` | Asus TUF Gaming (A14 / A15 / A16 / A17, F15 / F16 / F17, FX50x) | 8: TUF Gaming A14, TUF Gaming A15, TUF Gaming A16, TUF Gaming A17, TUF Gaming F15, TUF Gaming F16 … (+2) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `asus_rog` | Asus ROG (Strix G15 / G16 / G17 / G18 / Scar, Zephyrus G14 / G15 / G16 / M16, Flow) | 14: ROG Strix G15, ROG Strix G16, ROG Strix G17, ROG Strix G18, ROG Strix Scar 15, ROG Strix Scar 16 … (+8) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `hp_elite_zbook` | HP EliteBook (820 - 860, 640 - 665, 735 - 755, x360, 1030 / 1040, Dragonfly) i ZBook | 25: HP EliteBook 820, HP EliteBook 830, HP EliteBook 835, HP EliteBook 840, HP EliteBook 845, HP EliteBook 850 … (+19) | model, generacja, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `hp_probook` | HP ProBook (430 - 470, 640 / 650, G1 - G11) | 10: HP ProBook 430, HP ProBook 440, HP ProBook 445, HP ProBook 450, HP ProBook 455, HP ProBook 460 … (+4) | model, generacja, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `hp_konsumenckie` | HP 250 / 255 / 15s / 14s, Pavilion (14 - 17, x360, Gaming, Aero), Envy, Spectre, OmniBook | 10: HP 250 / 240 (G5 - G10), HP 255 / 245 (G5 - G10), HP 15s / 14s / 15 / 17 (bez serii), HP Pavilion 13 / 14 / 15 / 16 / 17, HP Pavilion x360, HP Pavilion Gaming 15 / 16 / 17 … (+4) | model, generacja, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `hp_omen_victus` | HP Omen (15 / 16 / 17 / Transcend) i Victus (15 / 16) | 6: HP Omen 15, HP Omen 16, HP Omen 17, HP Omen Transcend, HP Victus 15, HP Victus 16 | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `dell_latitude_3_5` | Dell Latitude 3xxx / 5xxx (3410 - 3540, 5280 - 5590) | 29: Dell Latitude 3400, Dell Latitude 3410, Dell Latitude 3420, Dell Latitude 3510, Dell Latitude 3520, Dell Latitude 3540 … (+23) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `dell_latitude_7_9` | Dell Latitude 7xxx / 9xxx (7280 - 7490, 7300 - 7440, 9420) | 15: Dell Latitude 7280, Dell Latitude 7290, Dell Latitude 7300, Dell Latitude 7310, Dell Latitude 7320, Dell Latitude 7330 … (+9) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `dell_inspiron` | Dell Inspiron (13 / 14 / 15 / 16 / 17: 3xxx, 5xxx, 7xxx) | 26: Dell Inspiron 3501, Dell Inspiron 3505, Dell Inspiron 3510, Dell Inspiron 3511, Dell Inspiron 3520, Dell Inspiron 3525 … (+20) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `dell_vostro` | Dell Vostro (3400 - 3520, 5402 - 5515) | 10: Dell Vostro 3400, Dell Vostro 3500, Dell Vostro 3510, Dell Vostro 3520, Dell Vostro 3530, Dell Vostro 5402 … (+4) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `dell_xps` | Dell XPS (13: 93xx, 15: 95xx, 17: 97xx) | 20: Dell XPS 9300, Dell XPS 9305, Dell XPS 9310, Dell XPS 9315, Dell XPS 9320, Dell XPS 9340 … (+14) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `dell_gaming` | Dell G3 / G5 / G7 / G15 / G16 i Alienware (m15, m17, x15, x17, 13 / 15 / 17) | 8: Dell G3 (3579 / 3590), Dell G5 (5587 / 5590 / 5500), Dell G7 (7588 / 7590 / 7790), Dell G15 (5510 / 5511 / 5515 / 5520 / 5530 / 5535), Dell G16 (7620 / 7630), Alienware m15 / m16 / m17 / m18 … (+2) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `dell_precision` | Dell Precision (3xxx, 5xxx, 7xxx - mobilne stacje robocze) | 22: Dell Precision 3530, Dell Precision 3541, Dell Precision 3551, Dell Precision 3561, Dell Precision 3571, Dell Precision 5520 … (+16) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `acer_aspire_swift` | Acer Aspire (1 / 3 / 5 / 7 / Vero / V3), Swift (1 / 3 / 5 / Go / X), Extensa, TravelMate, Spin | 15: Aspire 1, Aspire 3, Aspire 5, Aspire 7, Aspire Vero, Aspire V3 … (+9) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `acer_nitro_predator` | Acer Nitro (5 / 7 / 16 / 17 / V15 / V16, Aspire V Nitro) i Predator (Helios, Triton) | 11: Nitro 5, Nitro 7, Nitro 16, Nitro 17, Nitro V15, Nitro V16 … (+5) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `msi` | MSI (GF63 / GF65 Thin, Katana, Cyborg, Sword, Pulse, Vector, Raider, Stealth, Titan, Creator, Prestige, Modern) | 14: MSI GF63 Thin, MSI GF65 Thin, MSI GL63 / GL65 / GL73 / GL75, MSI Katana (GF66 / GF76 / 15 / 17), MSI Cyborg 15, MSI Sword 15 / 17 … (+8) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `huawei_matebook` | Huawei MateBook (D14, D15, D16, 13, 14, 14s, X, X Pro, 16) | 9: MateBook D14, MateBook D15, MateBook D16, MateBook 13, MateBook 14, MateBook 14s … (+3) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `surface_laptop` | Microsoft Surface (Laptop 1 - 7, Go, Studio, Book 1 - 3, Pro 3 - 11, Go 1 - 4) | 14: Surface Laptop 1 / 2, Surface Laptop 3, Surface Laptop 4, Surface Laptop 5, Surface Laptop 6, Surface Laptop 7 … (+8) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `samsung_razer_gigabyte` | Samsung Galaxy Book, Razer Blade, Gigabyte (G5 / G6 / G7, Aorus, Aero) | 7: Samsung Galaxy Book (2 / 3 / 4 / 5, Pro, 360, Edge, Go), Razer Blade 14, Razer Blade 15, Razer Blade 16 / 17 / 18 / Pro 17, Razer Blade Stealth 13, Gigabyte G5 / G6 / G7 … (+1) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `chromebooki` | Chromebooki (Acer 314 / 315 / 514, HP 11 / 14 / x360, Lenovo, Asus, Samsung) | 6: Acer Chromebook (11, 314, 315, 514, Spin), HP Chromebook (11, 14, x360), Lenovo Chromebook / Duet / IdeaPad Flex, Asus Chromebook (CX1, CM14, C523, Flip), Samsung (Galaxy) Chromebook, Dell Chromebook | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
+| `laptopy_inne` | Inne laptopy (Fujitsu, Toshiba / Dynabook, Medion, Sony Vaio, LG Gram, Panasonic Toughbook, Asus ExpertBook, bez modelu ...) | 13: Fujitsu (Lifebook, Celsius), Toshiba / Dynabook (Satellite, Tecra, Portege), Medion (Akoya, Erazer), Sony Vaio, LG Gram, Panasonic Toughbook / Getac (CF-19, CF-31, CF-54 ...) … (+7) | model, procesor, cpu_gen, karta, ram, dysk, stan, blokada, zasilacz, co |
 
 ### Karty graficzne (17 rodzin)
 
 | rodzina | co obejmuje | warianty | pytania |
 |---|---|---|---|
+| `gpu_pro_arc` | Karty profesjonalne (Quadro, RTX A, Radeon Pro / FirePro, Tesla) i Intel Arc | 8: Quadro K / M (Kepler / Maxwell), Quadro P / T (Pascal / Turing), Quadro RTX / RTX A (A2000 - A6000), Radeon Pro / FirePro, Tesla (obliczeniowa), Intel Arc A310 / A380 … (+2) | model, vram, stan, sztuk |
 | `gpu_rtx50` | GeForce RTX 50 (5050, 5060, 5060 Ti 8 / 16 GB, 5070, 5070 Ti, 5080, 5090) | 7: RTX 5050, RTX 5060, RTX 5060 Ti (8 / 16 GB), RTX 5070, RTX 5070 Ti, RTX 5080 … (+1) | model, vram, stan, sztuk |
 | `gpu_rtx40` | GeForce RTX 40 (4060, 4060 Ti 8 / 16 GB, 4070, Super, Ti, Ti Super, 4080, 4090) | 9: RTX 4060, RTX 4060 Ti (8 / 16 GB), RTX 4070, RTX 4070 Super, RTX 4070 Ti, RTX 4070 Ti Super … (+3) | model, vram, stan, sztuk |
 | `gpu_rtx30_wysokie` | GeForce RTX 3070 / 3070 Ti / 3080 (10 / 12 GB) / 3080 Ti / 3090 / 3090 Ti | 6: RTX 3070, RTX 3070 Ti (GDDR6X), RTX 3080 (10 GB albo 12 GB), RTX 3080 Ti, RTX 3090, RTX 3090 Ti | model, vram, pamiec_typ, stan, sztuk |
@@ -228,7 +234,6 @@ Generowana: `python -m analyzer basal-rodziny` (po zmianie `basal_specs.py` wkle
 | `gpu_rx5000` | Radeon RX 5500 XT (4 / 8 GB) / 5600 XT / 5700 / 5700 XT | 4: RX 5500 XT (4 / 8 GB), RX 5600 XT, RX 5700, RX 5700 XT | model, vram, stan, sztuk |
 | `gpu_rx400_500` | Radeon RX 460 / 470 / 480 / 550 / 560 / 570 / 580 (i 2048SP) / 590 (2 / 4 / 8 GB) | 9: RX 460, RX 470, RX 480, RX 550, RX 560, RX 570 … (+3) | model, vram, stan, sztuk |
 | `gpu_amd_stare` | Radeon starsze (HD 5000 - 7000, R7 / R9 2xx / 3xx, Fury, Vega 56 / 64, Radeon VII) | 5: Radeon HD 5000 / 6000, Radeon HD 7000 (7750 - 7970), Radeon R7 / R9 200 (240 - 290X), Radeon R7 / R9 300 (360 - 390X), Fury, Radeon RX Vega 56 / 64, Radeon VII | model, vram, stan, sztuk |
-| `gpu_pro_arc` | Karty profesjonalne (Quadro, RTX A, Radeon Pro / FirePro, Tesla) i Intel Arc | 8: Quadro K / M (Kepler / Maxwell), Quadro P / T (Pascal / Turing), Quadro RTX / RTX A (A2000 - A6000), Radeon Pro / FirePro, Tesla (obliczeniowa), Intel Arc A310 / A380 … (+2) | model, vram, stan, sztuk |
 | `gpu_retro_inne` | Karty retro i inne (AGP / PCI / ISA, Voodoo, GeForce 2 - 9, Radeon 9xxx / X) oraz bez modelu | 5: 3dfx Voodoo, GeForce 2 - 7 / FX (AGP), GeForce 8 / 9 / GT 2xx, Radeon 9xxx / X / HD 2000 - 4000, karta bez podanego modelu | model, vram, stan, sztuk |
 
 ### Pamięć RAM (7 rodzin)
@@ -284,5 +289,5 @@ Generowana: `python -m analyzer basal-rodziny` (po zmianie `basal_specs.py` wkle
 
 | rodzina | co obejmuje | warianty | pytania |
 |---|---|---|---|
-| `zestaw_plyta_cpu` | Zestawy płyta główna + procesor (+ RAM) i komputery | 1: zestaw | procesor, ram, co, stan |
+| `zestaw_plyta_cpu` | Zestawy płyta główna + procesor (+ RAM) i komputery | 1: zestaw | procesor, cpu_gen, ram, co, stan |
 

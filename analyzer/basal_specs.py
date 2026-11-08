@@ -318,8 +318,9 @@ S = r"[\s\-_/().,]*"                       # separator jak w basal_families.SEP
 
 def gen(n):
     """„9. generacja”, „9th gen”, „gen 9”, „9 gen.” (iPad, Kindle)."""
+    # „6. generacji 9,7"” to NIE 9. generacja (08.11: reguła brała iPada 6 za iPada 9, iPada 7 „10,2"” za 10)
     return (rf"(?:(?<![0-9]){n}(?:\.|th|st|nd|rd|-?ej|-?a)?{S}(?:gen\w*|generac\w*|gener\w*)|"
-            rf"(?:gen\w*|generac\w*){S}{n}(?![0-9]))")
+            rf"(?:gen\w*|generac\w*){S}{n}(?![0-9]|[.,]\d))")
 
 
 def ipad_gen(n, year, extra=""):
@@ -479,7 +480,7 @@ ORIGINAL_Q = q("Czy kontroler jest oryginalny (Sony / Microsoft / Nintendo), czy
 def drive_rule(title, desc=""):
     t = nrm(f"{title}\n{desc}")
     if re.search(r"\bdigital\b|bez napedu|\bno disc\b|without disc|all-?digital", nrm(title)):
-        if re.search(r"(?:dokupion\w*|z|plus)\s*naped\w*|disc drive|naped (?:w zestawie|dokupion)", t):
+        if re.search(r"(?:dokupion\w*|z|plus|oraz)\s*naped\w*|disc drive|naped (?:w zestawie|dokupion)", t):
             return "z_napedem"
         return "bez_napedu"
     if re.search(r"\bdisc\b|\bz napedem\b|\bnaped\w*\b|blu-?ray|\bstandard\b", nrm(title)):
@@ -611,7 +612,8 @@ CONSOLES = [
                             expected={"model": "switch_lite", "gry": "0"})]),
     dict(id="switch_2", name="Nintendo Switch 2 (2025)", short="Switch 2", ctx=r".", platform=r"nintendo switch 2",
          match=r"switch\s?2(?![0-9])", storage=[256], extra_q={"dock": DOCK_Q}, extra_rules={"dock": dock_rule},
-         price=1800, variants=[("switch_2", "Nintendo Switch 2 (zwykły)", r"switch\s?2(?![0-9])", ""),
+         price=1800, variants=[("switch_2", "Nintendo Switch 2 (zwykły)",
+                                r"switch\s?2(?![0-9])(?!.*(?:bundle|mario\s?kart|pokemon|zestaw))", ""),
                                ("switch_2_bundle", "Switch 2 w zestawie z grą (Mario Kart World / Pokémon)",
                                 r"bundle|mario\s?kart|pokemon|zestaw", "")]),
     dict(id="steam_deck", name="Valve Steam Deck (LCD 64 / 256 / 512 GB, OLED 512 GB / 1 TB)", short="Steam Deck",
@@ -770,9 +772,9 @@ LAPTOPS = [
                    ("pro_13_apple", "MacBook Pro 13\" M1 / M2 (2020 - 2022, Touch Bar)",
                     r"\bm[12]\b(?![\s\-_/().,]*(?:pro|max))", ""),
                    ("pro_14_apple", "MacBook Pro 14\" (2021+, M1 Pro / Max ... M5)",
-                    r"(?<![0-9])14.{0,25}\bm[1-5]\b|\bm[1-5]\b.{0,25}(?<![0-9])14(?![0-9])", ""),
+                    r"(?<![0-9])14(?![0-9])(?!\s?(?:gb|g\b|rdzen|cores?)).{0,25}\bm[1-5]\b|\bm[1-5]\b.{0,25}(?<![0-9])14(?![0-9])(?!\s?(?:gb|g\b|rdzen|cores?))", ""),
                    ("pro_16_apple", "MacBook Pro 16\" (2021+, M1 Pro / Max ... M5)",
-                    r"(?<![0-9])16.{0,25}\bm[1-5]\b|\bm[1-5]\b.{0,25}(?<![0-9])16(?![0-9])", "")]),
+                    r"(?<![0-9])16(?![0-9])(?!\s?(?:gb|g\b|rdzen|cores?)).{0,25}\bm[1-5]\b|\bm[1-5]\b.{0,25}(?<![0-9])16(?![0-9])(?!\s?(?:gb|g\b|rdzen|cores?))", "")]),
     dict(id="macbook_inne", name="Apple MacBook 12\" Retina (2015 - 2017), MacBook Neo, stare MacBooki (2006 - 2010)",
          short="MacBook", ctx=r"macbook|apple", match=r"macbook(?!\s?(?:air|pro))", cpu=["apple_m3", "apple_m2",
                                                                                          "intel_i5_7gen", "intel_i5_11gen"],
@@ -1154,7 +1156,7 @@ LAPTOPS = [
 
 # ---------------------------------------------------------------------------------------------- karty graficzne
 
-from .basal_families import SEP, gpu_rx  # noqa: E402
+from .basal_families import SEP, gpu_prefix, gpu_rx  # noqa: E402
 
 TI_NOT_SUPER = rf"ti(?!{SEP}super)"
 GDDR_Q = q("Jaki typ pamięci ma ta karta? Ten sam model bywa w wersji GDDR5 i GDDR6 (np. GTX 1650), DDR4 i GDDR5 "
@@ -1173,7 +1175,7 @@ def gddr_rule(title, desc=""):
 
 
 def g(key, label, model, suffix=None, note="", prefix=None, neg=None):
-    rx = gpu_rx(model, suffix, neg_suffix=neg) if prefix is None else gpu_rx(model, suffix, prefix=prefix, neg_suffix=neg)
+    rx = gpu_rx(model, suffix, prefix=prefix or gpu_prefix(key), neg_suffix=neg)
     return (key, label, rx, note)
 
 
@@ -1239,14 +1241,14 @@ GPUS = [
                    g("gtx_960", "GTX 960 (2 / 4 GB)", "960"), g("gtx_970", "GTX 970", "970"), g("gtx_980", "GTX 980", "980"),
                    g("gtx_980_ti", "GTX 980 Ti", "980", "ti")]),
     dict(id="gpu_rx9000_7000", name="Radeon RX 9060 XT / 9070 / 9070 XT i RX 7600 - 7900 XTX (GRE, XT, XTX)",
-         short="RX 7800 XT", match=r"(?<![0-9])(?:90[67]0|7[6-9]00)(?![0-9])", vram=[8, 12, 16, 20, 24], price=2200,
+         short="RX 7800 XT", match=r"(?<![0-9])(?:90[67]0|7[6-9]00)(?![0-9])(?!\s?(?:gt|gs|ultra)\b)", vram=[8, 12, 16, 20, 24], price=2200,
          variants=[g("rx_7600", "RX 7600", "7600"), g("rx_7600_xt", "RX 7600 XT", "7600", "xt"),
                    g("rx_7700_xt", "RX 7700 XT", "7700", "xt"), g("rx_7800_xt", "RX 7800 XT", "7800", "xt"),
                    g("rx_7900_gre", "RX 7900 GRE", "7900", "gre"), g("rx_7900_xt", "RX 7900 XT", "7900", "xt(?!x)"),
                    g("rx_7900_xtx", "RX 7900 XTX", "7900", "xtx"), g("rx_9060_xt", "RX 9060 XT (8 / 16 GB)", "9060", "xt"),
                    g("rx_9070", "RX 9070", "9070"), g("rx_9070_xt", "RX 9070 XT", "9070", "xt")]),
     dict(id="gpu_rx6000", name="Radeon RX 6400 / 6500 XT / 6600 (XT) / 6650 XT / 6700 (XT) / 6750 XT / 6800 (XT) / 6900 XT / 6950 XT",
-         short="RX 6600", match=r"(?<![0-9])6[4-9][05]0(?![0-9])", vram=[4, 8, 10, 12, 16], price=1000,
+         short="RX 6600", match=r"(?<![0-9])6[4-9][05]0(?![0-9])(?!\s?(?:gt|gs|le|ultra)\b)", vram=[4, 8, 10, 12, 16], price=1000,
          variants=[g("rx_6400", "RX 6400", "6400"), g("rx_6500_xt", "RX 6500 XT", "6500", "xt"), g("rx_6600", "RX 6600", "6600"),
                    g("rx_6600_xt", "RX 6600 XT", "6600", "xt"), g("rx_6650_xt", "RX 6650 XT", "6650", "xt"),
                    g("rx_6700", "RX 6700 (10 GB)", "6700"), g("rx_6700_xt", "RX 6700 XT (12 GB)", "6700", "xt"),
@@ -1290,6 +1292,8 @@ GPUS = [
                    ("radeon_9000_x", "Radeon 9xxx / X / HD 2000 - 4000", r"radeon\s?(?:9\d{3}|x\d{3,4}|hd\s?[2-4]\d{3})", ""),
                    ("bez_modelu", "karta bez podanego modelu", r"karta graficzna|graphics card|placa video|grafikkort", "")]),
 ]
+
+GPUS.sort(key=lambda spec: spec["id"] != "gpu_pro_arc")  # pro / Arc najpierw: „Arc A770” to nie GTX 770
 
 # ---------------------------------------------------------------------------------------------- RAM, dyski
 
@@ -1536,4 +1540,51 @@ PRICES = {
     "thinkpad_le": 1070, "thinkpad_p": 2080, "thinkpad_t": 1050, "thinkpad_x": 1180, "vertu": 2800, "vivo": 700,
     "vr_kierownice": 830, "wii": 430, "xbox_360": 400, "xbox_classic": 470, "xbox_one": 510, "xbox_series": 1400,
     "xiaomi_10_11": 430, "xiaomi_12_13": 700, "xiaomi_14_15": 1500, "xiaomi_17": 2640, "zestaw_plyta_cpu": 350,
+}
+
+# ---------------------------------------------------------------------------------------------- przykłady nazw
+# Nazwa wariantu w przypadkach testowych, gdy automat (basal_families.example_name) nie wyciągnie jej z etykiety
+# albo wyciąga coś, czego sprzedawcy nie piszą (08.11: tytuły testów z etykietami grup „Quadro K / M (Kepler /
+# Maxwell)” basal słusznie oceniał na „nie wiadomo”). Test: każdy przykład rozpoznawany tylko jako swój wariant.
+EXAMPLES = {
+    "phone_2_a_plus": "Nothing Phone 2a Plus", "phone_3_a_pro": "Nothing Phone 3a Pro",
+    "vertu_touch": "Vertu Touch", "ipad_air_11_m2": "iPad Air 11 M2", "ipad_air_11_m3": "iPad Air 11 M3",
+    "ipad_air_2026": "iPad Air M4 2026", "ipad_pro_12_9_1_2": "iPad Pro 12,9 2017", "ps5_fat": "PS5 CFI-1116A",
+    "quadro_k_m": "Quadro K2200", "quadro_p_t": "Quadro P2000", "geforce_8_9_200": "GeForce 9800 GT",
+    "air_intel_stary": "MacBook Air 2015 Intel i5", "geforce_2_7": "GeForce 6600 GT AGP",
+    "hd_7000": "Radeon HD 7870", "hd_5000_6000": "Radeon HD 6870", "inne_marki": "Oscal Pad 10", "r7_r9_300": "Radeon R9 390", "xeon_e5": "Intel Xeon E5-2680 v4", "xeon_e3": "Intel Xeon E3-1230 v3",
+    "pentium_celeron": "Intel Pentium G4560", "micron_kioxia": "Micron 2200", "lexar": "Lexar NM620",
+    "patriot": "Patriot P300", "kobo": "Kobo Clara", "anbernic": "Anbernic RG35XX", "thrustmaster": "Thrustmaster T300",
+    "oukitel": "Oukitel WP5", "hammer": "myPhone Hammer", "fujitsu": "Fujitsu Lifebook", "medion": "Medion Akoya",
+    "xiaomi_honor": "Honor MagicBook 14", "msi_gp_leopard": "MSI GP65 Leopard", "inna_elektronika": "Karta dźwiękowa Creative", "kierownica_inna": "Kierownica Hori",
+    "hp_inny": "Laptop HP 15-dw1000", "dell_inny": "Laptop Dell 3520", "acer_inny": "Laptop Acer ES1-512",
+    "xeon_inny": "Intel Xeon X5650", "plyta_konsola": "Płyta PS4",
+    "plyta_tv_monitor": "Płyta do telewizora Samsung", "switch_2_bundle": "Nintendo Switch 2 Mario Kart World Bundle",
+}
+
+# VRAM wersji karty (GB) - przypadki testowe podają tylko pamięć, jaką karta naprawdę ma (08.11: „RTX 5060 Ti 32 GB”
+# i „RTX 3060 Ti 12 GB” basal słusznie odrzucał). Brak wpisu = lista rodziny; pusta lista = bez pytania o VRAM w teście.
+GPU_VRAM = {
+    "rtx_5050": [8], "rtx_5060": [8], "rtx_5060_ti": [8, 16], "rtx_5070": [12], "rtx_5070_ti": [16], "rtx_5080": [16],
+    "rtx_5090": [32], "rtx_4060": [8], "rtx_4060_ti": [8, 16], "rtx_4070": [12], "rtx_4070_super": [12],
+    "rtx_4070_ti": [12], "rtx_4070_ti_super": [16], "rtx_4080": [16], "rtx_4080_super": [16], "rtx_4090": [24],
+    "rtx_3070": [8], "rtx_3070_ti": [8], "rtx_3080": [10, 12], "rtx_3080_ti": [12], "rtx_3090": [24],
+    "rtx_3090_ti": [24], "rtx_3050": [6, 8], "rtx_3060": [8, 12], "rtx_3060_ti": [8], "rtx_2060": [6, 12],
+    "rtx_2060_super": [8], "rtx_2070": [8], "rtx_2070_super": [8], "rtx_2080": [8], "rtx_2080_super": [8],
+    "rtx_2080_ti": [11], "gtx_1630": [4], "gtx_1650": [4], "gtx_1650_super": [4], "gtx_1660": [6],
+    "gtx_1660_super": [6], "gtx_1660_ti": [6], "gtx_1070": [8], "gtx_1070_ti": [8], "gtx_1080": [8],
+    "gtx_1080_ti": [11], "p104": [8], "gtx_1060": [3, 5, 6], "p106": [3, 6], "gt_1030": [2], "gtx_1050": [2, 3],
+    "gtx_1050_ti": [4], "gt_710_730": [1, 2], "gtx_650": [1, 2], "gtx_660": [2, 3], "gtx_670_680": [2, 4],
+    "gtx_750": [1, 2], "gtx_750_ti": [2, 4], "gtx_760": [2, 4], "gtx_770": [2, 4], "gtx_780": [3, 6], "gtx_950": [2],
+    "gtx_960": [2, 4], "gtx_970": [4], "gtx_980": [4], "gtx_980_ti": [6], "rx_7600": [8], "rx_7600_xt": [16],
+    "rx_7700_xt": [12], "rx_7800_xt": [16], "rx_7900_gre": [16], "rx_7900_xt": [20], "rx_7900_xtx": [24],
+    "rx_9060_xt": [8, 16], "rx_9070": [16], "rx_9070_xt": [16], "rx_6400": [4], "rx_6500_xt": [4, 8], "rx_6600": [8],
+    "rx_6600_xt": [8], "rx_6650_xt": [8], "rx_6700": [10], "rx_6700_xt": [12], "rx_6750_xt": [12], "rx_6800": [16],
+    "rx_6800_xt": [16], "rx_6900_xt": [16], "rx_6950_xt": [16], "rx_5500_xt": [4, 8], "rx_5600_xt": [6],
+    "rx_5700": [8], "rx_5700_xt": [8], "rx_460": [2, 4], "rx_470": [4, 8], "rx_480": [4, 8], "rx_550": [2, 4],
+    "rx_560": [2, 4], "rx_570": [4, 8], "rx_580_2048sp": [4, 8], "rx_580": [4, 8], "rx_590": [8],
+    "hd_5000_6000": [1, 2], "hd_7000": [1, 2, 3], "r7_r9_200": [2, 4], "r7_r9_300": [2, 4, 8], "vega": [8, 16],
+    "quadro_k_m": [2, 4, 8], "quadro_p_t": [2, 4, 5, 8, 16], "quadro_rtx_a": [6, 8, 12, 16, 24, 48],
+    "radeon_pro": [4, 8, 16], "tesla": [8, 12, 16, 24], "arc_a3": [4, 6], "arc_a5_a7": [8, 16], "arc_b": [10, 12],
+    "voodoo": [], "geforce_2_7": [], "geforce_8_9_200": [1], "radeon_9000_x": [], "bez_modelu": [],
 }

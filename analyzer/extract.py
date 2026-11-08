@@ -14,7 +14,12 @@ import json
 import re
 import unicodedata
 
-VERSION = 4          # v2 (2026-10-25): zaprzeczenia przy „na części” / pęknięciu („bez defektów”, „not broken”)
+VERSION = 5          # v2 (2026-10-25): zaprzeczenia przy „na części” / pęknięciu („bez defektów”, „not broken”)
+# v5 (2026-11-08): usterka w zdaniu warunkowym („Jeśli sprzęt będzie uszkodzony, spisać protokół z kurierem” -
+# formułka handlarza w dziesiątkach ofert), „nigdy nie był uszkodzony”, „nu prezintă defecte”, „neturi defektų”,
+# zaprzeczenie PO słowie („defektu nav”), „nie włączany” (nowy, nie usterka) - porównanie z basalem 08.11: reguły
+# brały za uszkodzone 115 ofert, które basal pewnie ocenił jako sprawne; po poprawce 35 mniej, żadnej prawdziwej
+# usterki mniej.
 # v4 (2026-11-03): telefon / tablet - sieć z tytułu (5G; tablet: LTE / 5G / cellular) w kluczu grupy cenowej
 # v3 (2026-11-01): procesory z końcówką G1/G4/G7 (i5-1135G7), „MacBook Air M3 16GB” (chip przed RAM-em, samotne
 # „16GB” w tytule MacBooka = RAM), RAM w innych językach („memorie de 16 gb”, „memória mérete: 8 gb”).
@@ -67,7 +72,7 @@ CONDITION_GRADE = {   # stan z formularza Vinted → wspólna skala (EKSTRAKCJA.
 }
 
 FOR_PARTS = re.compile(
-    r"\b(?:na czesci|do naprawy|uszkodzon\w*|nie dziala\w*|nie wlacza\w*|niesprawn\w*|for parts|not working|"
+    r"\b(?:na czesci|do naprawy|uszkodzon\w*|nie dziala\w*|nie wlacza(?!n)\w*|niesprawn\w*|for parts|not working|"
     r"doesn'?t (?:turn on|work)|broken|defect\w*|defekt\w*|na diely|nefunkcni|nefunkcn\w*|nem mukodik|hibas|"
     r"alkatresz\w*|piese|nu functioneaza|defect|pentru piese|dalims|neveikia|reservedele|virker ikke|funkar inte|"
     r"trasig|ei toimi|varaosiksi|kaputt|defekt|ersatzteil\w*|per pezzi|non funziona|pour pieces|hors service)\b")
@@ -83,17 +88,24 @@ NOT_LOCKED = re.compile(r"\b(?:bez blokad\w*|brak blokad\w*|odblokowan\w*|unlock
                         r"no locks?|wylogowan\w* z icloud|bez icloud|icloud (?:wylogowan\w*|czyst\w*|free))\b")
 # Zaprzeczenie tuż PRZED dopasowaniem usterki („bez defektów”, „nie jest uszkodzony”, „no defects”, „not broken”) -
 # u użytkownika 2026-10-25 uszkodzone laptopy wychodziły tylko 17% taniej od sprawnych (fałszywe „na części”).
-NEGATION = re.compile(r"(?:\b(?:bez|brak\w*|nie (?:jest|sa|ma|posiada\w*)|zadn\w*|zero|no|not|without|never|keine?\w*|"
-                      r"ohne|nicht|nincs|nem|fara|niciun\w*|zadn\w*|bez|nera|ingen|inga|uden|ei ole|senza|non e|"
-                      r"sans|aucun\w*|sin|ningun\w*)\W+(?:\w+\W+){0,3})$")
+NEGATION = re.compile(r"(?:\b(?:bez|brak\w*|nie (?:jest|sa|ma|maja|byl\w*|posiada\w*)|nigdy|zadn\w*|zero|no|not|"
+                      r"without|never|keine?\w*|ohne|nicht|nincs|nem|fara|nu|niciun\w*|nicio|bez|nera|neturi|jokiu|"
+                      r"jokio\w*|nema\w*|ingen|inga|uden|ei ole|senza|non e|sans|aucun\w*|sin|ningun\w*)\W+"
+                      r"(?:\w+\W+){0,3})$")
+# Usterka tylko jako warunek („jeśli sprzęt będzie uszkodzony”, „if broken”, „dacă…”) - to nie opis stanu.
+CONDITIONAL = re.compile(r"\b(?:jesli|jezeli|gdyby|w razie|w przypadku|in case|if|daca|wenn|falls|pokud)\b")
+# Zaprzeczenie PO słowie usterki: „defektu nav” (łot.), „hiba nincs” (węg.), „vad nema”.
+NEGATION_AFTER = re.compile(r"^\W*(?:nav|nincs|nema\w*|neturi|nie ma|nie stwierdzono)\b")
 
 
 def has_fault(pattern, text):
     """Czy w tekście jest usterka z `pattern`, której nie poprzedza zaprzeczenie (do 3 słów wcześniej, w tym samym
-    fragmencie zdania - „bez ładowarki, uszkodzony” i „Bez rys. Uszkodzona bateria” to usterki)."""
+    fragmencie zdania - „bez ładowarki, uszkodzony” i „Bez rys. Uszkodzona bateria” to usterki), nie stoi w zdaniu
+    warunkowym („jeśli będzie uszkodzony”) i po której nie ma zaprzeczenia („defektu nav”)."""
     for match in pattern.finditer(text):
         before = re.split(r"[,.;:!?\n()]", text[max(0, match.start() - 40):match.start()])[-1]
-        if not NEGATION.search(before):
+        after = text[match.end():match.end() + 16]
+        if not (NEGATION.search(before) or CONDITIONAL.search(before) or NEGATION_AFTER.search(after)):
             return True
     return False
 

@@ -52,12 +52,18 @@ CONDITION_PART = _q("Co dokładnie jest sprzedawane i w jakim stanie? Czytaj ca�
                                       "albo przedmiot spoza kategorii. Inny wariant tej samej rzeczy (inny typ pamięci, "
                                       "inny model karty) to NIE inna_rzecz - oceń jego stan",
                     })
-QUANTITY = _q("Ile sztuk (kości, dysków, kart, procesorów) dostaje kupujący za PODANĄ cenę? Zestaw 2x8 GB = 2 kości. "
-              "„Cena za sztukę, mam 4” = 1. To NIE liczba sztuk: „Dual”, „Twin”, „2X”, „3X” w nazwie karty (ASUS Dual, "
-              "MSI Ventus 2X, Gigabyte WINDFORCE 3X - liczba wentylatorów), „PCIe x4”, „x16”, „Gen4 x4” (złącze), "
-              "„1Rx8”, „2Rx8” (budowa kości). Bez żadnej wzmianki o kilku sztukach = 1.", {
-                  "1": "jedna sztuka (także: cena za sztukę z kilku dostępnych)", "2": "dwie sztuki",
-                  "3": "trzy sztuki", "4": "cztery sztuki", "5+": "pięć lub więcej", UNKNOWN: "nie da się ustalić"})
+# 08.11: basal na „Dwie karty, cena za sztukę” odpowiadał 2 (80% pewności) - liczy sztuki sprzedawcy, nie „za cenę”.
+# Dlatego osobna odpowiedź „cena_za_sztuke”: cena dotyczy jednej z kilku sztuk (do mediany = 1 sztuka).
+QUANTITY = _q("Ile sztuk (kości, dysków, kart, procesorów) obejmuje PODANA cena? Zestaw 2 x … GB = 2 kości. Gdy "
+              "sprzedawca ma kilka sztuk, ale cena dotyczy jednej („cena za sztukę”, „mam 4, cena za 1”) - wybierz "
+              "cena_za_sztuke. To NIE liczba sztuk: „Dual”, „Twin”, „2X”, „3X” w nazwie karty (ASUS Dual, MSI Ventus 2X, "
+              "Gigabyte WINDFORCE 3X - liczba wentylatorów), „PCIe x4”, „x16”, „Gen4 x4”, „AGP 8x”, „4x mini-DP” "
+              "(złącza), „4x3.6 GHz”, „6 rdzeni” (rdzenie procesora), „1Rx8”, „2Rx8” (budowa kości). Bez żadnej "
+              "wzmianki o kilku sztukach = 1.", {
+                  "1": "jedna sztuka", "2": "dwie sztuki razem za tę cenę", "3": "trzy sztuki razem",
+                  "4": "cztery sztuki razem", "5+": "pięć lub więcej razem",
+                  "cena_za_sztuke": "sprzedawca ma kilka sztuk, ale podana cena dotyczy JEDNEJ",
+                  UNKNOWN: "nie da się ustalić"})
 PART_FLAGS = {
     "cena_za_sztuke": "Czy podana cena dotyczy JEDNEJ sztuki z kilku, które ma sprzedawca (np. „cena za sztukę”, "
                       "„mam 5 sztuk”, „cena za jedną kość”)?",
@@ -209,14 +215,19 @@ _NOT_QUANTITY = re.compile(
     r"ichill|mech|pulse|nitro|amp|aorus)\s*\d\s*[x×]|"                              # MSI Ventus 2X, WINDFORCE 3X
     r"\b\d\s*[x×]\s*(?:fan|wentylator|went|hdmi|dp\b|displayport|dvi|vga|usb|m\.?2|sata|\d?-?pin|nvme|slot|"
     r"z[lł][aą]cz|port|wiatrak)\w*|"                                              # 3x wentylator, 2x HDMI
-    r"\b\d+\s*[x×]\s*\d+\s*(?:mm|cm)\b|\b\d+rx\d+\b|\b\d+[mg]\s*x\s*\d+-?bit", re.I)  # 120x120mm, 1Rx8
+    r"\b\d+\s*[x×]\s*\d+\s*(?:mm|cm)\b|\b\d+rx\d+\b|\b\d+[mg]\s*x\s*\d+-?bit|"  # 120x120mm, 1Rx8
+    # 08.11 (porównanie z basalem): „4x3.6GHz” (rdzenie), „AGP 8x”, „4xMini-DP”, „Twin X2”, „Crucial X8”, „2x2 GB vram”
+    # podwójnej karty, „x8 Micron” (szyna), „8x DVD”
+    r"\b\d+\s*[x×]\s*\d(?:[.,]\d+)?\s*ghz|\b\d+\s*(?:rdzen\w*|cores?|threads?|watk\w*)|\bagp\s*\d+\s*[x×]?|"
+    r"\b\d\s*[x×]\s*mini|\btwin\s*(?:oc\s*)?[x×]\s*\d|\b(?:crucial|sandisk|samsung|lexar|kingston)\s*[x×]\s*\d+|"
+    r"\b\d+\s*[x×]\s*(?:dvd|cd|blu)", re.I)
 
 
 def rule_quantity(offer):
-    """Liczba sztuk z prostych reguł („2x8GB”, „x3”, „3 szt”, „dwie”, „cena za sztukę” = 1)."""
+    """Liczba sztuk z prostych reguł („2x8GB”, „x3”, „3 szt”, „dwie”; „cena za sztukę” → cena_za_sztuke)."""
     text = _NOT_QUANTITY.sub(" ", f"{offer['title']} {offer.get('description') or ''}".lower())
-    if re.search(r"za sztuk|za szt\b|za jedn|za 1 ?szt", text):
-        return "1"
+    if re.search(r"za sztuk|za szt\b|za jedn|za 1 ?szt|per (?:piece|unit|stick)|price (?:is )?for one\b", text):
+        return "cena_za_sztuke"
     for pattern in (r"\b(\d+)\s*(?:szt|sztuk)", r"\b(\d)\s*[x×]\s*\d+\s*(?:gb|tb)", r"\b(\d)\s*[x×]\s*\d{1,2}\b", r"\b(\d)\s*[x×]\s",
                     r"\b[x×]\s*(\d)\b"):
         match = re.search(pattern, text)
@@ -275,7 +286,7 @@ FAMILIES = {
             ("GTX 1060 6GB", "Pomyłka w tytule - to wersja 3 GB (naklejka GTX 1060 3G).", {"vram": "3gb"}),
             ("Karta graficzna GTX 970", "Wydajność podobna do GTX 1060 6GB, w pełni sprawna.", {"model": "inna"}),
             ("GTX 1060", "Sprawna karta, wymieniłem na nowszą.", {"vram": UNKNOWN}),
-            ("GTX 1060 6GB x2", "Dwie karty, cena za sztukę.", {"vram": "6gb", "sztuk": "1"}),
+            ("GTX 1060 6GB x2", "Dwie karty, cena za sztukę.", {"vram": "6gb", "sztuk": "cena_za_sztuke"}),
             ("GTX 1060 3GB", "Brak obrazu, wentylatory się kręcą.", {"vram": "3gb", "stan": "uszkodzona"}, 120),
             ("Chłodzenie GTX 1060", "Sam radiator z wentylatorami, karty brak.", {"stan": "czesc"}, 40),
             ("MSI GTX 1060 Gaming X 6G", "Karta do gier, chłodzenie Twin Frozr, 2X wentylatory.", {"sztuk": "1"}),
@@ -335,7 +346,7 @@ FAMILIES = {
             ("RAM DDR4 16GB 2x8", "Kości SO-DIMM z laptopa Dell, 2400 MHz.", {"forma": "laptop", "mhz": "2400",
                                                                            "sztuk": "2"}),
             ("Pamięć DDR4 3200", "Opis z naklejki: PC4-2133P-UA0. Działa.", {"mhz": "2133"}),
-            ("RAM DDR4 8GB", "Cena za sztukę, mam 4 kości.", {"sztuk": "1"}),
+            ("RAM DDR4 8GB", "Cena za sztukę, mam 4 kości.", {"sztuk": "cena_za_sztuke"}),
             ("Corsair Vengeance 16GB", "Zestaw 2x8 GB DDR4, XMP 3600, bez XMP 2133.", {"mhz": "3600", "sztuk": "2"}),
             ("Kość SK Hynix 8GB DDR4 2400MHz 1Rx8", "Jedna kość, sprawna.", {"mhz": "2400", "sztuk": "1"}),
             ("Samsung 16GB DDR4 ECC", "Serwerowa, registered.", {"forma": "serwer"}),
@@ -544,6 +555,15 @@ def load_sample(path):
 
 # ---------------------------------------------------------------------------------------------- krok 3: test basal
 
+# Kategoria w treści dla basala - ogólna, nie nazwa rodziny. 08.11: „Kingston 8GB PC4-21300, do PC” w rodzinie
+# „RAM DDR4 SO-DIMM (laptop)” basal oceniał na laptop (93%), w rodzinie DDR5 - na DDR5 (98%): nazwa rodziny
+# (przypisanej z tytułu regexem, więc czasem błędnie) podpowiadała odpowiedź.
+CATEGORY_LABELS = {"phone": "telefony komórkowe", "tablet": "tablety i czytniki e-booków",
+                   "console": "konsole i akcesoria do gier", "laptop": "laptopy", "gpu": "karty graficzne",
+                   "ram": "pamięć RAM", "storage": "dyski i nośniki danych", "cpu": "procesory",
+                   "motherboard": "płyty główne", "bundle": "zestawy podzespołów komputerowych"}
+
+
 def state_text(offer, family):
     """Stan dla basala. Rodziny v2: także pola formularza Vinted (model, pamięć, bateria, RAM / dysk laptopa,
     platforma) z ostrzeżeniem, że bywają błędne („256 MB”, RAM w polu dysku)."""
@@ -551,7 +571,9 @@ def state_text(offer, family):
     price = f"{offer['price']:.0f} zł" if offer.get("price") else "?"
     form = form_text(offer.get("form") or {})
     form = f"Formularz Vinted (wypełnia sprzedawca, bywa błędny): {form}\n" if form else ""
-    return (f"Ogłoszenie z Vinted (kategoria: {FAMILIES[family]['name']}).\nTytuł: {offer['title']}\nCena: {price}\n"
+    fam = FAMILIES[family]
+    kind = CATEGORY_LABELS.get(fam.get("category")) or fam["name"]
+    return (f"Ogłoszenie z Vinted (kategoria: {kind}).\nTytuł: {offer['title']}\nCena: {price}\n"
             f"Stan (formularz): {offer.get('condition') or '?'}\n{form}Opis: {offer.get('description') or ''}")
 
 

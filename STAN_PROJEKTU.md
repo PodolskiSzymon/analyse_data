@@ -13,7 +13,7 @@
    `git fetch origin claude/gifted-volta-x1764p && git checkout -B <gałąź sesji> origin/claude/gifted-volta-x1764p`
    i powiedz użytkownikowi nową nazwę – na serwerze: `git fetch origin <gałąź> && git checkout <gałąź>` w obu repo
    (potem `git pull origin <gałąź>`).
-3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (276), w `unreachable_sniper`
+3. Testy (bez sieci): tu `python -m pytest analyzer/tests -q` (281), w `unreachable_sniper`
    `python -m pytest sniper/tests -q` (286 + 1 pominięty). Oba przed każdym pushem.
 
 ## Jak odpowiadać użytkownikowi (preferencje – ważne, sprawdzone w rozmowach)
@@ -40,8 +40,9 @@
 ## Zrzut stanu (08.11) – co zrobione ostatnio i co dalej
 
 * **Basal (lokalny model decyzyjny jako „bramkarz”)** – plan użytkownika: regex na tytule → basal przy wątpliwościach
-  → mediany; **kroki 1–3 gotowe, trwa test v2 na PC; kroki 4–5 (regexy rodzin, kaskada w Sniperze) DOPIERO po
-  akceptacji wyników przez użytkownika.** `BASAL_GPU.md` (instrukcja; §G PC, §H serwer 8 GB), `analyzer/basal_poc.py`.
+  → mediany; **kroki 1–3 gotowe, test v2 przeanalizowany i poprawiony 08.11, czekamy na powtórkę; kroki 4–5 (regexy
+  rodzin, kaskada w Sniperze) DOPIERO po akceptacji wyników przez użytkownika.** `BASAL_GPU.md` (instrukcja; §G PC,
+  §H serwer 8 GB, §I wyniki 08.11 + komendy powtórki), `analyzer/basal_poc.py`.
   * **v1 (6 rodzin: `s23`, `gtx1060`, `rtx3060`, `ddr4`, `nvme`, `i5`, §F):** 4.5B lepszy od mini w taktowaniu RAM,
     końcówkach i5, liczbie sztuk; gorszy w RTX 3060 (Ti) → dopisek „bez Ti”. Mini szybszy.
   * **v2 (07.11) – cały rynek:** `analyzer/basal_families.py` + `basal_specs.py`, tabela `BASAL_RODZINY.md`.
@@ -56,8 +57,30 @@
     (51); „iPhone 17e” vs „17” (30); „MacBook Air 2020” Intel / M1 niejednoznaczne (720); laptopy: RAM w polu dysku
     (367), dysk w polu RAM (359). Zgodność reguł z formularzem: iPhone ~99%, Galaxy S 96–98%; tytuł zna wariant
     w laptopach / tabletach tylko w 34–81% → **tam basal może dać najwięcej**.
-  * **Wydajność (PC, GTX 1060 6 GB, 4.5B Q5_K_M, ~4,1 GB VRAM):** ~3 s / ofertę; 1 slot (`-np 1`) szybszy niż 4.
+  * **Wydajność (PC, GTX 1060 6 GB, 4.5B Q5_K_M, ~4,1 GB VRAM):** ~3,5 s / ofertę; 1 slot (`-np 1`) szybszy niż 4.
     Całość bazy: 201 766 ofert z opisem ≈ 7 dni, 136 098 aktywnych ≈ 4,7 dnia ciągłej pracy.
+  * **Wyniki v2 (08.11, `BASAL_GPU.md` §I):** 5236 zapytań w 5,5 h; testy 84% (pewne 92%), ale większość błędów to
+    wadliwe przypadki testowe (etykiety grup w tytułach, nieistniejące konfiguracje) - generator przepisany. Na
+    prawdziwych ofertach basal przy pewnej rozbieżności z regułą ma rację w ~9 / 10 (stan, model, sztuki). **Stan vs
+    płatne `ai-condition` (309 wspólnych ofert): reguła 48% → po poprawce 61%, basal 90% (pewne 95%)**; reguła
+    „uszkodzona” na całej bazie zgodna z AI w 23% → basal może zastąpić płatne AI stanu. W trudnej próbce basal
+    zmienia grupę cenową ~17% ofert (stan 2%, model 2%, parametry 9% - laptopy 23%, RAM 35% -, sztuki 4%).
+    Słabości basala poprawione w pytaniach: „Kupię …” → telefon, liczby z przykładów („8/256” → 8 GB przy „12/256”,
+    „2x8 = 16”), procesor spoza listy → najbliższa pozycja, „GTX 1060” → nie wiadomo, nazwa rodziny w treści
+    podpowiadała odpowiedź, „cena za sztukę”, Kindle = „inna rzecz” w rodzinie czytników, zbity ekran „mało
+    widoczny”. Poprawki reguł: prefiks kart wg producenta (było: GeForce 7600 → RX 7600, Arc A770 → GTX 770), „+”
+    osobno ≠ Plus, iPad „9,7"”, MacBook 14" / 16", akcesoria tabletu, „Sprzedam lub zamienię” = sprzedaż; nowe
+    `basal-test --tylko-testowe --rodziny`, sekcja „pewne rozbieżności z regułami” w raporcie.
+* **`extract.py` v5 (08.11, produkcja):** usterka w zdaniu warunkowym („Jeśli sprzęt będzie uszkodzony - protokół”,
+  formułka handlarza), „nigdy nie był uszkodzony”, zaprzeczenia „nu / neturi / nema” i po słowie („defektu nav”),
+  „nie włączany” - na całej bazie 1138 fałszywych „uszkodzonych” mniej (głównie telefony 666, konsole 158, laptopy
+  124), prawdziwych usterek wg AI tylko 18 z 2488 mniej. Watch przelicza cechy sam w pierwszym cyklu po aktualizacji.
+* **Płatne AI stanu w analizatorze (pytanie użytkownika 08.11 - „analizator nic nie daje płatnemu AI”):** daje -
+  `ai-condition` (Gemini 3.8 Flash, klucz `SNIPER_AI_API_KEY`): 25.10 ręcznie 8696 ofert ze zdjęciami (~$25), potem
+  automat w `watch` (`auto.py` krok 2: nowe oferty ze wzmianką o usterce, do 3000 na automat, od 31.10 sam opis,
+  ~$0,2-0,7 na raz) - razem 13 786 ocen, ~$33 (szacunek z tokenów). Wynik: `analysis.db: ai_condition`, `report`
+  bierze stąd stan zamiast z reguł. Od 08.11 `ANALYZER_AUTO_AI_LIMIT=0` wyłącza (wcześniej 0 = bez limitu!).
+  Basal (stan zgodny z tym AI w 90-95%) może to zastąpić za darmo.
 * **Sniper – tryb polowania na kartę pod basala** (`unreachable_sniper` 80ec482): `SNIPER_HUNT_FOR_GPU=true`,
   `SNIPER_HUNT_FILE` (domyślnie `sniper/hunt_for_basal.md`, 13 celów: RTX 2060 12 GB … 3060 12 GB / 3060 Ti /
   3070 / 3080 / 4060 (Ti) / 4070+ ≤ 400–500 zł); każda nowa oferta przed filtrami i AI, trafienie = ntfy priorytet 5
@@ -72,14 +95,16 @@
   modelu, RAM) po fałszywej okazji Samsung A17; analizator – `comparables.db` ze stanem, ekstrakcja v4,
   `photos-clean`, ntfy o padniętym proxy w watch, test basala.
 * **Co dalej (kolejność):**
-  1. Wyniki v2 od użytkownika (`D:\basal\v2`: `*_wyniki_45b_*.json` + `raport_45b.txt/.json`) → analiza „pewnych
-     błędów” per rodzina / pytanie → poprawki pytań i reguł w `basal_families.py`, ew. powtórka tylko zmienionych
-     rodzin (`--rodzina`).
-  2. **Policzyć wpływ na mediany** (offline, na kopii bazy): ile ofert basal przenosi do innego wariantu / stanu
-     i jak zmieniają się mediany rodzin – to rozstrzyga, czy basal jest wart wdrożenia (i ew. zakupu karty).
-  3. Jeśli tak: wsadowy przebieg basala na PC po aktywnych ofertach → poprawione specyfikacje do `comparables.db`.
+  1. ~~Wyniki v2 → analiza → poprawki~~ (zrobione 08.11). **Powtórka na PC z poprawkami** (`BASAL_GPU.md` §I:
+     `--etykieta 45b_t2 --tylko-testowe` ~1 h, potem `45b_v3` całość ~5 h) → sprawdzić, czy poprawki działają
+     (testy, pewne rozbieżności z regułami), następna runda poprawek.
+  2. Lista zaufania bramkarza: per rodzina i pytanie, gdzie pewne odpowiedzi ≥ 95% trafne (testy + rozbieżności
+     przejrzane ręcznie) - tam basal nadpisuje regułę, gdzie indziej tylko uzupełnia.
+  3. **Wpływ na mediany:** `basal-batch` (do napisania) - basal wsadowo na PC po wybranych ofertach z kopii bazy
+     (najpierw reguła „uszkodzona” ~9,8 tys. ≈ 9-10 h, potem laptopy / tablety z wariantem tylko w opisie), wynik do
+     `analysis.db` jak `ai-condition` → mediany przed / po per rodzina. Zastępuje płatne `ai-condition`.
   4. Kroki 4–5 planu (regexy rodzin + kaskada regex → basal → mediany w Sniperze) – po akceptacji użytkownika.
-  5. Naprawa znanego błędu: prefiks GPU łapie „GeForce 6600” / „FX 5600” jako `rx_6600` / `rx_5600_xt`.
+  5. Sprzęt: karta dopiero, gdy basal ma działać w czasie rzeczywistym w Sniperze (wsadowo wystarcza GTX 1060).
   6. Przeprowadzka serwera na Linuksa (unity systemd dla llama-server / basal-serve / Snipera / watch), 4.5B Q8_0
      na karcie 8 GB (§H). Ew. zmniejszanie zdjęć (1024 px, JPEG q80) – nierozstrzygnięte.
 
@@ -243,13 +268,11 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
-00. (07.11) **Basal v2 - test całego rynku** (`BASAL_RODZINY.md`, `BASAL_GPU.md` §G / §H): 173 rodziny
-   (telefony 58, laptopy 33, konsole 22, karty 17, tablety 13, płyty 8, RAM 7, dyski 7, procesory 7, zestawy 1),
-   próbki 24 / rodzinę z bazy 07.11 + 1083 przypadki testowe. Czekamy na wyniki 4.5B Q5_K_M z GTX 1060 (folder
-   `D:\basal\v2` z `*_wyniki_45b_*.json` i `raport_45b.txt` na Dysku; test na PC trwa, 1 slot, ~3 s / ofertę).
-   Potem: wpływ na mediany (Zrzut stanu „Co dalej” 2), decyzja o karcie dopiero po nim. Potem: poprawki instrukcji (pytań) wg pewnych
-   błędów, docelowo serwer z kartą 8 GB i 4.5B Q8_0. Wcześniej (mini / 4.5B, 6 rodzin v1): 4.5B lepszy w
-   taktowaniu RAM, końcówkach i5, liczbie sztuk; mini szybszy (BASAL_GPU.md §F). Kroki 4–5 dopiero po akceptacji.
+00. (08.11) **Basal v2 - powtórka z poprawkami** (`BASAL_GPU.md` §I): nowy folder `analyse_data` na PC (pendrive
+   albo ZIP gałęzi), te same próbki `D:\basal\v2`; najpierw `--etykieta 45b_t2 --tylko-testowe` (~1 h), potem
+   `--etykieta 45b_v3` (~5 h), raporty `raport_45b_t2.txt` / `raport_45b_v3.txt` - cały folder na Dysk. Pierwszy
+   test (07.11, `45b`) przeanalizowany 08.11 (Zrzut stanu). Na serwerze: `git pull` + restart watch (extract v5).
+   Kroki 4–5 dopiero po akceptacji.
 
 0a. (01.11) Wybór modelu AI: wynik `python -m sniper.bench --warianty haiku55,haiku55_low --ref zapisane --bez-bramki
    --last 50` (klucz ANTHROPIC_API_KEY, ~$0,3) - czy Haiku 5.5 trafia jedyną prawdziwą okazję ze złotego zbioru bez

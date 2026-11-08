@@ -3,7 +3,8 @@
 Per rodzina i pytanie: trafność na przypadkach testowych, zgodność z regułami (gdy reguła coś wie), odpowiedzi pewne
 (≥ 70%) i niepewne ze wzorcem; zbiorczo per pytanie (model, pamiec, stan ...) przez wszystkie rodziny; lista
 „pewnych błędów” (pewność ≥ 70%, a odpowiedź inna niż oczekiwana w przypadku testowym) - od nich zaczyna się
-poprawianie instrukcji basala. Bez sieci, bez bazy.
+poprawianie instrukcji basala; lista „pewnych rozbieżności z regułami” na prawdziwych ofertach (08.11: w ~90% to
+reguła się myliła - zaprzeczenia, języki, formułki - więc „R” to dolna granica trafności basala). Bez sieci, bez bazy.
 """
 
 import json
@@ -66,7 +67,7 @@ def _ratio(ok, n):
 def write(folder, label=""):
     folder = Path(folder)
     found = latest_results(folder, label)
-    lines, data = [], {"rodziny": {}, "pytania": {}, "pewne_bledy": []}
+    lines, data = [], {"rodziny": {}, "pytania": {}, "pewne_bledy": [], "rozbieznosci_z_regulami": []}
     totals = defaultdict(lambda: defaultdict(int))
     times = []
     for stem, path in sorted(found.items()):
@@ -90,6 +91,14 @@ def write(folder, label=""):
             )
         lines.append(f"{fam:<26} {len(results):>3} ofert {ms or '?':>5} ms | " + " | ".join(parts))
         for r in results:
+            if not r["expected"]:
+                for q, ans in r["answers"].items():
+                    rule, conf = r["rules_all"].get(q), r["confidence"].get(q) or 0
+                    if rule not in NO_RULE and ans not in (None, UNKNOWN) and ans != rule and conf >= CONFIDENT:
+                        data["rozbieznosci_z_regulami"].append(
+                            {"rodzina": fam, "tytul": r["title"], "pytanie": q, "odpowiedz": ans,
+                             "pewnosc": round(conf, 2), "regula": rule}
+                        )
             for q, want in r["expected"].items():
                 conf = r["confidence"].get(q) or 0
                 if r["answers"].get(q) != want and conf >= CONFIDENT:
@@ -107,7 +116,8 @@ def write(folder, label=""):
         f"Wyniki basala ({label or 'wszystkie etykiety'}): {len(found)} rodzin, "
         f"{sum(n for _ms, n in times)} ofert"
         + (f", mediana czasu {sorted(m for m, _ in times)[len(times) // 2]} ms" if times else ""),
-        "T = przypadki testowe OK/razem, R = zgodność z regułami, P = pewne (≥ 70%) zgodne ze wzorcem / pewne",
+        "T = przypadki testowe OK/razem, R = zgodność z regułami (reguły też się mylą), P = pewne (≥ 70%) zgodne "
+        "ze wzorcem / pewne",
         "",
     ]
     agg = ["", "Zbiorczo per pytanie (wszystkie rodziny):"]
@@ -123,7 +133,16 @@ def write(folder, label=""):
         f"oczekiwane {e['oczekiwane']}"
         for e in data["pewne_bledy"][:40]
     ]
-    text = "\n".join(head + lines + agg + errs)
+    by_q = defaultdict(list)
+    for e in data["rozbieznosci_z_regulami"]:
+        by_q[e["pytanie"]].append(e)
+    diff = ["", f"Pewne rozbieżności z regułami (prawdziwe oferty): {len(data['rozbieznosci_z_regulami'])} - kto ma "
+                "rację? (po 3 na pytanie, całość w .json)"]
+    for q, items in sorted(by_q.items(), key=lambda kv: -len(kv[1])):
+        diff.append(f"  {q} ({len(items)}):")
+        diff += [f"    {e['rodzina']}: {e['tytul'][:55]} | basal {e['odpowiedz']} ({e['pewnosc']:.0%}), reguła "
+                 f"{e['regula']}" for e in items[:3]]
+    text = "\n".join(head + lines + agg + errs + diff)
     name = f"raport_{label or 'wszystko'}"
     (folder / f"{name}.txt").write_text(text, encoding="utf-8")
     (folder / f"{name}.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")

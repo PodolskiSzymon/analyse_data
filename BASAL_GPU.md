@@ -302,3 +302,67 @@ python3 -m venv ~/basal-env
 Na stałe: dwie usługi systemd (`basal-llama` i `basal-serve`, `Restart=always`, druga `After=basal-llama.service`) -
 do napisania przy przeprowadzce. Bramkarz w Sniperze (kroki 4–5) pyta `http://127.0.0.1:8000/v1/systemone` tylko
 dla ofert, których reguły nie rozstrzygają; próg pewności 70% (BASAL_RODZINY.md, „Wyniki i poprawki”).
+
+# I. Wyniki testu v2 (07/08.11) i poprawki - co dalej na PC
+
+**Przebieg:** 173 rodziny, 5236 zapytań (4152 oferty z bazy + 1084 przypadki testowe), 4.5B Q5_K_M na GTX 1060,
+1 slot: mediana 3,5 s na ofertę, razem 5,5 h, VRAM 3,9 GB. Przypadki testowe: 1636 / 1942 trafnych (84%), pewne
+(≥ 70%) 1370 / 1494 (92%). Na prawdziwych ofertach 71% odpowiedzi pewnych.
+
+**Najważniejsze (analiza `basal_report` + ręczny przegląd 08.11):**
+* Większość „błędów” na testach to wina testów, nie basala: tytuły z etykietami grup („Radeon HD 5000 / 6000”,
+  „PS5 standard „fat” (CFI-10xx …) (nie PS5 Slim …)”), nieistniejące konfiguracje (iPhone 11 512 GB, Galaxy S23 12/256,
+  RTX 5060 Ti 32 GB - basal to wiedział i mówił „nie wiadomo”), trzy różne modele naraz w tytule / opisie / formularzu,
+  „nie czyta płyt” w Steam Decku. Generator testów przepisany (nazwy jak w ogłoszeniach, pamięć / VRAM / procesor
+  zgodne z wariantem) - 1116 przypadków.
+* Na prawdziwych ofertach basal przy pewnej odpowiedzi innej niż reguła miał rację w ~9 na 10 sprawdzonych:
+  stan 20 / 22 (reguła: „Jeśli sprzęt będzie uszkodzony - protokół z kurierem” = uszkodzony, „nu prezintă defecte”,
+  „Defektu nav”), model 27 / 30 (iPad 6. gen „9,7"” ≠ iPad 9, Arc A770 ≠ GTX 770, „iPhone 15 + etui” ≠ 15 Plus,
+  MacBook Pro 14" „16 GB RAM” ≠ 16"), sztuki (reguła: „4x3.6GHz”, „PCI-E x4”, „4xMini-DP” = 4 sztuki).
+* **Stan vs płatne AI (`ai-condition`, Gemini ze zdjęciami) na 309 wspólnych ofertach:** reguła 48% zgodności,
+  reguła po poprawce 61%, basal 90%, basal pewny 95%. Na całej bazie reguła „uszkodzona” zgadza się z AI tylko
+  w 23% (po poprawce 26%) - basal może zastąpić płatne `ai-condition` za darmo.
+* Słabości basala (poprawione w pytaniach): „Kupię …” / „tylko zamiana” → odpowiadał „telefon / konsola” (70-80%);
+  „12/256” → 8 GB RAM (liczba z przykładu „8/256” w instrukcji); „Kit 8GB (2x4GB)” → 16 GB („2x8 GB = 16 GB”
+  z instrukcji); procesor laptopa spoza krótkiej listy → najbliższa pozycja z 80-90% pewności (i5-4310U → „7. gen”);
+  „GTX 1060” → „nie wiadomo” (etykieta „nie da się ustalić, który wariant” brzmiała jak pytanie o 3 / 6 GB);
+  nazwa rodziny w treści podpowiadała odpowiedź („RAM do laptopa” → laptop przy „do PC”); „cena za sztukę” →
+  liczył sztuki sprzedawcy; Kindle w rodzinie czytników = „inna rzecz” (opcja wymieniała czytniki); zbity ekran
+  „mało widoczny” → ślady użytkowania; drift „poza tym idealna” → sprawna.
+
+**Poprawki 08.11 (kod):** pytania jak wyżej (bez liczb-odpowiedzi w przykładach, „czy to sprzedaż?” na początku
+„co”, ogólna kategoria zamiast nazwy rodziny, procesor = linia + generacja z pełnymi listami, „sztuk” z odpowiedzią
+`cena_za_sztuke` zamiast osobnej flagi, bateria - liczba z opisu ważniejsza niż przedział formularza, Joy-Cony = 1
+pad); reguły (prefiks kart wg producenta, „+” osobno ≠ Plus, iPad „9,7"”, MacBook 14" / 16", akcesoria tabletu -
+„Smart Folio” to etui, „obsługuje Apple Pencil” to nie rysik w zestawie; „Sprzedam lub zamienię” to sprzedaż);
+`extract.py` v5 (usterka w zdaniu warunkowym, zaprzeczenia w obcych językach i po słowie, „nie włączany”) -
+na całej bazie 1138 fałszywych „uszkodzonych” mniej, żadnej prawdziwej mniej (wg AI: 18 z 2488 przestaje być
+łapanych przez regułę - to te, gdzie usterka jest opisana tylko warunkowo). Raport: nowa sekcja „pewne
+rozbieżności z regułami” (kto ma rację - do przeglądu).
+
+**Na PC (ten sam układ okien co §G, ale 1 slot - był szybszy):** najpierw nowy kod - skopiuj na pendrive aktualny
+folder `analyse_data` z laptopa-serwera po `git pull` (albo pobierz ZIP gałęzi `claude/gifted-volta-x1764p`
+z GitHuba) i podmień `D:\analyse_data`. Próbek `D:\basal\v2\*.jsonl` NIE trzeba robić od nowa.
+
+Okno 1:
+```
+C:\llama-cuda\llama-server.exe -m C:\basal-models\4.5b\basal-2.0-4.5B-Q5_K_M.gguf --host 127.0.0.1 --port 8080 -ngl 99 -c 4096
+```
+Okno 2 (`C:\basal-env\Scripts\activate`):
+```
+basal-serve --model Remek/basal-2.0-4.5B --mode llamacpp --llamacpp-url http://127.0.0.1:8080 --http-parallel 1 --template-prefix off --host 127.0.0.1 --port 8000
+```
+Okno 3 (`C:\basal-env\Scripts\activate`, `cd /d D:\analyse_data`) - szybki sprawdzian samych przypadków testowych
+(~1116 zapytań, ~1 h), potem całość na noc (~5 h):
+```
+python -m analyzer basal-test --katalog D:\basal\v2 --etykieta 45b_t2 --tylko-testowe --pomin-gotowe
+python -m analyzer basal-raport --katalog D:\basal\v2 --etykieta 45b_t2
+python -m analyzer basal-test --katalog D:\basal\v2 --etykieta 45b_v3 --pomin-gotowe
+python -m analyzer basal-raport --katalog D:\basal\v2 --etykieta 45b_v3
+```
+Tylko wybrane rodziny: `--rodziny iphone_11,ps5,gpu_gtx1060`. Wyniki (`*_wyniki_45b_t2_*`, `*_wyniki_45b_v3_*`,
+`raport_45b_t2.txt`, `raport_45b_v3.txt`) - cały folder na Dysk, jak ostatnio.
+
+Na serwerze po `git pull` i restarcie `watch`: pierwszy cykl sam przeliczy cechy wersją v5 (nowa reguła usterek,
+jednorazowo wszystkie oferty - szacunek kilkanaście minut; ręcznie: `python -m analyzer extract`). Mediany
+`report` / `comparables` biorą stan z niej tam, gdzie nie ma oceny AI.

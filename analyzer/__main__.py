@@ -615,6 +615,10 @@ def main(argv=None):
     p_bt.add_argument("--rodzina", default=None, help="domyślnie z nazwy pliku (gtx1060_20261107_1225.jsonl -> gtx1060)")
     p_bt.add_argument("--url", default="http://127.0.0.1:8000", help="adres basal-serve / llama-server --systemone")
     p_bt.add_argument("--bez-testowych", action="store_true", help="bez dopisanych przypadków z zaprzeczeniami")
+    p_bt.add_argument("--tylko-testowe", action="store_true",
+                      help="tylko przypadki testowe rodziny, bez ofert z próbki (szybki sprawdzian poprawek instrukcji)")
+    p_bt.add_argument("--rodziny", default=None,
+                      help="z --katalog: tylko te rodziny, po przecinku (np. iphone_11,ps5,gpu_gtx1060)")
     p_bt.add_argument("--rownolegle", type=int, default=1,
                       help="ile ofert naraz (llama-server -np N i basal-serve --http-parallel N); domyślnie 1")
     p_bt.add_argument("--etykieta", default="", help="np. mini / 45b - trafia do nazwy pliku wyników i podsumowania")
@@ -938,16 +942,19 @@ def main(argv=None):
             print("Podaj --plik albo --katalog.")
             return
         started = time.time()
+        only = {x.strip() for x in args.rodziny.split(",") if x.strip()} if args.rodziny else None
         for n, path in enumerate(files, 1):
             family = args.rodzina or basal_poc.family_from_path(path)
             if family is None or family not in basal_poc.FAMILIES:
                 print(f"Pomijam {path.name} - nie rozpoznaję rodziny (podaj --rodzina).")
                 continue
+            if only and family not in only:
+                continue
             tag = f"_wyniki_{args.etykieta}_" if args.etykieta else "_wyniki_"
             if args.pomin_gotowe and list(path.parent.glob(f"{path.stem}{tag}*.json")):
                 print(f"[{n}/{len(files)}] {path.name} - już są wyniki, pomijam")
                 continue
-            rows = basal_poc.load_sample(path)
+            rows = [] if args.tylko_testowe else basal_poc.load_sample(path)
             print(f"\n[{n}/{len(files)}] {len(rows)} ofert z {path} (rodzina {family}) -> basal {args.url}", flush=True)
             try:
                 results, summary = basal_poc.run_test(rows, family, args.url,

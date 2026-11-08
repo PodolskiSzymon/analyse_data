@@ -860,6 +860,10 @@ def test_auto_pipeline_publishes_guides(market, tmp_path):
     assert asyncio.run(auto.run(cfg, backend=backend, now=now + timedelta(days=1), send=send)) is None   # za wcześnie
     again = asyncio.run(auto.run(cfg, backend=backend, now=now + timedelta(days=4), send=send))
     assert again is not None and again["ai"]["done"] == 20                    # następne 20 nowych ofert
+    cfg.auto_ai_limit = 0                                                    # 08.11: 0 = AI stanu wyłączone
+    calls = len(backend.calls)
+    off = asyncio.run(auto.run(cfg, backend=backend, now=now + timedelta(days=8), send=send))
+    assert off is not None and off["ai"]["done"] == 0 and len(backend.calls) == calls
 
 
 def test_watch_runs_overdue_auto_before_crawl(tmp_path, monkeypatch):
@@ -1531,7 +1535,7 @@ def test_basal_rules_and_signals():
     from analyzer.basal_poc import rules_gtx1060
     assert rules_gtx1060("Gainward GTX 1060 Phoenix 3072MB")["vram"] == "3gb"
     assert rules_nvme("Samsung 970 EVO Plus 1TB") == {"model": "970evoplus", "pojemnosc": "1tb", "sztuk": "1"}
-    assert rule_quantity({"title": "Samsung 980 Pro 1TB", "description": "Cena za sztukę, mam 2."}) == "1"
+    assert rule_quantity({"title": "Samsung 980 Pro 1TB", "description": "Cena za sztukę, mam 2."}) == "cena_za_sztuke"
     assert "tytuł bez: vram (jest w opisie)" in variant_signals("GTX 1060", "Wersja 6 GB.", "gtx1060")
     assert "opis zmienia: mhz" in variant_signals("DDR4 3200MHz", "Naklejka PC4-2133P-UA0.", "ddr4")
     # 07.11 (wyniki z GTX 1060): wszystkie typy RAM, taktowania DDR3 / DDR5, „Not for laptops”, 990 EVO Plus
