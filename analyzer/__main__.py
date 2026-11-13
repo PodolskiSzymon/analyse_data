@@ -12,6 +12,8 @@
   html-details [--states sold] [--limit N] opisy sprzedanych ze strony HTML (gdy API ich już nie poda)
   extract [--again] / extract-report      parametry ofert regułami + pokrycie i konfiguracje z cenami (bez sieci)
   ntfy-test                               testowe powiadomienie na telefon (ntfy)
+  api-test [--kategoria 3661] [--bez-ntfy] test API Vinted na żywo (~10 zapytań): zmiany katalogu / szczegółów /
+                                          zdjęć -> <folder bazy>/api_test/<czas>/; watch sprawdza to sam co cykl
   check <link|ID> [...]                   czy oferta jest sprzedana (/services + sidebar przez proxy) + co wie baza
   resolve-report                          dlaczego 0 sprzedanych: zapisane odpowiedzi resolvera + próbka do wysłania
   suspicious-report [--photo-flag]        flagi podejrzanych ofert (oszustwa, kontakt poza Vinted) -> analysis.db
@@ -122,10 +124,13 @@ async def cmd_watch(cfg, catalogs, resolve_limit, with_details=True):
         next_start = started + timedelta(hours=random.uniform(*cfg.watch_hours))
         conn = db.connect(cfg.db_path)
         session = build_session()
+        from .health import Health
+        health = Health()               # kontrola zmian API Vinted w tym cyklu (ntfy przy odchyleniu)
         try:
-            crawler = Crawler(cfg, session, conn)
+            crawler = Crawler(cfg, session, conn, health=health)
             for catalog_id in catalogs:
                 await crawler.run(catalog_id)
+            await health_report(cfg, health.evaluate_catalog(conn))
             await run_ai_classify(cfg, conn)
             # Świeże zniknięcia od razu (sprzedane strony znikają z Vinted po kilku dniach), ponowne sprawdzenia
             # niewidocznych / ukrytych w tle do następnego przejścia - nie blokują już cyklu (27.10).
@@ -140,13 +145,16 @@ async def cmd_watch(cfg, catalogs, resolve_limit, with_details=True):
                                             "archiwum zdjęć (bez proxy)" if cfg.photos else "") if x))
             jobs = [resolve(cfg, session, conn, resolve_limit, only="due", deadline=next_start)]
             if with_details:
-                jobs.append(fetch_details(cfg, session, conn, deadline=next_start))
+                jobs.append(fetch_details(cfg, session, conn, deadline=next_start, health=health))
             if cfg.photos:
                 from .photos import archive
                 jobs.append(archive(cfg, conn, deadline=next_start))
             for result in await asyncio.gather(*jobs, return_exceptions=True):
                 if isinstance(result, Exception):
                     log.error("[WATCH] Sprawdzenia / szczegóły / zdjęcia przerwane błędem: %r", result)
+                elif isinstance(result, dict) and "photos" in result:
+                    health.photos(result)
+            await health_report(cfg, health.evaluate_background())
             log.info("[TRANSFER] %s", session.traffic.window_report()[0])
         except Exception:
             log.exception("[WATCH] Cykl przerwany błędem - spróbuję przy następnym.")
@@ -158,6 +166,23 @@ async def cmd_watch(cfg, catalogs, resolve_limit, with_details=True):
                  max(wait, 0) / 3600)
         if wait > 0:
             await asyncio.sleep(wait)
+
+
+async def health_report(cfg, problems):
+    """Problemy z API Vinted → log + ntfy (health.py). Błąd nigdy nie przerywa watch."""
+    if not problems:
+        log.info("[HEALTH] API Vinted bez zmian w tym etapie cyklu.")
+        return
+    from . import analysis, health
+
+    try:
+        aconn = analysis.open_analysis(cfg.db_path)
+        try:
+            await health.report(cfg, problems, aconn)
+        finally:
+            aconn.close()
+    except Exception:
+        log.exception("[HEALTH] Błąd wysyłania raportu.")
 
 
 async def auto_if_due(cfg):
@@ -378,6 +403,18 @@ async def cmd_resolve(cfg, limit):
         conn.close()
 
 
+async def cmd_api_test(cfg, catalog_id, pages, notify_problems):
+    from . import apitest
+
+    conn = db.connect(cfg.db_path)
+    session = build_session()
+    try:
+        await apitest.run(cfg, session, conn, catalog_id, pages, notify_problems=notify_problems)
+    finally:
+        await session.close()
+        conn.close()
+
+
 async def cmd_probe(cfg, catalog_id, items):
     from .probe import Probe
 
@@ -482,6 +519,11 @@ def main(argv=None):
     p_details.add_argument("--limit", type=int, default=None)
     p_resolve = sub.add_parser("resolve", help="etap 2: zniknięte oferty -> sprzedana / usunięta / niewidoczna")
     p_resolve.add_argument("--limit", type=int, default=None, help="najwyżej tyle ofert w jednym uruchomieniu")
+    p_api = sub.add_parser("api-test", help="test API Vinted na żywo (~10 zapytań przez proxy): czy Vinted czegoś nie "
+                                            "zmienił; przy problemie ntfy")
+    p_api.add_argument("--kategoria", type=int, default=3661, help="ID katalogu (domyślnie 3661 - telefony)")
+    p_api.add_argument("--strony", type=int, default=5)
+    p_api.add_argument("--bez-ntfy", action="store_true")
     p_probe = sub.add_parser("probe", help="etap 0: zapis odpowiedzi Vinted do sprawdzenia założeń")
     p_probe.add_argument("--catalog", type=int, default=None)
     p_probe.add_argument("--item", type=int, action="append", default=[], help="ID oferty do details/sidebar")
@@ -650,6 +692,8 @@ def main(argv=None):
         run_async(cmd_resolve(cfg, args.limit))
     elif args.command == "probe":
         run_async(cmd_probe(cfg, args.catalog or cfg.catalogs[0], args.item))
+    elif args.command == "api-test":
+        run_async(cmd_api_test(cfg, args.kategoria, args.strony, not args.bez_ntfy))
     elif args.command == "probe-show":
         from .probe import show
         show(args.folder)

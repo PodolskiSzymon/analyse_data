@@ -268,6 +268,16 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
+000. (13.11) **Dziury w pokryciu katalogu**: `status` 13.11 - telefony 71/~200 partycji z brakami, tablety 16/27,
+   dyski; w partycji ~100–230 w bazie przy 550–960 wg Vinted (07.11 na kopii: 0 braków). Podejrzenie: od kilku dni
+   crawler bierze tylko ~1 stronę partycji (krótkie strony / powtórki / błędy strony 2). Czekamy na: `git pull`,
+   `python -m analyzer api-test` (wynik + folder `api_test\<czas>`), SQL `crawl_runs` (ostatnie 40) i
+   `findstr "Błąd strony"` / `"[CRAWL] Partycja"` z `analyzer.log`. Od 13.11 watch sam sprawdza API co cykl
+   (`analyzer/health.py`, ntfy przy odchyleniu, `ANALYZER_HEALTH_NOTIFY`, `ANALYZER_HEALTH_REPEAT_H`=12) i crawler
+   przy krótkiej stronie (total_entries większe) pobiera kolejne, przy powtórce kończy partycję.
+   Też 13.11: użytkownik usunął `photos\index.db` - odbudowany `narzedzia/odbuduj_index.py --z-bazy` (267 459 ofert
+   widzianych przed 13.11 07:32 = „mają zdjęcia”; część starych bez zdjęć). Zdjęcia zgrane na HDD na drugim PC.
+
 00. (08.11) **Basal v2 - powtórka z poprawkami** (`BASAL_GPU.md` §I): nowy folder `analyse_data` na PC (pendrive
    albo ZIP gałęzi), te same próbki `D:\basal\v2`; najpierw `--etykieta 45b_t2 --tylko-testowe` (~1 h), potem
    `--etykieta 45b_v3` (~5 h), raporty `raport_45b_t2.txt` / `raport_45b_v3.txt` - cały folder na Dysk. Pierwszy

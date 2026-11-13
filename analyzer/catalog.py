@@ -174,6 +174,7 @@ class CatalogPage:
     page: int = 1
     per_page: int = None
     raw_keys: tuple = ()
+    pagination_keys: tuple = ()     # health.py: nowe klucze paginacji = zmiana API (np. kursor)
 
 
 def parse_page(data, catalog_id, page, per_page, seller_salt=""):
@@ -188,7 +189,8 @@ def parse_page(data, catalog_id, page, per_page, seller_salt=""):
         return int(value) if isinstance(value, (int, float)) else None
 
     return CatalogPage(items=items, total_entries=_int("total_entries"), total_pages=_int("total_pages"),
-                       page=page, per_page=_int("per_page") or per_page, raw_keys=tuple(data))
+                       page=page, per_page=_int("per_page") or per_page, raw_keys=tuple(data),
+                       pagination_keys=tuple(pagination))
 
 
 def widen(price_from, price_to, margin):

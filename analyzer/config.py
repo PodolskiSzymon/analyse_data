@@ -141,6 +141,9 @@ class AnalyzerConfig:
     resolve_delay: tuple = field(default_factory=lambda: parse_range(_env("ANALYZER_RESOLVE_DELAY_S"), (1.0, 2.5)))
     # Archiwum zdjęć (photos.py): WSZYSTKIE zdjęcia ofert z CDN Vinted, bezpośrednio (bez proxy), do folderu obok bazy.
     photos: bool = _env_bool("ANALYZER_PHOTOS", True)
+    # Kontrola zmian API Vinted w watch (health.py): ntfy przy odchyleniu, każdy problem najwyżej raz na N h.
+    health_notify: bool = _env_bool("ANALYZER_HEALTH_NOTIFY", True)
+    health_repeat_hours: float = _env_float("ANALYZER_HEALTH_REPEAT_H", 12.0)
     photos_dir: str = _env("ANALYZER_PHOTOS_DIR")                       # puste = <folder bazy>/photos
     photos_concurrency: int = _env_int("ANALYZER_PHOTOS_CONCURRENCY", 4)
     # Automat w watch (auto.py): co tyle dni AI stanu dla nowych ofert + raport + wytyczne i mediany Snipera

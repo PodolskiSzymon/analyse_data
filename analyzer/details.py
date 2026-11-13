@@ -99,7 +99,7 @@ def candidates(conn, limit=None, categories=None):
     return conn.execute(sql, params).fetchall()
 
 
-async def fetch_details(cfg, session, conn, limit=None, deadline=None, sleep=asyncio.sleep, clock=None):
+async def fetch_details(cfg, session, conn, limit=None, deadline=None, sleep=asyncio.sleep, clock=None, health=None):
     """Pobiera szczegóły ofert bez nich. deadline (datetime UTC) - przerwij po tym czasie (tryb watch)."""
     clock = clock or (lambda: datetime.now(deadline.tzinfo) if deadline else None)
     catalogs = getattr(cfg, "details_catalogs", None)
@@ -123,7 +123,11 @@ async def fetch_details(cfg, session, conn, limit=None, deadline=None, sleep=asy
         except Exception as exc:
             log.warning("[DETAILS] %s: błąd %r", row["id"], exc)
             counts["błąd"] = counts.get("błąd", 0) + 1
+            if health is not None:
+                health.details_error(type(exc).__name__)
             continue
+        if health is not None:
+            health.sidebar(status_code, body)
         services = None
         if is_not_found(status_code, body):
             # Od 2026-10-24 sidebar sprzedanej = 404/104, jak usuniętej - rozstrzyga /services (~1 KB).

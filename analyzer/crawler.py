@@ -27,7 +27,10 @@ RETRIES = 3
 
 
 class Crawler:
-    def __init__(self, cfg, session, conn, sleep=asyncio.sleep, fetch=fetch_page):
+    def __init__(self, cfg, session, conn, sleep=asyncio.sleep, fetch=fetch_page, health=None):
+        from .health import Health
+
+        self.health = health if health is not None else Health()   # kontrola zmian API (health.py)
         self.cfg = cfg
         self.session = session
         self.conn = conn
@@ -131,12 +134,15 @@ class Crawler:
                 return result
             except RateLimited:
                 self._bump(run_id, requests=1, errors=1, bytes=self._traffic_bytes() - before)
+                self.health.request_error("429")
                 pause = 60.0 * attempt
                 log.warning("[CRAWL] 429 (za szybko) - przerwa %.0f s.", pause)
                 await self.sleep(pause)
                 continue
             except (httpx.HTTPError, SessionExpired, ValueError, OSError) as exc:
                 self._bump(run_id, requests=1, errors=1, bytes=self._traffic_bytes() - before)
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+                self.health.request_error(f"HTTP {status}" if status else type(exc).__name__)
                 log.warning("[CRAWL] Błąd strony %d partycji %s-%s (próba %d/%d): %r", page, row["price_from"],
                             row["price_to"] if row["price_to"] is not None else "∞", attempt, RETRIES, exc)
                 await self.sleep(min(60.0, 5.0 * 2 ** attempt))
@@ -160,19 +166,29 @@ class Crawler:
         """Zwraca listę partycji-dzieci do przejścia (gdy podzielono) albo [] (gotowe / błąd)."""
         max_pages = max(1, math.ceil(self.cfg.max_results / self.cfg.per_page))
         label = f"{row['price_from']:g}-{'∞' if row['price_to'] is None else format(row['price_to'], 'g')} zł"
-        page, collected, total, prices = 1, 0, None, []
+        page, collected, total, prices, seen_ids = 1, 0, None, [], set()
+        margin = getattr(self.cfg, "price_margin", 0.0) or 0.0
+        price_range = (None if row["price_from"] is None else row["price_from"] - margin,
+                       None if row["price_to"] is None else row["price_to"] + margin)
         while True:
             result = await self._get_page(run_id, row, page)
             if result is None:
                 log.error("[CRAWL] Partycja %s niedokończona (błędy) - dokończę przy wznowieniu.", label)
+                self.health.partition_done(row["id"])
                 return []
+            self.health.page(row["catalog_id"], (row["id"], label), page, self.cfg.per_page, result, price_range,
+                             collected)
             if page == 1:
                 total = result.total_entries
                 prices = [it.price for it in result.items]
+            page_ids = {it.id for it in result.items}
+            repeated = bool(page_ids) and page_ids <= seen_ids     # strona bez nowych ofert = paginacja nie działa
+            seen_ids |= page_ids
             self._save(run_id, result.items)
             collected += len(result.items)
 
             if page == 1 and needs_split(total, self.cfg.split_above):
+                self.health.partition_done(row["id"])
                 with self.conn:
                     self.conn.execute("UPDATE partitions SET last_total=? WHERE id=?", (total, row["id"]))
                 row = self.conn.execute("SELECT * FROM partitions WHERE id=?", (row["id"],)).fetchone()
@@ -186,7 +202,20 @@ class Crawler:
             full = len(result.items) >= self.cfg.per_page
             last_known = (result.total_pages is not None and page >= result.total_pages) or \
                          (total is not None and collected >= total)
-            if not full or last_known:
+            # 2026-11-13: krótka strona, a total_entries mówi o wielu brakujących ofertach - próbujemy następnej
+            # strony (do pustej / powtórki / limitu stron), zamiast uznać ją za koniec partycji.
+            more = bool(result.items) and total is not None and collected < total * 0.95
+            if page == 1 and more and not full:
+                # Mniejsze strony niż per_page - limit stron liczony od faktycznej wielkości strony.
+                max_pages = max(max_pages, math.ceil(self.cfg.max_results / len(result.items)))
+            if repeated:
+                log.warning("[CRAWL] Partycja %s: strona %d powtarza oferty z poprzednich stron - koniec partycji.",
+                            label, page)
+                break
+            if more and not full:
+                # total_pages liczone od per_page z zapytania - przy krótszych stronach nie jest końcem partycji.
+                last_known = total is not None and collected >= total
+            if (not full and not more) or last_known:
                 break
             if page >= max_pages:
                 # Pełna ostatnia dozwolona strona = prawdopodobnie limit wyników, a nie koniec partycji.
@@ -199,6 +228,7 @@ class Crawler:
                 break
             page += 1
 
+        self.health.partition_done(row["id"])
         with self.conn:
             self.conn.execute(
                 "UPDATE partitions SET last_total=?, last_items=?, last_crawled_at=?, done_run_id=? WHERE id=?",
@@ -227,6 +257,7 @@ class Crawler:
                                retired)
         with self.conn:
             self.conn.execute("UPDATE crawl_runs SET finished_at=?, gone=? WHERE id=?", (db.utcnow(), gone, run_id))
+        self.health.run_finished(catalog_id, run_id)
         self.stats["gone"] = gone
         summary = self.conn.execute(
             "SELECT COUNT(*) AS n, SUM(last_total) AS total, SUM(oversize) AS oversize FROM partitions "
