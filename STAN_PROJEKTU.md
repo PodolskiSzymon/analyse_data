@@ -273,10 +273,18 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
    wolno; reMarkable 2 + folio dostał 9-10/10, a nikt nie kupuje. Kopia bazy 07.11: rotacja (udział zniknięć) iPad
    A16 62%, Steam Deck 56%, S23 36%, MatePad 23%, Xiaomi 12T 21%; rynek używanych na ~27 dni: reMarkable 2 44,
    Tab A 10.1 26, A17 121, S23 582; „bez pudełka” ~10-20% taniej (iPhone 13 753 vs 884, S23 917 vs 1101), z
-   pudełkiem ≈ bez informacji, ale schodzi szybciej. **`unreachable_sniper/sniper/market.py`**: mały rynek (<
-   `SNIPER_MIN_MARKET_MONTH`=60 ofert / mies. tego modelu i stanu) = okazja tylko przy cenie ≤
-   `SNIPER_NICHE_MAX_SHARE`=0,5 szacunku (też bramka przed AI); rotacja < `SNIPER_MIN_TURNOVER`=0,25 = ocena -1;
-   „bez pudełka” = wycena × `SNIPER_NO_BOX_FACTOR`=0,88; dla AI blok `<rynek>` + reguła E (dodatki nie podnoszą
+   pudełkiem ≈ bez informacji, ale schodzi szybciej. **`unreachable_sniper/sniper/market.py`** (poprawione po
+   uwadze użytkownika: próg 60 ofert / mies. odcinał dobrze schodzące modele - Pixel 10a ~9 / mies. i 38% rotacji,
+   iPad Pro 11 2021 ~62 / mies.; sama liczba ofert nie mówi o popycie). Rotacja jak w `comparables.db` (zniknięte /
+   wszystkie, bez unlisted): iPad A16 50%, Steam Deck 39%, A17 31%, S23 25%, reMarkable 24%, iPhone 12 18%, MatePad
+   11%, Xiaomi 12T 11%, iPhone 8 7%, tablety graficzne 1%. Nisza = rotacja < `SNIPER_NICHE_TURNOVER`=0,10 (≥ 15
+   ofert) albo < `SNIPER_MIN_MARKET_MONTH`=10 ofert / mies. z rotacją < 0,20 → okazja tylko ≤
+   `SNIPER_NICHE_MAX_SHARE`=0,5 szacunku (też bramka przed AI); rotacja < `SNIPER_MIN_TURNOVER`=0,20 = ocena -1;
+   tylko `SNIPER_MARKET_CATEGORIES`=phone,tablet,console (podzespoły, laptopy, zestawy - nie). **Czytniki i tablety
+   graficzne (decyzja użytkownika: znikome zapotrzebowanie, NIE mierzyć rotacją)** - `market.LOW_DEMAND` (reMarkable,
+   Kindle, Kobo, PocketBook, Boox, Wacom, Huion, XP-Pen…): zawsze okazja tylko ≤ `SNIPER_LOW_DEMAND_MAX_SHARE`=0,3
+   szacunku (reMarkable 2 ~1500 zł → ~450 zł), też bez `span_days`; do tego reguła E (folio nie podnosi wyceny). „Bez pudełka” = wycena ×
+   `SNIPER_NO_BOX_FACTOR`=0,88; dla AI blok `<rynek>` + reguła E (dodatki nie podnoszą
    ceny ponad medianę, wyjątek rysik / klawiatura Apple do iPada +10%). Reguły działają dopiero z `comparables.db`
    z meta `span_days` (analizator od 15.11; automat co 2 dni albo `python -m analyzer auto --force`). Warianty A17
    (5G / pamięć / RAM / stan) są w medianach od 03.11. **Test wizyjny** (`analyzer/vision.py`): serwer
