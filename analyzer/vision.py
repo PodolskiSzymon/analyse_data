@@ -156,16 +156,38 @@ def fetch_photos(client, urls):
     return images
 
 
-def ask(client, url, model, title, images):
-    """→ (odpowiedź jako dict albo None, sekundy, błąd)."""
-    body = {"model": model, "stream": False, "format": SCHEMA, "options": {"temperature": 0},
-            "messages": [{"role": "user", "content": PROMPT.format(title=title), "images": images}]}
+def _json(text):
+    """JSON z odpowiedzi (czasem w ```json ... ```)."""
+    text = (text or "").strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        text = text[text.find("{"):]
+    start, end = text.find("{"), text.rfind("}")
+    return json.loads(text[start:end + 1] if start >= 0 else text)
+
+
+def ask(client, url, model, title, images, api="ollama"):
+    """→ (odpowiedź jako dict albo None, sekundy, błąd). api: ollama (/api/chat) albo openai (llama.cpp
+    llama-server: /v1/chat/completions - 2026-11-15, Ollama 0.40 nie widziała GTX 1060, a llama.cpp CUDA 12 tak)."""
+    prompt = PROMPT.format(title=title)
+    if api == "openai":
+        content = [{"type": "text", "text": prompt}] + [
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b}"}} for b in images]
+        body = {"model": model, "temperature": 0, "messages": [{"role": "user", "content": content}],
+                "response_format": {"type": "json_object", "schema": SCHEMA}}
+        path = "/v1/chat/completions"
+    else:
+        body = {"model": model, "stream": False, "format": SCHEMA, "options": {"temperature": 0},
+                "messages": [{"role": "user", "content": prompt, "images": images}]}
+        path = "/api/chat"
     started = time.monotonic()
     try:
-        r = client.post(f"{url.rstrip('/')}/api/chat", json=body, timeout=600)
+        r = client.post(f"{url.rstrip('/')}{path}", json=body, timeout=1200)
         r.raise_for_status()
-        text = r.json().get("message", {}).get("content", "")
-        return json.loads(text), time.monotonic() - started, None
+        data = r.json()
+        text = (data["choices"][0]["message"]["content"] if api == "openai"
+                else data.get("message", {}).get("content", ""))
+        return _json(text), time.monotonic() - started, None
     except Exception as exc:
         return None, time.monotonic() - started, f"{type(exc).__name__}: {str(exc)[:150]}"
 
@@ -184,7 +206,7 @@ def compare(row, answer):
     return out
 
 
-def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=None, say=print):
+def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=None, say=print, api="ollama"):
     import httpx
 
     own = client is None
@@ -196,7 +218,7 @@ def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=Non
             if not images:
                 say(f"  [{i}/{len(rows)}] {row['id']}: brak zdjęć (oferta usunięta?) - pomijam")
                 continue
-            answer, seconds, error = ask(client, url, model, row["title"], images)
+            answer, seconds, error = ask(client, url, model, row["title"], images, api)
             item = {"id": row["id"], "url": row["url"], "title": row["title"], "photos": len(images),
                     "seconds": round(seconds, 1), "error": error, "answer": answer, **compare(row, answer)}
             results.append(item)

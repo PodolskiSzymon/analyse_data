@@ -651,7 +651,9 @@ def main(argv=None):
                           "pudełko, napisy, pamięć, 5G vs tytuł -> raport obok próbki")
     p_vt.add_argument("--plik", required=True, help="plik z vision-sample")
     p_vt.add_argument("--model", default="qwen2.5vl:3b", help="model Ollamy z obsługą obrazów (qwen2.5vl:3b, gemma3:4b)")
-    p_vt.add_argument("--url", default="http://127.0.0.1:11434")
+    p_vt.add_argument("--url", default=None, help="domyślnie Ollama :11434; z --api openai: llama-server :8081")
+    p_vt.add_argument("--api", choices=("ollama", "openai"), default="ollama",
+                      help="openai = llama.cpp llama-server (/v1/chat/completions) - gdy Ollama nie widzi karty")
     p_vt.add_argument("--zdjecia", type=int, default=4)
     p_vt.add_argument("--limit", type=int, default=None)
     p_bs = sub.add_parser("basal-sample", help="test basal, krok 2: oferty jednej rodziny (np. s23) z opisem -> "
@@ -981,9 +983,10 @@ def main(argv=None):
     elif args.command == "vision-test":
         from . import vision
         rows = vision.load_sample(args.plik)[:args.limit] if args.limit else vision.load_sample(args.plik)
-        print(f"Test {args.model} na {len(rows)} ofertach ({args.url}) ...", flush=True)
-        results, summary = vision.run_test(rows, args.model, args.url, args.zdjecia,
-                                           say=lambda t: print(t, flush=True))
+        url = args.url or ("http://127.0.0.1:8081" if args.api == "openai" else "http://127.0.0.1:11434")
+        print(f"Test {args.model} na {len(rows)} ofertach ({url}, {args.api}) ...", flush=True)
+        results, summary = vision.run_test(rows, args.model, url, args.zdjecia,
+                                           say=lambda t: print(t, flush=True), api=args.api)
         path, text = vision.save_results(results, summary, args.plik, args.model)
         print("\n" + "\n".join(text.split("\n")[:11]))
         print(f"\nRaport: {path}")

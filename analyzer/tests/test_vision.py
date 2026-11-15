@@ -94,3 +94,25 @@ def test_ollama_error_is_reported(tmp_path):
     results, summary = vision.run_test(rows, "brak:1b", client=httpx.Client(transport=httpx.MockTransport(handler)),
                                        say=lambda _t: None)
     assert results[0]["error"] and summary["answered"] == 0
+
+
+def test_openai_api_llama_server():
+    """llama.cpp llama-server: /v1/chat/completions, obrazy jako data URL, odpowiedź w ```json```."""
+    rows = vision.sample(_conn(), "iphone", "phone", limit=1, max_photos=2)
+    calls = []
+
+    def handler(request):
+        if request.url.host.startswith("images"):
+            return httpx.Response(200, content=JPEG)
+        calls.append((request.url.path, json.loads(request.content)))
+        answer = {"box_visible": "no", "visible_text": "iPhone 13", "model": "iPhone 13", "storage_gb": 128,
+                  "ram_gb": None, "network_5g": "unknown", "screen_damage": "no"}
+        return httpx.Response(200, json={"choices": [{"message": {"content": "```json\n" + json.dumps(answer)
+                                                                  + "\n```"}}]})
+    results, summary = vision.run_test(rows, "qwen", "http://x:8081", client=httpx.Client(
+        transport=httpx.MockTransport(handler)), say=lambda _t: None, api="openai")
+    path, body = calls[0]
+    assert path == "/v1/chat/completions"
+    images = [c for c in body["messages"][0]["content"] if c["type"] == "image_url"]
+    assert len(images) == 2 and images[0]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+    assert summary["answered"] == 1 and results[0]["vision_storage"] == 128
