@@ -1237,6 +1237,9 @@ def test_comparables_db(relisted, flagged, tmp_path):
     conds = {c for (c,) in db.execute("SELECT DISTINCT cond FROM offers")}
     assert conds <= {"new", "used"} and "used" in conds
     assert {c for (c,) in db.execute("SELECT DISTINCT cond FROM laptop_specs")} <= {"new", "used"}
+    # okres danych (2026-11-15) - Sniper liczy z niego „ofert tego modelu na miesiąc”
+    span = float(db.execute("SELECT value FROM meta WHERE key='span_days'").fetchone()[0])
+    assert span >= 1
     db.close()
 
 

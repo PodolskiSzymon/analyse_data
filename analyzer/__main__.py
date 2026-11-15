@@ -32,6 +32,8 @@
   photos [--limit N]                      archiwum zdjęć ofert (bez proxy) - jak w watch
   photos-clean [--stan deleted] [--starsze-niz 14] [--tak]   usuwa zdjęcia usuniętych ofert (pyta o potwierdzenie)
   remote                                  pilot z telefonu (ntfy): start/stop watch i Snipera, status, logi (PILOT.md)
+  vision-sample --szukaj a17 [--kategoria phone] / vision-test --plik P [--model qwen2.5vl:3b]
+                                          test modelu wizyjnego (pudełko, napisy, 5G, pamięć ze zdjęć; Ollama na PC)
   sample [--per-category N]               próbka ofert z opisami (bez danych sprzedawcy) -> data/sample_*.jsonl
   diag                                    zmiany cen i braki pokrycia w ostatnim przejściu (bez sieci)
   sold-report [--od ISO]                  F0: ciągłość watch, zwłoka resolvera, sold vs deleted wg zwłoki, tempo
@@ -42,6 +44,7 @@
 import argparse
 import asyncio
 import json
+import re
 import time
 import logging
 import sqlite3
@@ -638,6 +641,19 @@ def main(argv=None):
     sub.add_parser("remote", help="pilot z telefonu przez ntfy: start / stop / status watch i Snipera (PILOT.md)")
     p_sample = sub.add_parser("sample", help="próbka ofert z opisami do projektu ekstrakcji -> data/sample_*.jsonl")
     p_sample.add_argument("--per-category", type=int, default=150)
+    p_vs = sub.add_parser("vision-sample", help="test modelu wizyjnego, krok 1 (serwer): oferty z tytułem pasującym do "
+                          "--szukaj + adresy zdjęć -> data/vision/*.jsonl (bez sieci)")
+    p_vs.add_argument("--szukaj", required=True, help="fragment tytułu, np. a17, \"iphone 13\", remarkable")
+    p_vs.add_argument("--kategoria", default=None, help="phone, tablet, console, laptop ...")
+    p_vs.add_argument("--limit", type=int, default=40)
+    p_vs.add_argument("--zdjecia", type=int, default=4, help="ile zdjęć na ofertę zapisać")
+    p_vt = sub.add_parser("vision-test", help="test modelu wizyjnego, krok 2 (PC z kartą): zdjęcia z CDN -> Ollama -> "
+                          "pudełko, napisy, pamięć, 5G vs tytuł -> raport obok próbki")
+    p_vt.add_argument("--plik", required=True, help="plik z vision-sample")
+    p_vt.add_argument("--model", default="qwen2.5vl:3b", help="model Ollamy z obsługą obrazów (qwen2.5vl:3b, gemma3:4b)")
+    p_vt.add_argument("--url", default="http://127.0.0.1:11434")
+    p_vt.add_argument("--zdjecia", type=int, default=4)
+    p_vt.add_argument("--limit", type=int, default=None)
     p_bs = sub.add_parser("basal-sample", help="test basal, krok 2: oferty jednej rodziny (np. s23) z opisem -> "
                           "data/basal/*.jsonl + wydruk (bez sieci)")
     p_bs.add_argument("--rodzina", default="s23", help="rodzina (s23, gtx1060 ... albo v2: iphone_13, ps5 ...)")
@@ -951,6 +967,26 @@ def main(argv=None):
     elif args.command == "remote":
         from . import remote
         run_async(remote.main(cfg))
+    elif args.command == "vision-sample":
+        from . import analysis, vision
+        print(f"Otwieram bazę {cfg.db_path} (tylko do odczytu) ...", flush=True)
+        conn = analysis.open_ro(cfg.db_path)
+        rows = vision.sample(conn, args.szukaj, args.kategoria, args.limit, args.zdjecia,
+                             progress=lambda t: print(t, flush=True))
+        name = re.sub(r"[^\w-]+", "_", args.szukaj.strip().lower()) or "probka"
+        path = vision.save_sample(rows, name, Path(cfg.db_path).parent / "vision")
+        print(f"Zapisano {len(rows)} ofert -> {path}")
+        print(f"Krok 2 na PC z kartą (Ollama): python -m analyzer vision-test --plik \"{path.name}\" "
+              f"--model qwen2.5vl:3b")
+    elif args.command == "vision-test":
+        from . import vision
+        rows = vision.load_sample(args.plik)[:args.limit] if args.limit else vision.load_sample(args.plik)
+        print(f"Test {args.model} na {len(rows)} ofertach ({args.url}) ...", flush=True)
+        results, summary = vision.run_test(rows, args.model, args.url, args.zdjecia,
+                                           say=lambda t: print(t, flush=True))
+        path, text = vision.save_results(results, summary, args.plik, args.model)
+        print("\n" + "\n".join(text.split("\n")[:11]))
+        print(f"\nRaport: {path}")
     elif args.command == "basal-sample" and (args.wszystkie or basal_v2_family(args.rodzina)):
         from . import analysis, basal_families
         folder = Path(args.katalog) if args.katalog else Path(cfg.db_path).parent / "basal_v2"

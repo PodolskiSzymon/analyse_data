@@ -136,6 +136,18 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
     out.execute("INSERT INTO meta VALUES ('rows', ?)", (str(n),))
     out.execute("INSERT INTO meta VALUES ('laptop_specs', ?)", (str(n_specs),))
     out.execute("INSERT INTO meta VALUES ('cond', '1')")
+    # 2026-11-15: z ilu dni są oferty - Sniper liczy z tego „ofert tego modelu na miesiąc” (płynność rynku).
+    first = conn.execute("SELECT MIN(first_seen) FROM listings").fetchone()[0]
+    if first:
+        from datetime import datetime, timezone
+        try:
+            start = datetime.fromisoformat(str(first).replace("Z", "+00:00"))
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=timezone.utc)
+            span = max(1.0, (datetime.now(timezone.utc) - start).total_seconds() / 86400)
+            out.execute("INSERT INTO meta VALUES ('span_days', ?)", (f"{span:.1f}",))
+        except ValueError:
+            pass
     say(f"  laptopy ze specyfikacją (mediany po GPU / CPU / RAM / dysku): {n_specs}")
     out.execute("INSERT INTO offers(offers) VALUES ('optimize')")
     out.commit()

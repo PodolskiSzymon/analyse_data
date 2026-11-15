@@ -268,6 +268,21 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
+0000. (15.11) **Reguły rynku w Sniperze + test wizyjny.** Zakupy użytkownika: iPad A16 z pudełkiem i rysikiem
+   sprzedany w 24 h, S23 szybko (bez pudełka), iPhone 12 tylko +80 zł, MatePad (kupiony 530, wystawiony 1000)
+   wolno; reMarkable 2 + folio dostał 9-10/10, a nikt nie kupuje. Kopia bazy 07.11: rotacja (udział zniknięć) iPad
+   A16 62%, Steam Deck 56%, S23 36%, MatePad 23%, Xiaomi 12T 21%; rynek używanych na ~27 dni: reMarkable 2 44,
+   Tab A 10.1 26, A17 121, S23 582; „bez pudełka” ~10-20% taniej (iPhone 13 753 vs 884, S23 917 vs 1101), z
+   pudełkiem ≈ bez informacji, ale schodzi szybciej. **`unreachable_sniper/sniper/market.py`**: mały rynek (<
+   `SNIPER_MIN_MARKET_MONTH`=60 ofert / mies. tego modelu i stanu) = okazja tylko przy cenie ≤
+   `SNIPER_NICHE_MAX_SHARE`=0,5 szacunku (też bramka przed AI); rotacja < `SNIPER_MIN_TURNOVER`=0,25 = ocena -1;
+   „bez pudełka” = wycena × `SNIPER_NO_BOX_FACTOR`=0,88; dla AI blok `<rynek>` + reguła E (dodatki nie podnoszą
+   ceny ponad medianę, wyjątek rysik / klawiatura Apple do iPada +10%). Reguły działają dopiero z `comparables.db`
+   z meta `span_days` (analizator od 15.11; automat co 2 dni albo `python -m analyzer auto --force`). Warianty A17
+   (5G / pamięć / RAM / stan) są w medianach od 03.11. **Test wizyjny** (`analyzer/vision.py`): serwer
+   `vision-sample --szukaj a17 --kategoria phone --limit 40` → plik na PC → `vision-test --plik … --model
+   qwen2.5vl:3b` (Ollama, GTX 1060): pudełko, napisy, 5G, pamięć ze zdjęć vs tytuł. Czekamy na raport `.txt`.
+
 000. (13.11) **Dziury w pokryciu katalogu**: `status` 13.11 - telefony 71/~200 partycji z brakami, tablety 16/27,
    dyski; w partycji ~100–230 w bazie przy 550–960 wg Vinted (07.11 na kopii: 0 braków). Podejrzenie: od kilku dni
    crawler bierze tylko ~1 stronę partycji (krótkie strony / powtórki / błędy strony 2). Czekamy na: `git pull`,
