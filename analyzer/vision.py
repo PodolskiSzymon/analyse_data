@@ -78,17 +78,28 @@ def text_storage(text):
 
 
 # ---------------------------------------------------------------------------------------------- krok 1: próbka
-def sample(conn, pattern, category=None, limit=40, max_photos=4, seed=7, progress=None, used_only=False):
-    """Żywe oferty ze szczegółami, których tytuł pasuje do `pattern` (LIKE, małe litery) → lista słowników."""
-    from .photos import urls_for
+ALIVE = ("active", "reserved")
+
+
+def sample(conn, pattern, category=None, limit=40, max_photos=4, seed=7, progress=None, used_only=False,
+           states=ALIVE, photos_root=None):
+    """Oferty ze szczegółami, których tytuł pasuje do `pattern` (LIKE, małe litery) → lista słowników.
+
+    states: domyślnie żywe (zdjęcia jeszcze na CDN); z `photos_root` (lokalne archiwum zdjęć, 2026-11-16) także
+    sprzedane / usunięte - tylko oferty, które mają zdjęcia na dysku (do median pudełko / bez pudełka liczą się
+    właśnie zniknięte)."""
+    from .photos import local_photos, urls_for
 
     say = progress or (lambda _t: None)
     like = f"%{pattern.lower()}%"
     sql = """SELECT l.id, l.title, l.photo_url, l.details_at, l.category, l.status_label, l.price_now,
-                    d.description, d.attributes_json
+                    d.description, d.attributes_json, l.state
              FROM listings l JOIN details d ON d.listing_id = l.id
-             WHERE l.state IN ('active', 'reserved') AND lower(l.title) LIKE ?"""
+             WHERE lower(l.title) LIKE ?"""
     params = [like]
+    if states:
+        sql += f" AND l.state IN ({','.join('?' * len(states))})"
+        params.extend(states)
     if category:
         cats = [c.strip() for c in category.split(",") if c.strip()]
         sql += f" AND l.category IN ({','.join('?' * len(cats))})"
@@ -99,10 +110,15 @@ def sample(conn, pattern, category=None, limit=40, max_photos=4, seed=7, progres
     rows = conn.execute(sql, params).fetchall()
     say(f"  ofert pasujących do „{pattern}”: {len(rows)}")
     random.Random(seed).shuffle(rows)
-    out = []
+    out, no_local = [], 0
     for r in rows:
+        if photos_root is not None and not local_photos(photos_root, r[0]):
+            no_local += 1                                     # najpierw dysk - bez rozpakowywania raw
+            continue
         source, urls = urls_for(conn, {"id": r[0], "photo_url": r[2], "details_at": r[3]})
-        if not urls:
+        if photos_root is not None:
+            source = "local"
+        elif not urls:
             continue
         try:
             attrs = json.loads(r[8]) if r[8] else {}
@@ -111,9 +127,13 @@ def sample(conn, pattern, category=None, limit=40, max_photos=4, seed=7, progres
         out.append({"id": r[0], "url": f"https://www.vinted.pl/items/{r[0]}", "title": r[1], "category": r[4],
                     "condition": r[5], "price": r[6], "description": redact((r[7] or "")[:800]),
                     "attributes": {k: v for k, v in attrs.items() if k not in ("upload_date",)},
-                    "photos": urls[:max_photos], "photo_source": source})
+                    "photos": urls[:max_photos], "photo_source": source, "state": r[9]})
+        if len(out) % 1000 == 0:
+            say(f"  ... {len(out)} ofert w próbce")
         if len(out) >= limit:
             break
+    if photos_root is not None:
+        say(f"  pominięte bez zdjęć na dysku: {no_local}")
     return out
 
 
@@ -146,6 +166,19 @@ def _shrink(data, size=1024):
         return buf.getvalue()
     except Exception:
         return data
+
+
+def read_local(photos_root, listing_id, max_photos):
+    """Zdjęcia z lokalnego archiwum (photos.py: <root>/<id // 1e6>/<id>/01.jpg ...) → base64; [] gdy brak."""
+    from .photos import local_photos
+
+    images = []
+    for path in local_photos(photos_root, listing_id)[:max_photos]:
+        try:
+            images.append(base64.b64encode(_shrink(path.read_bytes())).decode())
+        except OSError:
+            continue
+    return images
 
 
 def fetch_photos(client, urls):
@@ -231,7 +264,7 @@ def load_results(path):
 
 
 def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=None, say=print, api="ollama",
-             progress_path=None):
+             progress_path=None, photos_root=None):
     """progress_path: wynik każdej oferty dopisywany od razu (długi przebieg na kilka dni); przy ponownym
     uruchomieniu oferty już ocenione bez błędu są pomijane (wznawianie po restarcie / zaniku prądu)."""
     import httpx
@@ -251,12 +284,15 @@ def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=Non
         for i, row in enumerate(rows, 1):
             if row["id"] in done:
                 continue
-            images = fetch_photos(client, row["photos"][:max_photos])
+            images = read_local(photos_root, row["id"], max_photos) if photos_root is not None else []
+            if not images:                                    # brak na dysku → CDN (żywa oferta)
+                images = fetch_photos(client, row["photos"][:max_photos])
             if not images:
                 say(f"  [{i}/{len(rows)}] {row['id']}: brak zdjęć (oferta usunięta?) - pomijam")
                 continue
             answer, seconds, error = ask(client, url, model, row["title"], images, api)
             item = {"id": row["id"], "url": row["url"], "title": row["title"], "photos": len(images),
+                    "state": row.get("state"), "price": row.get("price"), "condition": row.get("condition"),
                     "seconds": round(seconds, 1), "error": error, "answer": answer, **compare(row, answer)}
             results.append(item)
             if sink:

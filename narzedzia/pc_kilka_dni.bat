@@ -12,11 +12,17 @@ set BASAL_MODEL=C:\basal-models\4.5b\basal-2.0-4.5B-Q5_K_M.gguf
 set BASAL_ENV=C:\basal-env\Scripts
 set CODE=C:\analyse_data
 set BASAL_DIR=D:\basal\v2
-set VISION_SAMPLE=F:\telefony_uzywane.jsonl
-set ANALYZER_DB=%CODE%\data\analyzer.db
+set PHOTOS=D:\photos
+set ANALYZER_DB=F:\analyzer.db
+rem próbka robiona tu, z kopii bazy i zdjęć na dysku (także sprzedane / usunięte) -> F:\vision\
+set VISION_SAMPLE=F:\vision\telefony_uzywane.jsonl
 if not exist "%CODE%\data" mkdir "%CODE%\data"
 cd /d %CODE%
 echo [%date% %time%] start > "%CODE%\data\pc_kilka_dni.log"
+
+rem ---------------------------------------------------------------- 0. próbka do wizji (raz; potem pomijana)
+if not exist "%VISION_SAMPLE%" "%BASAL_ENV%\python.exe" -m analyzer vision-sample --szukaj "" --kategoria phone,tablet --uzywane --limit 30000 --zdjecia 3 --zdjecia-dir "%PHOTOS%" --nazwa telefony_uzywane
+echo [%date% %time%] próbka gotowa >> "%CODE%\data\pc_kilka_dni.log"
 
 rem ---------------------------------------------------------------- 1. basal
 echo === BASAL: uruchamiam llama-server i basal-serve ===
@@ -37,7 +43,7 @@ rem ---------------------------------------------------------------- 2. model wi
 echo === WIZJA: uruchamiam llama-server z Qwen2.5-VL-3B ===
 start "llama-wizja" /min "%LLAMA%" -hf ggml-org/Qwen2.5-VL-3B-Instruct-GGUF --host 127.0.0.1 --port 8081 -ngl 99 -c 8192
 timeout /t 180 /nobreak
-"%BASAL_ENV%\python.exe" -m analyzer vision-test --plik "%VISION_SAMPLE%" --model qwen --api openai --zdjecia 3
+"%BASAL_ENV%\python.exe" -m analyzer vision-test --plik "%VISION_SAMPLE%" --model qwen --api openai --zdjecia 3 --zdjecia-dir "%PHOTOS%"
 echo [%date% %time%] wizja gotowa >> "%CODE%\data\pc_kilka_dni.log"
 taskkill /im llama-server.exe /f
 echo === KONIEC - wyniki: %BASAL_DIR%\raport_45b_*.txt i obok %VISION_SAMPLE% plik *_qwen.txt ===

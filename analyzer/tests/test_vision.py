@@ -152,3 +152,32 @@ def test_sample_used_only_and_many_categories():
     conn.execute("UPDATE listings SET category='tablet' WHERE id=1004")
     rows = vision.sample(conn, "", "phone,tablet", limit=10, used_only=True)
     assert {r["id"] for r in rows} == {1002, 1003, 1004}
+
+
+def test_local_photos_archive_includes_sold(tmp_path):
+    """2026-11-16: zdjęcia z lokalnego archiwum (D:\\photos) - także sprzedane; bez CDN."""
+    from analyzer.photos import listing_dir
+    conn = _conn()
+    conn.execute("UPDATE listings SET state='sold' WHERE id=1001")
+    for lid in (1001, 1003):                                          # 1002 bez zdjęć na dysku
+        folder = listing_dir(tmp_path, lid)
+        folder.mkdir(parents=True)
+        for n in (1, 2, 3):
+            (folder / f"0{n}.jpg").write_bytes(JPEG)
+    assert {r["id"] for r in vision.sample(conn, "a17", "phone", limit=10)} == {1002, 1003}   # domyślnie żywe
+    rows = vision.sample(conn, "a17", "phone", limit=10, states=None, photos_root=tmp_path)
+    assert {r["id"] for r in rows} == {1001, 1003}
+    assert {r["state"] for r in rows} == {"sold", "active"} and rows[0]["photo_source"] == "local"
+    calls = []
+
+    def handler(request):
+        assert not request.url.host.startswith("images"), "nie powinno iść do CDN"
+        calls.append(json.loads(request.content))
+        answer = {"box_visible": "yes", "visible_text": "", "model": None, "storage_gb": None, "ram_gb": None,
+                  "network_5g": "unknown", "screen_damage": "no"}
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(answer)}}]})
+    results, summary = vision.run_test(rows, "qwen", "http://x", max_photos=2, say=lambda _t: None, api="openai",
+                                       client=httpx.Client(transport=httpx.MockTransport(handler)),
+                                       photos_root=tmp_path)
+    assert summary["answered"] == 2 and all(r["photos"] == 2 for r in results)
+    assert {r["state"] for r in results} == {"sold", "active"}
