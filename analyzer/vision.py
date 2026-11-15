@@ -78,7 +78,7 @@ def text_storage(text):
 
 
 # ---------------------------------------------------------------------------------------------- krok 1: próbka
-def sample(conn, pattern, category=None, limit=40, max_photos=4, seed=7, progress=None):
+def sample(conn, pattern, category=None, limit=40, max_photos=4, seed=7, progress=None, used_only=False):
     """Żywe oferty ze szczegółami, których tytuł pasuje do `pattern` (LIKE, małe litery) → lista słowników."""
     from .photos import urls_for
 
@@ -90,8 +90,12 @@ def sample(conn, pattern, category=None, limit=40, max_photos=4, seed=7, progres
              WHERE l.state IN ('active', 'reserved') AND lower(l.title) LIKE ?"""
     params = [like]
     if category:
-        sql += " AND l.category = ?"
-        params.append(category)
+        cats = [c.strip() for c in category.split(",") if c.strip()]
+        sql += f" AND l.category IN ({','.join('?' * len(cats))})"
+        params.extend(cats)
+    if used_only:
+        # nowe z metką prawie zawsze mają pudełko - o pudełku / wariancie rozstrzyga głównie rynek używanych
+        sql += " AND COALESCE(l.status_label, '') NOT LIKE 'Nowy%' AND COALESCE(l.status_label, '') NOT LIKE 'New%'"
     rows = conn.execute(sql, params).fetchall()
     say(f"  ofert pasujących do „{pattern}”: {len(rows)}")
     random.Random(seed).shuffle(rows)
@@ -206,14 +210,47 @@ def compare(row, answer):
     return out
 
 
-def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=None, say=print, api="ollama"):
+def results_path(sample_path, model):
+    tag = re.sub(r"[^\w.-]+", "_", model)
+    sample_path = Path(sample_path)
+    return sample_path.with_name(f"{sample_path.stem}_{tag}.jsonl")   # with_suffix psuł „qwen2.5vl” (kropka)
+
+
+def load_results(path):
+    path = Path(path)
+    if not path.exists():
+        return []
+    out = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                continue                          # urwana ostatnia linia (zanik prądu) - ta oferta pójdzie jeszcze raz
+    return out
+
+
+def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=None, say=print, api="ollama",
+             progress_path=None):
+    """progress_path: wynik każdej oferty dopisywany od razu (długi przebieg na kilka dni); przy ponownym
+    uruchomieniu oferty już ocenione bez błędu są pomijane (wznawianie po restarcie / zaniku prądu)."""
     import httpx
 
     own = client is None
     client = client or httpx.Client(trust_env=False, follow_redirects=True)
-    results = []
+    results = [r for r in load_results(progress_path) if not r.get("error")] if progress_path else []
+    done = {r["id"] for r in results}
+    if done:
+        say(f"  wznawiam: {len(done)} ofert już ocenionych - pomijam je")
+    sink = open(progress_path, "w", encoding="utf-8") if progress_path else None
+    if sink:
+        for r in results:
+            sink.write(json.dumps(r, ensure_ascii=False) + "\n")
+        sink.flush()
     try:
         for i, row in enumerate(rows, 1):
+            if row["id"] in done:
+                continue
             images = fetch_photos(client, row["photos"][:max_photos])
             if not images:
                 say(f"  [{i}/{len(rows)}] {row['id']}: brak zdjęć (oferta usunięta?) - pomijam")
@@ -222,6 +259,9 @@ def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=Non
             item = {"id": row["id"], "url": row["url"], "title": row["title"], "photos": len(images),
                     "seconds": round(seconds, 1), "error": error, "answer": answer, **compare(row, answer)}
             results.append(item)
+            if sink:
+                sink.write(json.dumps(item, ensure_ascii=False) + "\n")
+                sink.flush()
             if error:
                 say(f"  [{i}/{len(rows)}] {row['id']}: BŁĄD {error}")
             else:
@@ -230,6 +270,8 @@ def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=Non
                     f"zdjęcia {item.get('vision_storage') or '?'} | 5G: tytuł {'tak' if item['title_5g'] else '?'}, "
                     f"zdjęcia {item.get('vision_5g')} | {item.get('visible_text', '')[:60]}")
     finally:
+        if sink:
+            sink.close()
         if own:
             client.close()
     return results, summarize(results)
@@ -284,9 +326,8 @@ def report_text(results, summary, model, sample_name):
 
 def save_results(results, summary, sample_path, model):
     sample_path = Path(sample_path)
-    tag = re.sub(r"[^\w.-]+", "_", model)
-    jsonl = sample_path.with_name(f"{sample_path.stem}_{tag}.jsonl")   # with_suffix psuł „qwen2.5vl” (kropka)
-    txt = sample_path.with_name(f"{sample_path.stem}_{tag}.txt")
+    jsonl = results_path(sample_path, model)
+    txt = jsonl.with_name(jsonl.name[:-len(".jsonl")] + ".txt")
     with open(jsonl, "w", encoding="utf-8") as f:
         for r in results:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")

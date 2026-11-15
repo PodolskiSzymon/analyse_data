@@ -116,3 +116,39 @@ def test_openai_api_llama_server():
     images = [c for c in body["messages"][0]["content"] if c["type"] == "image_url"]
     assert len(images) == 2 and images[0]["image_url"]["url"].startswith("data:image/jpeg;base64,")
     assert summary["answered"] == 1 and results[0]["vision_storage"] == 128
+
+
+def test_resume_after_interruption(tmp_path):
+    """Długi przebieg: wynik każdej oferty od razu w pliku; ponowne uruchomienie pomija ocenione bez błędu."""
+    rows = vision.sample(_conn(), "a17", "phone", limit=10, max_photos=1)
+    progress = vision.results_path(tmp_path / "a17.jsonl", "qwen")
+    answer = {"box_visible": "yes", "visible_text": "", "model": None, "storage_gb": None, "ram_gb": None,
+              "network_5g": "unknown", "screen_damage": "no"}
+    calls = []
+
+    def handler(request):
+        if request.url.host.startswith("images"):
+            return httpx.Response(200, content=JPEG)
+        calls.append(1)
+        if len(calls) == 2:
+            return httpx.Response(500, json={"error": "boom"})      # druga oferta - błąd
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(answer)}}]})
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    vision.run_test(rows, "qwen", "http://x", client=client, say=lambda _t: None, api="openai",
+                    progress_path=progress)
+    assert len(vision.load_results(progress)) == 3 and len(calls) == 3
+    with open(progress, "a", encoding="utf-8") as f:
+        f.write('{"id": 1, "urwane')                                   # zanik prądu w trakcie zapisu
+    calls.clear()
+    results, summary = vision.run_test(rows, "qwen", "http://x", client=client, say=lambda _t: None, api="openai",
+                                       progress_path=progress)
+    assert len(calls) == 1                                             # tylko oferta z błędem jeszcze raz
+    assert summary["answered"] == 3 and len(vision.load_results(progress)) == 3
+
+
+def test_sample_used_only_and_many_categories():
+    conn = _conn()
+    conn.execute("UPDATE listings SET status_label='Nowy z metką' WHERE id=1001")
+    conn.execute("UPDATE listings SET category='tablet' WHERE id=1004")
+    rows = vision.sample(conn, "", "phone,tablet", limit=10, used_only=True)
+    assert {r["id"] for r in rows} == {1002, 1003, 1004}

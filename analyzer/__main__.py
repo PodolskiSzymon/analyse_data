@@ -644,7 +644,9 @@ def main(argv=None):
     p_vs = sub.add_parser("vision-sample", help="test modelu wizyjnego, krok 1 (serwer): oferty z tytułem pasującym do "
                           "--szukaj + adresy zdjęć -> data/vision/*.jsonl (bez sieci)")
     p_vs.add_argument("--szukaj", required=True, help="fragment tytułu, np. a17, \"iphone 13\", remarkable")
-    p_vs.add_argument("--kategoria", default=None, help="phone, tablet, console, laptop ...")
+    p_vs.add_argument("--kategoria", default=None, help="phone, tablet, console, laptop ... (kilka po przecinku)")
+    p_vs.add_argument("--uzywane", action="store_true", help="tylko używane (bez „Nowy z metką / bez metki”)")
+    p_vs.add_argument("--nazwa", default=None, help="nazwa pliku próbki (domyślnie z --szukaj)")
     p_vs.add_argument("--limit", type=int, default=40)
     p_vs.add_argument("--zdjecia", type=int, default=4, help="ile zdjęć na ofertę zapisać")
     p_vt = sub.add_parser("vision-test", help="test modelu wizyjnego, krok 2 (PC z kartą): zdjęcia z CDN -> Ollama -> "
@@ -974,8 +976,8 @@ def main(argv=None):
         print(f"Otwieram bazę {cfg.db_path} (tylko do odczytu) ...", flush=True)
         conn = analysis.open_ro(cfg.db_path)
         rows = vision.sample(conn, args.szukaj, args.kategoria, args.limit, args.zdjecia,
-                             progress=lambda t: print(t, flush=True))
-        name = re.sub(r"[^\w-]+", "_", args.szukaj.strip().lower()) or "probka"
+                             progress=lambda t: print(t, flush=True), used_only=args.uzywane)
+        name = args.nazwa or re.sub(r"[^\w-]+", "_", args.szukaj.strip().lower()) or "probka"
         path = vision.save_sample(rows, name, Path(cfg.db_path).parent / "vision")
         print(f"Zapisano {len(rows)} ofert -> {path}")
         print(f"Krok 2 na PC z kartą (Ollama): python -m analyzer vision-test --plik \"{path.name}\" "
@@ -986,7 +988,8 @@ def main(argv=None):
         url = args.url or ("http://127.0.0.1:8081" if args.api == "openai" else "http://127.0.0.1:11434")
         print(f"Test {args.model} na {len(rows)} ofertach ({url}, {args.api}) ...", flush=True)
         results, summary = vision.run_test(rows, args.model, url, args.zdjecia,
-                                           say=lambda t: print(t, flush=True), api=args.api)
+                                           say=lambda t: print(t, flush=True), api=args.api,
+                                           progress_path=vision.results_path(args.plik, args.model))
         path, text = vision.save_results(results, summary, args.plik, args.model)
         print("\n" + "\n".join(text.split("\n")[:11]))
         print(f"\nRaport: {path}")
