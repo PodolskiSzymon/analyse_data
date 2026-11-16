@@ -11,7 +11,8 @@ set LLAMA=C:\llama-cuda\llama-server.exe
 set BASAL_MODEL=C:\basal-models\4.5b\basal-2.0-4.5B-Q5_K_M.gguf
 set BASAL_ENV=C:\basal-env\Scripts
 set CODE=C:\analyse_data
-set BASAL_DIR=D:\basal\v2
+rem próbki basala robione tu z kopii bazy (raz), wyniki obok
+set BASAL_DIR=F:\basal_v2
 set PHOTOS=D:\photos
 set ANALYZER_DB=F:\analyzer.db
 rem próbka robiona tu, z kopii bazy i zdjęć na dysku (także sprzedane / usunięte) -> F:\vision\
@@ -23,6 +24,9 @@ echo [%date% %time%] start > "%CODE%\data\pc_kilka_dni.log"
 rem ---------------------------------------------------------------- 0. próbka do wizji (raz; potem pomijana)
 if not exist "%VISION_SAMPLE%" "%BASAL_ENV%\python.exe" -m analyzer vision-sample --szukaj "" --kategoria phone,tablet --uzywane --limit 30000 --zdjecia 3 --zdjecia-dir "%PHOTOS%" --nazwa telefony_uzywane
 echo [%date% %time%] próbka gotowa >> "%CODE%\data\pc_kilka_dni.log"
+
+rem ---------------------------------------------------------------- 0b. próbki basala (raz; potem pomijane)
+if not exist "%BASAL_DIR%\*.jsonl" "%BASAL_ENV%\python.exe" -m analyzer basal-sample --wszystkie --katalog "%BASAL_DIR%"
 
 rem ---------------------------------------------------------------- 1. basal
 echo === BASAL: uruchamiam llama-server i basal-serve ===
