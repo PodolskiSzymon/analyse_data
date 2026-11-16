@@ -113,22 +113,27 @@ def main():
         mid = (p25 + med) / 2 if active else None
         gone_med = pct(gone, .5) if len(gone) >= 10 else None
         current = max([x for x in (gone_med, mid) if x] or [0]) or None
+        sold = sum(1 for r in rows if r[5] == "sold")
         out.append((g, len(new) / days * 30, len(fast3) / len(new) if new else 0, len(fast7) / len(new) if new else 0,
                     len(fast7) / days * 7, len(stale) / max(len(active), 1),
                     pct([(r[9] or 0) / max(life(r), 1) for r in new], .5), current,
-                    pct([r[8] for r in fast3], .5) if len(fast3) >= 3 else None, len(fast3)))
+                    pct([r[8] for r in fast3], .5) if len(fast3) >= 3 else None, len(fast3), sold))
     out.sort(key=lambda x: -x[3])
     print(f"\n{'model':24} {'nowe/m':>6} {'≤3d':>4} {'≤7d':>4} {'szyb/t':>6} {'stare':>5} {'fav/d':>5} "
-          f"{'szacunek':>8} {'szybkie':>7} {'różn.':>5}  klasa")
-    for g, month, s3, s7, flow, stale, favd, current, fastp, nf in out:
+          f"{'sprzed':>6} {'szacunek':>8} {'szybkie':>7} {'różn.':>5}  klasa")
+    for g, month, s3, s7, flow, stale, favd, current, fastp, nf, sold in out:
         diff = f"{(fastp / current - 1) * 100:+4.0f}%" if fastp and current else "    -"
-        klass = ("gorący" if s7 >= .5 and flow >= 3 else "martwy" if s7 < .15 or flow < .7
-                 else "wolny" if s7 < .25 or flow < 2 else "normalny")
+        klass = ("gorący" if s7 >= .5 and flow >= 3 else "martwy" if s7 < .10 or flow < .7
+                 else "wolny" if s7 < .15 or flow < 2 else "normalny")
+        if klass == "martwy" and sold >= 3:
+            klass = "wolny"                 # potwierdzone sprzedaże = ktoś kupuje (jak sniper/market.py: demand)
         print(f"{g[:24]:24} {month:6.0f} {s3:4.0%} {s7:4.0%} {flow:6.1f} {stale:5.0%} {favd or 0:5.2f} "
-              f"{current or 0:8.0f} {fastp or 0:7.0f} {diff}  {klass}" + (f" (szybkich tylko {nf})" if nf < 5 else ""))
+              f"{sold:6} {current or 0:8.0f} {fastp or 0:7.0f} {diff}  {klass}"
+              + (f" (szybkich tylko {nf})" if nf < 5 else ""))
     print("\n≤7d = udział nowych ofert zniknionych w tydzień (bez ponownych wystawień); szyb/t = takich zniknięć na "
-          "tydzień;\nstare = aktywne wiszące od początku okna; szacunek = jak dziś w Sniperze; szybkie = mediana ceny "
-          "zniknionych ≤ 3 dni.", file=sys.stderr)
+          "tydzień;\nstare = aktywne wiszące od początku okna; sprzed = potwierdzone sprzedaże (resolver); szacunek = "
+          "dawny szacunek Snipera;\nszybkie = mediana ceny zniknionych ≤ 3 dni. Klasy jak w Sniperze od 16.11 "
+          "(sniper/market.py), tu bez wycięcia oszustw.", file=sys.stderr)
 
 
 if __name__ == "__main__":

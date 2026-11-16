@@ -14,13 +14,32 @@ Sniper liczy mediany od najdokładniejszej specyfikacji do samej karty / proceso
 Stan (2026-11-03, Samsung A17 za 377 zł jako „okazja”: 80% ofert A17 to nowe z metką, mediana ~650 zł, a używane
 schodzą po ~490 zł): kolumna `cond` = "new" („Nowy z metką / bez metki”) albo "used" - Sniper porównuje używane
 z używanymi, nowe z nowymi (meta `cond` = 1).
+
+Popyt (2026-11-16, POPYT.md - reMarkable 2 kupiony za 1200 sprzedany za 1400, iPad A16 w 24 h): mediana aktywnych
+jest zawyżona przez oferty, które wiszą tygodniami, a „rotacja” (zniknięte / wszystkie) miesza sprzedaże
+z usunięciami. Przy każdej ofercie flagi (meta `demand` = 1):
+  * `fast`  - nowa oferta (widziana pierwszy raz ≥ FRESH_LAG_DAYS po starcie zbierania kategorii), która zniknęła
+              w ≤ FAST_DAYS dni (sprzedana / usunięta / ukryta; ponowne wystawienia są już wycięte z pliku),
+  * `sold`  - potwierdzona sprzedaż (resolver: /services 200 + sidebar 404 albo item_closing_action=sold),
+  * `fresh` - nowa oferta obserwowana co najmniej SELL_DAYS dni (mianownik udziału „schodzi w tydzień”),
+  * `gone7` - świeża oferta, która zniknęła w ≤ SELL_DAYS dni,
+  * `stale` - aktywna od ≥ STALE_DAYS dni (wisi - nikt jej nie chce za tę cenę).
+Meta `fresh_days` (JSON {kategoria: dni okna świeżych ofert}) - Sniper liczy z niej „szybkich zniknięć na tydzień”.
+Ukryte (`hidden`) liczą się od teraz jako zniknięte (oferty nie da się kupić).
 """
+import json
 import re
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
-STATES = ("active", "reserved", "sold", "blocked", "deleted", "closed")
-GONE = ("sold", "blocked", "deleted", "closed")
+STATES = ("active", "reserved", "sold", "blocked", "deleted", "closed", "hidden")
+GONE = ("sold", "blocked", "deleted", "closed", "hidden")
+ACTIVE = ("active", "reserved")
+FRESH_LAG_DAYS = 4        # oferty z pierwszych dni zbierania kategorii to stare ogłoszenia - nie „nowe”
+FAST_DAYS = 3             # zniknęła w ≤ 3 dni = zeszła (cena, po której schodzi)
+SELL_DAYS = 7             # cel użytkownika: sprzedaż w tydzień
+STALE_DAYS = 21           # aktywna od ≥ 3 tygodni = wisi
 _ALIASES = ((re.compile(r"\bps\s?([345])\b"), r"playstation \1"), (re.compile(r"\bgameboy\b"), "game boy"))
 
 
@@ -75,6 +94,48 @@ def condition_group(status_label):
     return "new" if "nowy" in status_label.strip().lower() else "used"
 
 
+def _ts(text):
+    """ISO z bazy → sekundy (UTC); None, gdy brak / zły format."""
+    if not text:
+        return None
+    try:
+        moment = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.timestamp()
+
+
+def demand_window(conn):
+    """Okno świeżych ofert per kategoria: od (start zbierania kategorii + FRESH_LAG_DAYS) do (ostatnie przejście -
+    SELL_DAYS) - tylko takie oferty mają znany czas wystawienia i pełny tydzień obserwacji."""
+    snap = _ts(conn.execute("SELECT MAX(last_seen) FROM listings").fetchone()[0])
+    starts, days = {}, {}
+    for category, first in conn.execute("SELECT category, MIN(first_seen) FROM listings "
+                                        "WHERE category IS NOT NULL GROUP BY category"):
+        start = _ts(first)
+        if start is None or snap is None:
+            continue
+        starts[category] = start + FRESH_LAG_DAYS * 86400
+        days[category] = max(0.0, (snap - SELL_DAYS * 86400 - starts[category]) / 86400)
+    return {"snap": snap, "starts": starts, "days": days}
+
+
+def demand_flags(window, category, state, first_seen, last_seen):
+    """(fast, sold, fresh, gone7, stale) jako 0/1 - opis w nagłówku modułu."""
+    first, last, snap = _ts(first_seen), _ts(last_seen), window["snap"]
+    start = window["starts"].get(category)
+    gone = state in GONE
+    life = (last - first) / 86400 if first is not None and last is not None else None
+    new = start is not None and first is not None and first >= start
+    fresh = new and snap is not None and first <= snap - SELL_DAYS * 86400
+    fast = new and gone and life is not None and life <= FAST_DAYS
+    gone7 = fresh and gone and life is not None and life <= SELL_DAYS
+    stale = state in ACTIVE and first is not None and snap is not None and snap - first >= STALE_DAYS * 86400
+    return int(fast), int(state == "sold"), int(fresh), int(gone7), int(stale)
+
+
 def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=None):
     """→ liczba ofert zapisanych do `path` (plik budowany obok i podmieniany na końcu)."""
     say = progress or (lambda _t: None)
@@ -86,15 +147,19 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
     out = sqlite3.connect(str(tmp))
     out.executescript("""
         CREATE VIRTUAL TABLE offers USING fts5(words, category UNINDEXED, price UNINDEXED, gone UNINDEXED,
-                                               cond UNINDEXED, tokenize = 'unicode61 remove_diacritics 2');
+                                               cond UNINDEXED, fast UNINDEXED, sold UNINDEXED, fresh UNINDEXED,
+                                               gone7 UNINDEXED, stale UNINDEXED,
+                                               tokenize = 'unicode61 remove_diacritics 2');
         CREATE VIRTUAL TABLE vocab USING fts5vocab(offers, 'row');
         CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
         CREATE TABLE laptop_specs (gpu TEXT, cpu_line TEXT, cpu_gen TEXT, chip TEXT, line TEXT, ram INTEGER,
                                    ssd INTEGER, price REAL, gone INTEGER, cond TEXT);
     """)
+    window = demand_window(conn)
     sql = f"""SELECT l.id, l.category, l.title, l.state, l.price_now, l.sold_price,
                      COALESCE(f.for_parts, 0) OR COALESCE(f.locked, 0) OR COALESCE(f.cracked, 0) AS damaged,
-                     f.model, f.cpu, f.cpu_line, f.gpu, f.ram_gb, f.storage_gb, l.status_label
+                     f.model, f.cpu, f.cpu_line, f.gpu, f.ram_gb, f.storage_gb, l.status_label,
+                     l.first_seen, l.last_seen
               FROM listings l LEFT JOIN features f ON f.listing_id = l.id
               WHERE l.category IS NOT NULL AND l.state IN ({",".join("?" * len(STATES))})"""
     batch, specs, n, n_specs = [], [], 0, 0
@@ -108,14 +173,14 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
         if price is None or price <= 0 or not words:
             continue
         cond = condition_group(r[13])
-        batch.append((words, r[1], float(price), int(gone), cond))
+        batch.append((words, r[1], float(price), int(gone), cond, *demand_flags(window, r[1], r[3], r[14], r[15])))
         if r[1] == "laptop":
             spec = laptop_spec(*r[7:13])
             if spec:
                 specs.append((spec["gpu"], spec["cpu_line"], spec["cpu_gen"], spec["chip"], spec["line"], spec["ram"],
                               spec["ssd"], float(price), int(gone), cond))
         if len(batch) >= 20000:
-            out.executemany("INSERT INTO offers VALUES (?, ?, ?, ?, ?)", batch)
+            out.executemany("INSERT INTO offers VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", batch)
             n += len(batch)
             batch = []
             say(f"  porównywalne: {n} ofert...")
@@ -124,7 +189,7 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
             n_specs += len(specs)
             specs = []
     if batch:
-        out.executemany("INSERT INTO offers VALUES (?, ?, ?, ?, ?)", batch)
+        out.executemany("INSERT INTO offers VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", batch)
         n += len(batch)
     if specs:
         out.executemany("INSERT INTO laptop_specs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", specs)
@@ -136,10 +201,12 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
     out.execute("INSERT INTO meta VALUES ('rows', ?)", (str(n),))
     out.execute("INSERT INTO meta VALUES ('laptop_specs', ?)", (str(n_specs),))
     out.execute("INSERT INTO meta VALUES ('cond', '1')")
+    out.execute("INSERT INTO meta VALUES ('demand', '1')")
+    out.execute("INSERT INTO meta VALUES ('fresh_days', ?)",
+                (json.dumps({cat: round(days, 1) for cat, days in window["days"].items()}),))
     # 2026-11-15: z ilu dni są oferty - Sniper liczy z tego „ofert tego modelu na miesiąc” (płynność rynku).
     first = conn.execute("SELECT MIN(first_seen) FROM listings").fetchone()[0]
     if first:
-        from datetime import datetime, timezone
         try:
             start = datetime.fromisoformat(str(first).replace("Z", "+00:00"))
             if start.tzinfo is None:

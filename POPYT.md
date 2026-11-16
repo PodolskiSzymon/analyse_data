@@ -74,7 +74,39 @@ Narzędzie do powtórki na nowszej bazie: `python narzedzia\popyt.py --baza <kop
 | H17 | Dodatki (folio, rysiki) podnoszą cenę wystawienia, nie sprzedaży | reMarkable z kompletem wisi za 1 700-2 100, szybkie 1 017-1 307 | ✔ reguła E jest |
 | H18 | Wyniki alertów i własnych sprzedaży jako kalibracja | (F4 `alert-outcomes`, dziennik zakupów użytkownika) | do zrobienia |
 
-## Propozycja zmian (do akceptacji)
+## Wdrożone 16.11 (zgoda użytkownika: „możesz to wdrożyć, patrząc też na to, czy coś się w rzeczywistości sprzedało”)
+
+* **Analizator** (`analyzer/comparables.py`): w `comparables.db` przy każdej ofercie flagi `fast` (nowa, zniknęła
+  ≤ 3 dni), `sold` (potwierdzona sprzedaż), `fresh` (nowa z pełnym tygodniem obserwacji), `gone7` (świeża, zniknęła
+  ≤ 7 dni), `stale` (aktywna ≥ 21 dni); meta `demand` = 1 i `fresh_days` (okno per kategoria); `hidden` liczy się
+  jako zniknięcie. Oszustwa (`too_cheap`, `dup_title_price`, `offsite`), relisty i uszkodzone są wycięte jak dotąd -
+  ważne, bo surowe „sprzedane” zawierały np. „iPhone 16 Pro 512 GB” za 529 zł kilka razy dziennie.
+* **Sniper** (`sniper/comparables.py: apply_clearing`, `sniper/market.py`): szacunek = mediana ofert, które zeszły
+  (≥ 5: ich mediana; mniej: najniższa z dawnego szacunku, mediany zeszłych przy ≥ 3, mediany aktywnych × współczynnik
+  zejścia modelu albo p25; nigdy wyżej niż dawny szacunek / mediana aktywnych) - tylko telefony, tablety, konsole.
+  Klasa popytu `demand` z poziomu z największą liczbą świeżych ofert; potwierdzone sprzedaże (≥ 3) podnoszą
+  „martwy” do „wolny”. Skutki: martwy ≤ 50% szacunku (też bramka przed AI), wolny zysk × 1,5 i ocena -1, gorący
+  +0,5 i „wystaw ~X”; wycena AI najwyżej szacunek × 1,2 (gorący) / 1,1 (normalny, bez klasy) / 1,0 (wolny, martwy,
+  czytniki) - wcześniej zawsze × 1,2 (stąd reMarkable: 1375 × 1,2 = 1650 „okazja” przy zakupie 1200). Wariant:
+  bateria < 80% × 0,95 (telefony), gwarancja / faktura / paragon × 1,05, bez pudełka × 0,88. Linia „Popyt: …
+  → wystaw ~X zł” w ntfy i mailu, blok `<rynek>` dla AI. Ze starym plikiem (bez flag) - dawne reguły rotacji.
+* Ustawienia `SNIPER_DEMAND_*`, `SNIPER_LOW_BATTERY_*`, `SNIPER_WARRANTY_FACTOR` (`sniper/.env.example`).
+
+Sprawdzenie na kopii 07.11 (`comparables.db` zbudowany z kopii, prawdziwe dopasowanie Snipera):
+
+| oferta | szacunek dawny → nowy | klasa | max zakup (zysk ≥ 300 zł) |
+|---|---|---|---|
+| reMarkable 2 + folio | 1442 → 1283 | czytnik (limit 0,3 → 385 zł) | 885 zł, a limit czytnika 385 zł |
+| iPad A16 128 GB, gwarancja | 1700 → 1650 | gorący (88% w tydzień, 2 sprzedaże) | 1496 zł |
+| Galaxy S23 128 GB | 1013 → 938 | normalny (24%, 7,6 / tydz.) | 685 zł (dawniej ~870) |
+| Huawei MatePad 11 | 891 → 781 | martwy (9%, 0,5 / tydz.) | limit 390 zł |
+| iPhone 12 64 GB, bateria 76% | 573 → 531 | normalny | 209 zł (dawniej ~342) |
+| Steam Deck 512 GB | 1714 → 1549 | normalny (46%, 5,8 / tydz.) | 1205 zł |
+| PS5 z napędem | 2575 → 2400 | gorący (55%, 70 / tydz., 14 sprzedaży) | 2114 zł |
+| Galaxy Tab S6 Lite | 646 → 591 | wolny (18%, 1,4 / tydz.) | 245 zł |
+| Wacom Intuos Pro M | 555 → 444 | martwy | limit 133 zł |
+
+## Propozycja zmian (zaakceptowana 16.11 - patrz wyżej)
 
 1. **Analizator → `comparables.db`**: przy każdej ofercie `life_days`, `fresh` (nowa w oknie), `fast` (zniknęła ≤ 3 d,
    nie jest ponownym wystawieniem). Wymaga `auto --force` po wdrożeniu.

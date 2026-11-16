@@ -1575,3 +1575,45 @@ def test_basal_sample_line_breaks(tmp_path):
     assert basal_poc.family_from_path("probka.jsonl") is None
     out = basal_poc.save_results([], {"ofert": 0}, path, "45b")
     assert "_wyniki_45b_" in out.name
+
+
+def test_comparables_demand_flags(tmp_path):
+    """Popyt (2026-11-16, POPYT.md): flagi szybkiego zniknięcia, sprzedaży, świeżej oferty i wiszącej + okno."""
+    import json
+    import sqlite3
+
+    from analyzer import comparables, db
+    conn = db.connect(":memory:")
+    day = lambda d, h=12: f"2026-10-{d:02d}T{h:02d}:00:00+00:00"  # noqa: E731
+    rows = [  # (id, stan, pierwsze widzenie, ostatnie, cena)
+        (1, "active", day(1), day(30), 900),     # z pierwszego przejścia, wisi 29 dni → stale, nie świeża
+        (2, "deleted", day(10), day(11), 700),   # nowa, zniknęła po 1 dniu → fast, fresh, gone7
+        (3, "sold", day(10), day(15), 750),      # nowa, sprzedana po 5 dniach → sold, fresh, gone7 (nie fast)
+        (4, "hidden", day(12), day(13), 720),    # ukryta po 1 dniu → zniknięcie (fast)
+        (5, "active", day(12), day(30), 950),    # nowa, wisi 18 dni → fresh, nie stale (< 21 dni)
+        (6, "deleted", day(26), day(27), 680),   # nowa, ale za mało dni obserwacji → fast, nie fresh
+        (7, "unlisted", day(12), day(13), 600),  # nie wiadomo, co się stało - poza plikiem
+        (8, "deleted", day(1), day(2), 640),     # z pierwszego przejścia (stara oferta) → ani fast, ani fresh
+    ]
+    for lid, state, first, last, price in rows:
+        conn.execute("INSERT INTO listings (id, catalog_id, title, first_seen, last_seen, state, category, price_now, "
+                     "status_label) VALUES (?, 3661, 'Samsung Galaxy S23 128GB', ?, ?, ?, 'phone', ?, 'Bardzo dobry')",
+                     (lid, first, last, state, price))
+    conn.commit()
+    path = tmp_path / "comparables.db"
+    assert comparables.build(conn, path) == 7
+    out = sqlite3.connect(path)
+    flags = {round(p): (f, s, fr, g7, st) for p, f, s, fr, g7, st in out.execute(
+        "SELECT price, fast, sold, fresh, gone7, stale FROM offers")}
+    assert flags[900] == (0, 0, 0, 0, 1)
+    assert flags[700] == (1, 0, 1, 1, 0)
+    assert flags[750] == (0, 1, 1, 1, 0)
+    assert flags[720] == (1, 0, 1, 1, 0)
+    assert flags[950] == (0, 0, 1, 0, 0)
+    assert flags[680] == (1, 0, 0, 0, 0)
+    assert flags[640] == (0, 0, 0, 0, 0)
+    meta = dict(out.execute("SELECT key, value FROM meta"))
+    assert meta["demand"] == "1"
+    # okno: start 01.10 + 4 dni = 05.10 12:00 … ostatnie przejście 30.10 - 7 dni = 23.10 12:00 → 18 dni
+    assert json.loads(meta["fresh_days"]) == {"phone": 18.0}
+    assert out.execute("SELECT gone FROM offers WHERE price = 720").fetchone()[0] == 1   # ukryta = zniknięta

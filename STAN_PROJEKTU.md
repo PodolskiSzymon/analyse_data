@@ -268,16 +268,20 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
-00000. (16.11) **Popyt - analiza na kopii 07.11 → `POPYT.md`** (prośba: reMarkable 2 kupiony 1200 / sprzedany 1400,
-   iPad A16 w 24 h - mógł być ~300 zł drożej, S23 za 1000 dobrze). Wnioski: (1) szacunek Snipera zawyżony przez
-   wiszące oferty - potwierdzone sprzedane ≤ 7 d mają cenę 0,82 × mediana aktywnych, szybkie zniknięcia 0,88, a
-   szacunek ~0,90-0,95; reMarkable 2 1375 → ~1100-1180, Tab S6 Lite -23%, iPhone 12 -10%, S23 -2%, iPad A16 0%;
-   (2) rotacja ≠ popyt (usunięcia ~30% nowych ofert bez względu na cenę); (3) popyt = udział nowych ofert
-   znikających ≤ 7 d + liczba takich zniknięć / tydz. (iPad A16 68% / 12, S23 28% / 12, reMarkable 31% / 1,9,
-   MatePad 11 8% / 0,4, graficzne 6% / 0,4) → klasy gorący / normalny / wolny / martwy; (4) bateria < 80%, 64 GB
-   wolniej; gwarancja / faktura szybciej i drożej. 18 hipotez z werdyktami w `POPYT.md`. Narzędzie
-   `narzedzia/popyt.py --baza <kopia>` (bez sieci). **Czekamy na decyzję** o wdrożeniu propozycji 1-5 z `POPYT.md`
-   (wycena ceną szybkich zniknięć, klasy popytu zamiast rotacji, wariant w wycenie, kalibracja).
+00000. (16.11) **Popyt - wdrożone** (analiza i 18 hipotez: `POPYT.md`; prośba: reMarkable 2 kupiony 1200 /
+   sprzedany 1400, iPad A16 w 24 h - mógł być ~300 zł drożej, S23 za 1000 dobrze). Przyczyna: szacunek z median
+   aktywnych (wiszą tygodniami: potwierdzone sprzedaże ≤ 7 d mają 0,82 × mediana aktywnych) i AI przepuszczane do
+   szacunek × 1,2 (reMarkable 1375 × 1,2 = 1650 → „okazja” za 1200); rotacja mieszała sprzedaże z usunięciami.
+   **Analizator**: `comparables.db` z flagami `fast/sold/fresh/gone7/stale` + meta `demand`, `fresh_days`; `hidden` =
+   zniknięcie. **Sniper**: szacunek = cena ofert, które zeszły (`comparables.apply_clearing`, tylko telefony / tablety
+   / konsole), klasa popytu `market.demand` (gorący / normalny / wolny / martwy, `SNIPER_DEMAND_*`; ≥ 3 potwierdzone
+   sprzedaże podnoszą „martwy” do „wolny”): martwy ≤ 50% szacunku (bramka), wolny zysk × 1,5 i -1, gorący +0,5 i
+   „wystaw ~X”; wycena AI ≤ szacunek × 1,2 / 1,1 / 1,0 wg klasy; wariant: bateria < 80% × 0,95, gwarancja / faktura ×
+   1,05; linia „Popyt” w ntfy / mailu. Ze starym plikiem - dawne reguły rotacji. Kopia 07.11: reMarkable 2 + folio max
+   zakup 885 (limit czytnika 385), iPad A16 gorący (max 1496), S23 normalny (685, dawniej ~870), MatePad 11 martwy
+   (limit 390), iPhone 12 64 GB z baterią 76% 209 (dawniej 342). Narzędzie `narzedzia/popyt.py --baza <kopia>`.
+   **Czekamy**: na serwerze `git pull` w obu repo → `python -m analyzer auto --force` (nowy `comparables.db`) → restart
+   Snipera; w logu / alertach linia „Popyt: …”. Po 2-4 tyg. ciągłego `watch` przeliczyć progi (`popyt.py`).
 
 0000. (15.11) **Reguły rynku w Sniperze + test wizyjny.** Zakupy użytkownika: iPad A16 z pudełkiem i rysikiem
    sprzedany w 24 h, S23 szybko (bez pudełka), iPhone 12 tylko +80 zł, MatePad (kupiony 530, wystawiony 1000)
