@@ -272,8 +272,13 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
    kolejnych ofert (Honor 600 lite, iPhone 14 Pro…) - Vinted chyba zmienił API wysyłki. Do tego czasu brak wysyłki =
    ocena najwyżej 7, czyli ZERO alertów. Zmiana w Sniperze: koszt = cena + `SNIPER_SHIPPING_FALLBACK_PLN` (35 zł),
    alert dalej idzie z ostrzeżeniem „Wysyłka nieznana… sprawdź w ofercie”, limit `SNIPER_NO_SHIPPING_MAX_SCORE`
-   (10 = bez limitu). Log błędu HTTP czytelny (domena, przekierowanie, tytuł strony). **Czekamy**: cURL z F12 strony
-   oferty (zapytanie, które podaje koszt wysyłki, + odpowiedź, bez ciasteczek) → nowy endpoint wysyłki.
+   (10 = bez limitu). Log błędu HTTP czytelny (domena, przekierowanie, tytuł strony). **Czekamy na nowe API
+   wysyłki**: cURL z F12 strony oferty (zapytanie, które podaje koszt wysyłki, + odpowiedź, bez ciasteczek) → nowy
+   endpoint w `sniper/config.py: SHIPPING_URL` i `extractor.extract_shipping`. Analizator NIE używa shipping_details
+   (aktualność oferty: katalog + `/services` + sidebar); gdyby `/services` też zaczęło dawać stronę HTML 404, resolver
+   nie oznaczy ofert jako usuniętych (404 bez kodu 104 = „nie wiadomo”, zostaje gone_pending), a `health` wyśle ntfy
+   (`szczegoly_bledy`). Pilot ma od 16.11 polecenie `aktualizuj` (git pull obu repo + restart) - działa po jednym
+   ręcznym `git pull` przy serwerze.
 
 00000. (16.11) **Popyt - wdrożone** (analiza i 18 hipotez: `POPYT.md`; prośba: reMarkable 2 kupiony 1200 /
    sprzedany 1400, iPad A16 w 24 h - mógł być ~300 zł drożej, S23 za 1000 dobrze). Przyczyna: szacunek z median
