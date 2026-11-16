@@ -989,8 +989,9 @@ def main(argv=None):
         name = args.nazwa or re.sub(r"[^\w-]+", "_", args.szukaj.strip().lower()) or "probka"
         path = vision.save_sample(rows, name, Path(cfg.db_path).parent / "vision")
         print(f"Zapisano {len(rows)} ofert -> {path}")
-        print(f"Krok 2 na PC z kartą (Ollama): python -m analyzer vision-test --plik \"{path.name}\" "
-              f"--model qwen2.5vl:3b")
+        print(f"Krok 2 (PC z kartą, llama-server :8081): python -m analyzer vision-test --plik \"{path}\" "
+              f"--model qwen --api openai --zdjecia 3" + (f" --zdjecia-dir \"{args.zdjecia_dir}\""
+                                                         if args.zdjecia_dir else ""))
     elif args.command == "vision-test":
         from . import vision
         rows = vision.load_sample(args.plik)[:args.limit] if args.limit else vision.load_sample(args.plik)
