@@ -268,6 +268,17 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
+00000. (16.11) **Popyt - analiza na kopii 07.11 → `POPYT.md`** (prośba: reMarkable 2 kupiony 1200 / sprzedany 1400,
+   iPad A16 w 24 h - mógł być ~300 zł drożej, S23 za 1000 dobrze). Wnioski: (1) szacunek Snipera zawyżony przez
+   wiszące oferty - potwierdzone sprzedane ≤ 7 d mają cenę 0,82 × mediana aktywnych, szybkie zniknięcia 0,88, a
+   szacunek ~0,90-0,95; reMarkable 2 1375 → ~1100-1180, Tab S6 Lite -23%, iPhone 12 -10%, S23 -2%, iPad A16 0%;
+   (2) rotacja ≠ popyt (usunięcia ~30% nowych ofert bez względu na cenę); (3) popyt = udział nowych ofert
+   znikających ≤ 7 d + liczba takich zniknięć / tydz. (iPad A16 68% / 12, S23 28% / 12, reMarkable 31% / 1,9,
+   MatePad 11 8% / 0,4, graficzne 6% / 0,4) → klasy gorący / normalny / wolny / martwy; (4) bateria < 80%, 64 GB
+   wolniej; gwarancja / faktura szybciej i drożej. 18 hipotez z werdyktami w `POPYT.md`. Narzędzie
+   `narzedzia/popyt.py --baza <kopia>` (bez sieci). **Czekamy na decyzję** o wdrożeniu propozycji 1-5 z `POPYT.md`
+   (wycena ceną szybkich zniknięć, klasy popytu zamiast rotacji, wariant w wycenie, kalibracja).
+
 0000. (15.11) **Reguły rynku w Sniperze + test wizyjny.** Zakupy użytkownika: iPad A16 z pudełkiem i rysikiem
    sprzedany w 24 h, S23 szybko (bez pudełka), iPhone 12 tylko +80 zł, MatePad (kupiony 530, wystawiony 1000)
    wolno; reMarkable 2 + folio dostał 9-10/10, a nikt nie kupuje. Kopia bazy 07.11: rotacja (udział zniknięć) iPad
@@ -370,6 +381,7 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 | koszty AI (rodziny, dwa etapy, bramka, bez danych) | `sniper/guides.py`, `sniper/evaluator.py` (`gate`, `no_data_reason`, `_staged`), `sniper/tests/test_cost.py` |
 | laptopy po specyfikacji | `sniper/specs.py`, `sniper/comparables.py: spec_levels`, `sniper/evaluator.py: spec_mode / _refresh_spec_levels`, `sniper/experiment.py: LAPTOP_TASK`, `analyzer/comparables.py: laptop_spec`, `analyzer/extract.py` (v3) |
 | mediany / podobne oferty | `analyzer/comparables.py`, `sniper/comparables.py` (`levels`), `sniper/experiment.py` (`MEDIANS_TASK`, `finish_medians`, `cheap_guard`) |
+| popyt (co schodzi, cena szybkich zniknięć, klasy) | `POPYT.md`, `narzedzia/popyt.py`, `unreachable_sniper/sniper/market.py` |
 | porównanie wariantów oceny | `sniper/bench.py`, `sniper/bench_golden.json`, `sniper/basal.py` |
 | zniknięcia, sprzedaże | `analyzer/resolver.py`, `analyzer/sold_report.py` |
 | katalogi, wagi, próg ceny | `sniper/categories.py`, `sniper/scout.py`, `sniper/config.py` |
