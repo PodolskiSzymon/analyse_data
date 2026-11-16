@@ -264,7 +264,7 @@ def load_results(path):
 
 
 def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=None, say=print, api="ollama",
-             progress_path=None, photos_root=None):
+             progress_path=None, photos_root=None, max_errors_in_row=20):
     """progress_path: wynik każdej oferty dopisywany od razu (długi przebieg na kilka dni); przy ponownym
     uruchomieniu oferty już ocenione bez błędu są pomijane (wznawianie po restarcie / zaniku prądu)."""
     import httpx
@@ -280,6 +280,7 @@ def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=Non
         for r in results:
             sink.write(json.dumps(r, ensure_ascii=False) + "\n")
         sink.flush()
+    in_row = 0
     try:
         for i, row in enumerate(rows, 1):
             if row["id"] in done:
@@ -300,11 +301,16 @@ def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=Non
                 sink.flush()
             if error:
                 say(f"  [{i}/{len(rows)}] {row['id']}: BŁĄD {error}")
-            else:
-                say(f"  [{i}/{len(rows)}] {row['id']} {seconds:.0f} s | pudełko: tekst {item['text_box'] or '?'}, "
-                    f"zdjęcia {item.get('vision_box')} | pamięć: tytuł {item['title_storage'] or '?'}, "
-                    f"zdjęcia {item.get('vision_storage') or '?'} | 5G: tytuł {'tak' if item['title_5g'] else '?'}, "
-                    f"zdjęcia {item.get('vision_5g')} | {item.get('visible_text', '')[:60]}")
+                in_row += 1
+                if max_errors_in_row and in_row >= max_errors_in_row:
+                    say(f"  {in_row} błędów z rzędu - serwer modelu padł? Przerywam (.bat uruchomi go ponownie).")
+                    break
+                continue
+            in_row = 0
+            say(f"  [{i}/{len(rows)}] {row['id']} {seconds:.0f} s | pudełko: tekst {item['text_box'] or '?'}, "
+                f"zdjęcia {item.get('vision_box')} | pamięć: tytuł {item['title_storage'] or '?'}, "
+                f"zdjęcia {item.get('vision_storage') or '?'} | 5G: tytuł {'tak' if item['title_5g'] else '?'}, "
+                f"zdjęcia {item.get('vision_5g')} | {item.get('visible_text', '')[:60]}")
     finally:
         if sink:
             sink.close()

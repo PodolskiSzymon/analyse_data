@@ -181,3 +181,16 @@ def test_local_photos_archive_includes_sold(tmp_path):
                                        photos_root=tmp_path)
     assert summary["answered"] == 2 and all(r["photos"] == 2 for r in results)
     assert {r["state"] for r in results} == {"sold", "active"}
+
+
+def test_stops_after_errors_in_row(tmp_path):
+    """Serwer modelu padł → po N błędach z rzędu koniec (zamiast „przerobić” całą próbkę błędami); .bat restartuje."""
+    rows = vision.sample(_conn(), "", "phone", limit=10, max_photos=1)
+
+    def handler(request):
+        if request.url.host.startswith("images"):
+            return httpx.Response(200, content=JPEG)
+        return httpx.Response(503)
+    results, _ = vision.run_test(rows, "qwen", "http://x", client=httpx.Client(transport=httpx.MockTransport(handler)),
+                                 say=lambda _t: None, api="openai", max_errors_in_row=2)
+    assert len(results) == 2

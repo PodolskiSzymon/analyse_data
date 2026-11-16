@@ -44,10 +44,18 @@ taskkill /im llama-server.exe /f
 timeout /t 20 /nobreak
 
 rem ---------------------------------------------------------------- 2. model wizyjny
-echo === WIZJA: uruchamiam llama-server z Qwen2.5-VL-3B ===
+rem pętla: gdy llama-server padnie (20 błędów z rzędu), restart serwera i dalej od miejsca przerwania - do 50 razy
+set /a PROBA=0
+:wizja
+set /a PROBA+=1
+echo === WIZJA (podejscie %PROBA%): uruchamiam llama-server z Qwen2.5-VL-3B ===
+taskkill /im llama-server.exe /f >nul 2>&1
 start "llama-wizja" /min "%LLAMA%" -hf ggml-org/Qwen2.5-VL-3B-Instruct-GGUF --host 127.0.0.1 --port 8081 -ngl 99 -c 8192
-timeout /t 180 /nobreak
+timeout /t 120 /nobreak
 "%BASAL_ENV%\python.exe" -m analyzer vision-test --plik "%VISION_SAMPLE%" --model qwen --api openai --zdjecia 3 --zdjecia-dir "%PHOTOS%"
+echo [%date% %time%] wizja - koniec podejscia %PROBA% >> "%CODE%\data\pc_kilka_dni.log"
+"%BASAL_ENV%\python.exe" -c "import sys,json; from analyzer import vision; d={r['id'] for r in vision.load_results(r'%VISION_SAMPLE%'.replace('.jsonl','_qwen.jsonl')) if not r.get('error')}; n=sum(1 for _ in open(r'%VISION_SAMPLE%',encoding='utf-8')); print(f'ocenione {len(d)} / {n}'); sys.exit(0 if len(d) >= n - 50 else 1)"
+if errorlevel 1 if %PROBA% LSS 50 goto wizja
 echo [%date% %time%] wizja gotowa >> "%CODE%\data\pc_kilka_dni.log"
 taskkill /im llama-server.exe /f
 echo === KONIEC - wyniki: %BASAL_DIR%\raport_45b_*.txt i obok %VISION_SAMPLE% plik *_qwen.txt ===
