@@ -106,6 +106,14 @@ Sprawdzenie na kopii 07.11 (`comparables.db` zbudowany z kopii, prawdziwe dopaso
 | Galaxy Tab S6 Lite | 646 → 591 | wolny (18%, 1,4 / tydz.) | 245 zł |
 | Wacom Intuos Pro M | 555 → 444 | martwy | limit 133 zł |
 
+Klasy wszystkich modeli z ≥ 15 nowymi ofertami (`narzedzia/popyt.py`, okno 16-31.10, grupy po modelu - w Sniperze
+liczone po dopasowaniu tytułu, więc mogą się trochę różnić): gorące 15, normalne 122, wolne 22, martwe 4.
+* gorące: iPad A16, iPad mini A17 Pro, iPad Air (2022), iPad Air 11 (2024), iPhone 17 / 17 Pro / 17 Air, iPhone 16
+  Plus, PS5, Galaxy S25+ / S25 FE, Pixel 10 Pro XL, Redmi Pad SE, Redmi Note 15, Mi 13 Pro,
+* wolne / martwe: starsze Samsungi bez aktualizacji (S20 / S20+ / S20 Ultra / S21+, A14 / A32 / A33 / A34 / A51 / A52
+  / A71, Tab A8), iPhone 7 / 7 Plus, iPad 9.7 (2017), iPad Pro 10.5 (2017), Redmi Note 9 Pro / 11 / 14 Pro+,
+  Redmi 12, Nokia 3310 / 8800, Honor Magic 6 Lite / Magic V3, Galaxy Z Flip7, Tab 10.
+
 ## Propozycja zmian (zaakceptowana 16.11 - patrz wyżej)
 
 1. **Analizator → `comparables.db`**: przy każdej ofercie `life_days`, `fresh` (nowa w oknie), `fast` (zniknęła ≤ 3 d,
