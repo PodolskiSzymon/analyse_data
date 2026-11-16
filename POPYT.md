@@ -106,6 +106,12 @@ Sprawdzenie na kopii 07.11 (`comparables.db` zbudowany z kopii, prawdziwe dopaso
 | Galaxy Tab S6 Lite | 646 → 591 | wolny (18%, 1,4 / tydz.) | 245 zł |
 | Wacom Intuos Pro M | 555 → 444 | martwy | limit 133 zł |
 
+Test wstecz (dane do 27.10 → oferty 28.10-03.11, telefony / tablety / konsole od 300 zł, bez oszustw i
+uszkodzonych; bramka programu bez AI): po staremu 724 kandydatów na alert, po nowemu 247 (wspólne 233, odpadło 491 -
+głównie iPhone 12-16 i Switch, gdzie szacunek × 1,2 był za hojny; doszło 14). Czy dałoby się odsprzedać po wycenie
+programu (oferty tego modelu wystawione 28-31.10 po ±15% tej ceny, zniknięte w 7 dni): po staremu 34%, po nowemu
+42%; mediana zakładanego zysku 582 → 632 zł.
+
 Klasy wszystkich modeli z ≥ 15 nowymi ofertami (`narzedzia/popyt.py`, okno 16-31.10, grupy po modelu - w Sniperze
 liczone po dopasowaniu tytułu, więc mogą się trochę różnić): gorące 15, normalne 122, wolne 22, martwe 4.
 * gorące: iPad A16, iPad mini A17 Pro, iPad Air (2022), iPad Air 11 (2024), iPhone 17 / 17 Pro / 17 Air, iPhone 16
