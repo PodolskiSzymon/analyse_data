@@ -6,7 +6,12 @@ wiadomościami ntfy - bez otwierania portów i bez pulpitu zdalnego.
     token `SNIPER_NTFY_TOKEN`); w aplikacji ntfy na telefonie subskrybujesz ten temat i wysyłasz do niego wiadomość,
   * polecenia (wielkość liter i kolejność słów dowolna; z `ANALYZER_CONTROL_PIN` - PIN na początku, np. „1234 status”):
       status · start watch · stop watch · restart watch · start sniper · stop sniper · restart sniper ·
-      start all · stop all · log watch · log sniper · wytyczne · oceny · pomoc   (także po polsku: „włącz/wyłącz/uruchom/zatrzymaj”),
+      start all · stop all · log watch · log sniper · wytyczne · oceny · aktualizuj · pomoc
+      (także po polsku: „włącz/wyłącz/uruchom/zatrzymaj”),
+  * `aktualizuj` (2026-11-16, użytkownik w podróży, a serwer bez pulpitu zdalnego): `git pull --ff-only` w tym repo
+    i w `SNIPER_DIR`; gdy coś przyszło - restart działających programów (nowy kod) i automat analizatora
+    `auto --force` w tle (nowy comparables.db dla Snipera, log `<folder bazy>/remote/auto.log`). Sam pilot przejdzie
+    na nowy kod przy swoim następnym starcie (np. restart Windows) - nie wyłącza się sam, żeby nie stracić pilota,
   * odpowiedzi pilota (i „program się wyłączył”) idą do TEGO SAMEGO tematu, w którym piszesz polecenia (jak czat);
     pilot pomija własne wiadomości (`is_own`). Alarm „brak sprzedaży” i automat analizatora idą na
     `ANALYZER_NTFY_TOPIC` (bez niego na `SNIPER_NTFY_TOPIC` - temat okazji Snipera),
@@ -39,7 +44,8 @@ RESTART_AFTER_S = 60
 CHECK_EVERY_S = 10
 
 HELP = ["Polecenia: status · start/stop/restart watch · start/stop/restart sniper · start all · stop all · "
-        "log watch · log sniper · wytyczne · oceny · pomoc"]
+        "log watch · log sniper · wytyczne · oceny · aktualizuj · pomoc"]
+_UPDATE = ("aktualizuj", "zaktualizuj", "update", "pull", "aktualizacja")
 _START = ("start", "włącz", "wlacz", "uruchom", "on")
 _STOP = ("stop", "wyłącz", "wylacz", "zatrzymaj", "off")
 _RESTART = ("restart", "zrestartuj")
@@ -65,6 +71,8 @@ def parse(text, pin=""):
         return "report", None
     if any(w in ("pomoc", "help", "?") for w in words):
         return "help", None
+    if any(w in _UPDATE for w in words):
+        return "update", None
     if any(w == "log" or w == "logi" for w in words):
         return ("log", target) if target in ("watch", "sniper") else (None, "log czego? watch albo sniper")
     for action, keys in (("restart", _RESTART), ("start", _START), ("stop", _STOP)):
@@ -200,11 +208,12 @@ class Controller:
     """Stan programów + wykonywanie poleceń. spawn / kill / send / clock - do testów."""
 
     def __init__(self, programs, send, spawn_fn=spawn, kill_fn=kill, clock=time.monotonic, guides_fn=None,
-                 report_fn=None):
+                 report_fn=None, update_fn=None):
         self.programs = programs
         self.send = send
         self.guides_fn = guides_fn
         self.report_fn = report_fn
+        self.update_fn = update_fn
         self.spawn_fn, self.kill_fn, self.clock = spawn_fn, kill_fn, clock
 
     def _targets(self, target):
@@ -256,6 +265,22 @@ class Controller:
         if action == "help":
             await self.send("Pilot: pomoc", HELP)
             return action
+        if action == "update":
+            if not self.update_fn:
+                await self.send("Pilot: aktualizacja", ["Aktualizacja niedostępna."], priority=2)
+                return None
+            lines, changed = await self.update_fn()
+            restarted = []
+            if changed:
+                for p in self.programs.values():
+                    if p.running() or p.wanted:
+                        self.stop(p)
+                        self.start(p)
+                        restarted.append(p.name)
+            lines.append(f"Uruchomione ponownie z nowym kodem: {', '.join(restarted)}" if restarted else
+                         "Bez restartu programów" + ("" if changed else " (nic nowego)"))
+            await self.send("Pilot: aktualizacja", lines + self.status_lines())
+            return action
         if action == "status":
             await self.send("Pilot: status", self.status_lines())
             return action
@@ -290,6 +315,66 @@ class Controller:
                 p.restarts += 1
                 self.start(p)
                 log.info("[PILOT] %s uruchomiony ponownie (%d. raz).", p.name, p.restarts)
+
+
+def _git(path, *args, timeout=180):
+    """(kod, wyjście) polecenia git w folderze `path`."""
+    try:
+        done = subprocess.run(["git", *args], cwd=str(path), capture_output=True, text=True, timeout=timeout,
+                              encoding="utf-8", errors="replace")
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return 1, f"{type(exc).__name__}: {exc}"
+    return done.returncode, ((done.stdout or "") + (done.stderr or "")).strip()
+
+
+def git_update(path):
+    """git pull --ff-only → (ok, zmieniono?, linia opisu). Lokalne zmiany / konflikt = błąd bez ruszania plików."""
+    name = Path(path).name
+    code, before = _git(path, "rev-parse", "HEAD")
+    if code:
+        return False, False, f"{name}: to nie repozytorium git ({before[-120:]})"
+    code, out = _git(path, "pull", "--ff-only")
+    if code:
+        return False, False, f"{name}: BŁĄD git pull - {out.splitlines()[-1][:160] if out else code}"
+    _code, after = _git(path, "rev-parse", "HEAD")
+    _code, head = _git(path, "log", "-1", "--format=%h %s")
+    if after == before:
+        return True, False, f"{name}: bez zmian ({head[:100]})"
+    return True, True, f"{name}: zaktualizowane → {head[:100]}"
+
+
+def spawn_auto(cfg):
+    """`python -m analyzer auto --force` w tle (nowe wytyczne i comparables.db po aktualizacji kodu)."""
+    logs = Path(cfg.db_path).parent / "remote"
+    logs.mkdir(parents=True, exist_ok=True)
+    out = open(logs / "auto.log", "a", encoding="utf-8", errors="replace")
+    out.write(f"\n===== auto --force po aktualizacji {time.strftime('%Y-%m-%d %H:%M:%S')} =====\n")
+    out.flush()
+    flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
+    return subprocess.Popen([sys.executable, "-m", "analyzer", "auto", "--force"], cwd=str(ROOT), stdout=out,
+                            stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, creationflags=flags, env=env)
+
+
+async def update_repos(cfg, git_fn=git_update, auto_fn=spawn_auto):
+    """Polecenie „aktualizuj”: oba repozytoria → (linie odpowiedzi, czy coś przyszło)."""
+    folders = [ROOT] + ([Path(os.getenv("SNIPER_DIR"))] if os.getenv("SNIPER_DIR", "").strip() else [])
+    lines, changed, analyzer_changed = [], False, False
+    for folder in folders:
+        ok, new, text = await asyncio.to_thread(git_fn, folder)
+        lines.append(text)
+        changed = changed or new
+        analyzer_changed = analyzer_changed or (new and folder == ROOT)
+    if analyzer_changed:
+        try:
+            auto_fn(cfg)
+            lines.append("Automat analizatora (auto --force) w tle - nowy comparables.db dla Snipera za kilka-"
+                         "kilkanaście minut (log: remote/auto.log); Sniper wczyta go sam")
+        except Exception as exc:
+            lines.append(f"Automat nie ruszył: {exc}")
+    if changed:
+        lines.append("Pilot przejdzie na nowy kod przy swoim następnym starcie.")
+    return lines, changed
 
 
 OWN_TITLES = ("Pilot", "Analyzer")
@@ -455,7 +540,7 @@ async def main(cfg):
         return await notify.send_file(path, title, topic_name=topic)
 
     controller = Controller(default_programs(cfg), reply, guides_fn=lambda: export_guides(cfg, send_file),
-                            report_fn=lambda: export_report(send_file))
+                            report_fn=lambda: export_report(send_file), update_fn=lambda: update_repos(cfg))
     for name in (x.strip() for x in os.getenv("ANALYZER_CONTROL_AUTOSTART", "").split(",") if x.strip()):
         if name in controller.programs:
             controller.start(controller.programs[name])

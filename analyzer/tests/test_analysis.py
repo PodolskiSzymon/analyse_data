@@ -971,6 +971,8 @@ def test_ai_condition_uses_archived_photos(market, tmp_path):
     ("stop", "", (None, "stop czego? watch / sniper / all")),
     ("hej", "", (None, "nieznane polecenie")),
     ("wytyczne", "", ("guides", None)),
+    ("aktualizuj", "", ("update", None)),
+    ("1234 Update", "1234", ("update", None)),
 ])
 def test_remote_parse(text, pin, expected):
     from analyzer.remote import parse
@@ -1617,3 +1619,98 @@ def test_comparables_demand_flags(tmp_path):
     # okno: start 01.10 + 4 dni = 05.10 12:00 … ostatnie przejście 30.10 - 7 dni = 23.10 12:00 → 18 dni
     assert json.loads(meta["fresh_days"]) == {"phone": 18.0}
     assert out.execute("SELECT gone FROM offers WHERE price = 720").fetchone()[0] == 1   # ukryta = zniknięta
+
+
+def test_remote_update_restarts_running_programs(tmp_path):
+    """„aktualizuj” (16.11): gdy git coś przyniósł - restart działających programów; gdy nic - bez restartu."""
+    import asyncio
+
+    from analyzer.remote import Controller, Program
+
+    class Proc:
+        n = 0
+
+        def __init__(self):
+            Proc.n += 1
+            self.pid, self.code = 2000 + Proc.n, None
+
+        def poll(self):
+            return self.code
+
+    def kill_fn(proc):
+        if proc is not None:
+            proc.code = -9
+
+    sent = []
+    programs = {name: Program(name, ["python"], str(tmp_path), tmp_path / f"{name}.log") for name in ("watch", "sniper")}
+    results = [(["analyse_data: zaktualizowane → abc"], True), (["analyse_data: bez zmian"], False)]
+
+    async def update_fn():
+        return results.pop(0)
+
+    async def send(title, lines, **kw):
+        sent.append((title, lines))
+
+    c = Controller(programs, send, spawn_fn=lambda p: Proc(), kill_fn=kill_fn, clock=lambda: 0.0, update_fn=update_fn)
+
+    async def scenario():
+        await c.handle("start sniper")
+        old_pid = programs["sniper"].proc.pid
+        await c.handle("aktualizuj")
+        assert programs["sniper"].running() and programs["sniper"].proc.pid != old_pid
+        assert not programs["watch"].running()                      # zatrzymany - zostaje zatrzymany
+        assert any("nowym kodem: sniper" in line for line in sent[-1][1])
+        pid = programs["sniper"].proc.pid
+        await c.handle("aktualizuj")
+        assert programs["sniper"].proc.pid == pid and any("nic nowego" in line for line in sent[-1][1])
+
+    asyncio.run(scenario())
+
+
+def test_remote_git_update_real_repo(tmp_path, monkeypatch):
+    """git_update na prawdziwym repozytorium: nowy commit w zdalnym → zaktualizowane; potem bez zmian; konflikt
+    lokalny → błąd bez ruszania plików. update_repos: automat tylko, gdy przyszło coś do analizatora."""
+    import asyncio
+    import shutil
+    import subprocess
+
+    from analyzer import remote
+    if not shutil.which("git"):
+        pytest.skip("brak git")
+    env = dict(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    run = lambda *a, cwd: subprocess.run(["git", *a], cwd=cwd, check=True, capture_output=True)  # noqa: E731
+    origin, work, clone = tmp_path / "origin.git", tmp_path / "work", tmp_path / "clone"
+    run("init", "--bare", str(origin), cwd=tmp_path)
+    run("clone", str(origin), str(work), cwd=tmp_path)
+    (work / "a.txt").write_text("1")
+    run("add", ".", cwd=work)
+    run("commit", "-m", "pierwszy", cwd=work)
+    run("push", "origin", "HEAD", cwd=work)
+    run("clone", str(origin), str(clone), cwd=tmp_path)
+    assert remote.git_update(clone)[:2] == (True, False)
+    (work / "a.txt").write_text("2")
+    run("commit", "-am", "drugi", cwd=work)
+    run("push", "origin", "HEAD", cwd=work)
+    ok, changed, text = remote.git_update(clone)
+    assert ok and changed and "drugi" in text and (clone / "a.txt").read_text() == "2"
+    (work / "a.txt").write_text("3")
+    run("commit", "-am", "trzeci", cwd=work)
+    run("push", "origin", "HEAD", cwd=work)
+    (clone / "a.txt").write_text("lokalna zmiana")
+    ok, changed, text = remote.git_update(clone)
+    assert not ok and not changed and "BŁĄD" in text and (clone / "a.txt").read_text() == "lokalna zmiana"
+    assert remote.git_update(tmp_path)[0] is False                          # nie repozytorium
+
+    autos = []
+    monkeypatch.setenv("SNIPER_DIR", str(tmp_path / "sniper"))
+    answers = {remote.ROOT: (True, True, "analyse_data: zaktualizowane"),
+               tmp_path / "sniper": (True, False, "sniper: bez zmian")}
+    lines, changed = asyncio.run(remote.update_repos(None, git_fn=lambda f: answers[f], auto_fn=autos.append))
+    assert changed and autos == [None] and any("auto --force" in line for line in lines)
+    answers[remote.ROOT] = (True, False, "analyse_data: bez zmian")
+    answers[tmp_path / "sniper"] = (True, True, "sniper: zaktualizowane")
+    autos.clear()
+    lines, changed = asyncio.run(remote.update_repos(None, git_fn=lambda f: answers[f], auto_fn=autos.append))
+    assert changed and autos == []                                             # tylko Sniper - bez automatu
