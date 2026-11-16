@@ -268,6 +268,13 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
+000000. (16.11, 11:00-12:30, log pilota) **shipping_details zwraca 404** (strona HTML „La page n'existe pas”) dla
+   kolejnych ofert (Honor 600 lite, iPhone 14 Pro…) - Vinted chyba zmienił API wysyłki. Do tego czasu brak wysyłki =
+   ocena najwyżej 7, czyli ZERO alertów. Zmiana w Sniperze: koszt = cena + `SNIPER_SHIPPING_FALLBACK_PLN` (35 zł),
+   alert dalej idzie z ostrzeżeniem „Wysyłka nieznana… sprawdź w ofercie”, limit `SNIPER_NO_SHIPPING_MAX_SCORE`
+   (10 = bez limitu). Log błędu HTTP czytelny (domena, przekierowanie, tytuł strony). **Czekamy**: cURL z F12 strony
+   oferty (zapytanie, które podaje koszt wysyłki, + odpowiedź, bez ciasteczek) → nowy endpoint wysyłki.
+
 00000. (16.11) **Popyt - wdrożone** (analiza i 18 hipotez: `POPYT.md`; prośba: reMarkable 2 kupiony 1200 /
    sprzedany 1400, iPad A16 w 24 h - mógł być ~300 zł drożej, S23 za 1000 dobrze). Przyczyna: szacunek z median
    aktywnych (wiszą tygodniami: potwierdzone sprzedaże ≤ 7 d mają 0,82 × mediana aktywnych) i AI przepuszczane do
