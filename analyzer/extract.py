@@ -572,10 +572,26 @@ HDD = re.compile(r"\b(\d{1,2}(?:[.,]\d)?\s*tb|\d{3,4}\s*gb)\s*(?:dysk\s*)?hdd\b|
 MONITOR = re.compile(r"\b(?:z\s+monitorem|\+\s*monitor|monitor\s+\d{2}|zestaw\s+z\s+monitor)", re.I)
 
 
+# RAM: 8-128 GB (dysk nigdy tak mały - „16GB SSD 512” to 16 GB RAM i dysk 512); bez pamięci karty („12GB VRAM”).
+DESKTOP_RAM = re.compile(r"\b(8|16|32|64|128)\s*gb(?!\s*(?:vram|gddr))\b")
+DESKTOP_DISK = re.compile(r"\b(?:ssd|nvme|m\.?2|dysk)\s*(?:nvme\s*)?(\d{3,4})\s*(?:gb)?\b|\b(\d{3,4})\s*gb\s*(?:ssd|nvme|m\.?2)\b"
+                          r"|\b(\d(?:[.,]\d)?)\s*tb\b")
+
+
 def desktop(f, title, desc, attrs, listing):
     t, d = norm(title), norm(desc)
     for source, text in (("title", t), ("description", d)):
         f.put("cpu", desktop_cpu(text), source)         # i5-9400F, Ryzen 5 2600X - przed wzorami laptopów
+        bare = _GPU_WITH_VRAM.sub(" ", text)          # „RTX 3060 12GB” - to pamięć karty, nie RAM
+        match = DESKTOP_RAM.search(bare)
+        if match:
+            f.put("ram_gb", int(match.group(1)), source)
+        match = DESKTOP_DISK.search(HDD.sub(" ", bare))   # HDD osobno (hdd_gb)
+        if match:
+            if match.group(3):
+                f.put("storage_gb", int(float(match.group(3).replace(",", ".")) * 1000), source)
+            else:
+                f.put("storage_gb", int(match.group(1) or match.group(2)), source)
     laptop(f, title, desc, attrs, listing)            # karta, RAM, dysk, linia procesora, system, segment
     for source, text in (("title", t), ("description", d)):
         chip = chipset(text)

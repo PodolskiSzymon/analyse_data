@@ -1738,3 +1738,22 @@ def test_desktop_catalog_and_full_spec():
     spec = {k: v["value"] for k, v in f.items()}
     assert key == "rx 6700 xt|ryzen 5 5600|32" and spec["psu_w"] == 750 and spec["ssd_type"] == "nvme"
     assert spec["with_monitor"] is True and spec["socket"] == "AM4"
+
+
+def test_pc_for_games_scoring_and_desktop_ram():
+    """17.11: narzedzia/pc_gry.py - karta / procesor pod wyścigi i GTA 6; RAM vs dysk w tytule komputera."""
+    import importlib.util
+    from pathlib import Path
+
+    from analyzer import extract
+    spec = importlib.util.spec_from_file_location("pc_gry", Path(__file__).parents[2] / "narzedzia" / "pc_gry.py")
+    pc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pc)
+    good, notes = pc.score({"cpu": "ryzen 5 5600", "gpu": "rtx 3060", "ram_gb": 16, "storage_gb": 512})
+    weak, weak_notes = pc.score({"cpu": "i5-6500", "gpu": "gtx 1060", "ram_gb": 8})
+    assert good == 10.0 and any("32 GB" in n for n in notes)
+    assert weak < 5 and any("za słaba" in n for n in weak_notes)
+    f, _ = extract.extract("desktop", "PC i5-10400F RX 6600 16GB SSD 512", "", {})
+    assert f["ram_gb"]["value"] == 16 and f["storage_gb"]["value"] == 512
+    f, _ = extract.extract("desktop", "Komputer i5-6500 GTX 1060 8GB RAM", "HDD 1TB", {})
+    assert f["hdd_gb"]["value"] == 1000 and "storage_gb" not in f
