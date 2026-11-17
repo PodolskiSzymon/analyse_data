@@ -52,7 +52,8 @@ TOP_ROWS = 2000
 # Katalogi Vinted Snipera → nasze kategorie (jak sniper/categories.py). 31.10: podzespoły z własnych katalogów zamiast
 # mieszanych 3582 / 3583 / 3584 (lista użytkownika).
 SNIPER_CATALOGS = {3580: ("laptop",), 3661: ("phone",), 3728: ("tablet",), 3025: ("console",), 3603: ("ram",),
-                   3607: ("storage",), 3602: ("gpu",), 3599: ("cpu",), 3600: ("motherboard",), 3601: ("bundle",)}
+                   3607: ("storage",), 3602: ("gpu",), 3599: ("cpu",), 3600: ("motherboard",), 3601: ("bundle",),
+                   3581: ("desktop",)}             # 17.11: komputery - Sniper zacznie, gdy będą opłacalne grupy
 SNIPER_WEIGHTS = {3580: 3}         # laptopy skanowane 3× częściej (największe zyski, najszybciej znikają)
 PRICE_TO_HEADROOM = 1.15           # do „Zaproponuj cenę”: oferta trochę powyżej max zakupu też warta oceny
 
