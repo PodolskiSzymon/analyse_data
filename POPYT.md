@@ -121,6 +121,7 @@ sprzedaż poza Vinted). U użytkownika dobre zakupy (S23, iPad A16) miały potwi
 (reMarkable, MatePad, iPad 10) - żadnej. Zmiana: gorący tylko przy ≥ 2 potwierdzonych sprzedażach
 (`SNIPER_DEMAND_HOT_MIN_SOLD`), ≥ 10 zniknięć bez sprzedaży = wolny (`SNIPER_DEMAND_NO_SALES_CLEAR`), bez żadnej
 sprzedaży wycena AI najwyżej szacunek × 1,0 → iPad 10 64 GB max zakup 857 zł (zakup 901 - bez alertu).
+Test wstecz z tą zmianą (te same dane i oferty co wyżej): 724 → 205 kandydatów na alert (wcześniej 247), odsprzedaż w 7 dni po wycenie programu 43% (było 34% po staremu), mediana zakładanego zysku 626 zł.
 
 Klasy wszystkich modeli z ≥ 15 nowymi ofertami (`narzedzia/popyt.py`, okno 16-31.10, grupy po modelu - w Sniperze
 liczone po dopasowaniu tytułu, więc mogą się trochę różnić): gorące 15, normalne 122, wolne 22, martwe 4.
