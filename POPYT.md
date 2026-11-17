@@ -135,6 +135,17 @@ iPad 10.9 (2022) 1091 (nie schodzi za 1100-1250, dziś rynek 800-1250), S23 856 
 (`SNIPER_VALUE_SHARE`=0,10, `comparables.apply_clearing`, ≥ 5 aktywnych) i tabele analizatora (`guide.LOW_SHARE`,
 kolumna „sprzedam za ~” + opis dla AI) - telefony, tablety, konsole; nigdy ponad dawny szacunek.
 
+**17.11 (2) - wartość rośnie z popytem + dodatki nie wybierają grupy.** Użytkownik: „jeśli model dobrze schodzi,
+to wartość rośnie”; reMarkable 2 „sprzedałby się bardzo szybko za 1200”, a Sniper wycenił go drogo przez droższą
+ofertę z Type Folio. Sniper: gorący (≥ 2 potwierdzone sprzedaże, ≥ 50% w tydzień) → dolne 25%, martwy → dolne 5%,
+reszta dolne 10% (`SNIPER_VALUE_SHARE_HOT` / `_DEAD`); tytuł bez dodatków przy szukaniu podobnych (`strip_accessories`:
+folio / Type Folio / Marker (Plus) / Pencil / klawiatura / etui / case / cover - „Marker Plus” robił z „plus” wariant
+i grupę tworzyły same komplety). Kopia 07.11: reMarkable 2 + Type Folio + Marker Plus 1442 → 1159 (jak sam
+reMarkable 2), PS5 z napędem (gorący) 2500, iPad A16 (gorący) 1650, S23 816, iPad 10 64 GB 889, MatePad 11 (martwy)
+550. Uwaga: na danych potwierdzone szybkie sprzedaże gorących modeli też są nisko (mediana 1,02 × p10) - podwyżka
+dla gorących to decyzja użytkownika (sprzedaje drożej, niż ludzie, którzy chcą sprzedać w 1 dzień), do sprawdzenia
+na jego wynikach. Test wstecz (p10 dla wszystkich): 724 → 53 kandydatów, odsprzedaż w 7 dni 46%, zysk 706 zł.
+
 Klasy wszystkich modeli z ≥ 15 nowymi ofertami (`narzedzia/popyt.py`, okno 16-31.10, grupy po modelu - w Sniperze
 liczone po dopasowaniu tytułu, więc mogą się trochę różnić): gorące 15, normalne 122, wolne 22, martwe 4.
 * gorące: iPad A16, iPad mini A17 Pro, iPad Air (2022), iPad Air 11 (2024), iPhone 17 / 17 Pro / 17 Air, iPhone 16
