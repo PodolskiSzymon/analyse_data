@@ -268,6 +268,11 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
+0000000. (17.11) **iPad 10 64 GB z alertu 01.11 (9/10, zakup ~900 zł) nie schodzi za 1100 zł** → zniknięcie ≠
+   sprzedaż: jego „szybkie zniknięcia” w danych to same usunięte / ukryte, zero potwierdzonych sprzedaży. Sniper:
+   gorący tylko przy ≥ 2 potwierdzonych sprzedażach, ≥ 10 zniknięć bez sprzedaży = wolny, bez sprzedaży wycena AI ≤
+   szacunek × 1,0 (max zakup tego iPada 857 zł zamiast 1045). Szczegóły i liczby: `POPYT.md`.
+
 000000. (16.11, 11:00-12:30, log pilota) **shipping_details zwraca 404** (strona HTML „La page n'existe pas”) dla
    kolejnych ofert (Honor 600 lite, iPhone 14 Pro…) - Vinted chyba zmienił API wysyłki. Do tego czasu brak wysyłki =
    ocena najwyżej 7, czyli ZERO alertów. Zmiana w Sniperze: koszt = cena + `SNIPER_SHIPPING_FALLBACK_PLN` (35 zł),

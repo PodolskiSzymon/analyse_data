@@ -112,6 +112,16 @@ głównie iPhone 12-16 i Switch, gdzie szacunek × 1,2 był za hojny; doszło 14
 programu (oferty tego modelu wystawione 28-31.10 po ±15% tej ceny, zniknięte w 7 dni): po staremu 34%, po nowemu
 42%; mediana zakładanego zysku 582 → 632 zł.
 
+**17.11 - iPad 10 (2022) 64 GB** (alert 01.11: 9/10, koszt 901 zł, AI 1380 zł; nie schodzi nawet za 1100 zł, a to
+najtańsze ~10% z 120 aktywnych używanych 64 GB). Na kopii 07.11: 26 szybkich zniknięć używanych 64 GB (po 757-1834 zł),
+z tego 18 usuniętych, 8 ukrytych i ŻADNEJ potwierdzonej sprzedaży (jedyna sprzedana 64 GB: 1500 zł w połowie
+października); szybkie zniknięcia po tygodniach: 16-22.10 57% w 7 dni, 30.10-03.11 33%. Nowe reguły z 16.11 i tak
+dawały „gorący” (8 z 12 świeżych zniknęło) → max zakup 1045 zł. Wniosek: zniknięcie ≠ sprzedaż (usunięcia, oszustwa,
+sprzedaż poza Vinted). U użytkownika dobre zakupy (S23, iPad A16) miały potwierdzone sprzedaże w danych, złe
+(reMarkable, MatePad, iPad 10) - żadnej. Zmiana: gorący tylko przy ≥ 2 potwierdzonych sprzedażach
+(`SNIPER_DEMAND_HOT_MIN_SOLD`), ≥ 10 zniknięć bez sprzedaży = wolny (`SNIPER_DEMAND_NO_SALES_CLEAR`), bez żadnej
+sprzedaży wycena AI najwyżej szacunek × 1,0 → iPad 10 64 GB max zakup 857 zł (zakup 901 - bez alertu).
+
 Klasy wszystkich modeli z ≥ 15 nowymi ofertami (`narzedzia/popyt.py`, okno 16-31.10, grupy po modelu - w Sniperze
 liczone po dopasowaniu tytułu, więc mogą się trochę różnić): gorące 15, normalne 122, wolne 22, martwe 4.
 * gorące: iPad A16, iPad mini A17 Pro, iPad Air (2022), iPad Air 11 (2024), iPhone 17 / 17 Pro / 17 Air, iPhone 16
