@@ -561,6 +561,51 @@ def bundle_key(f):
     return f.get("cpu")
 
 
+# ---------------------------------------------------------------------------------------------- komputery stacjonarne
+# 2026-11-17 (prośba użytkownika): katalog 3581 od 500 zł, pełna specyfikacja z ogłoszenia - procesor, karta graficzna,
+# RAM, dysk (SSD / HDD), zasilacz, chipset płyty, monitor w zestawie. Te same wzory co laptopy (`laptop`) + procesory
+# desktopowe (`desktop_cpu`: i5-9400F, Ryzen 5 2600X, Xeon) i płyty (`chipset`).
+
+PSU = re.compile(r"(?:zasilacz\w*|psu|power\s*supply|netzteil|sursa)[^0-9\n]{0,30}?(\d{3,4})\s*w\b"
+                 r"|(\d{3,4})\s*w\b[^\n]{0,20}?(?:zasilacz|psu|80\s*\+|80\s*plus|bronze|silver|gold|platinum)")
+HDD = re.compile(r"\b(\d{1,2}(?:[.,]\d)?\s*tb|\d{3,4}\s*gb)\s*(?:dysk\s*)?hdd\b|\bhdd\s*(\d{1,2}\s*tb|\d{3,4}\s*gb)\b")
+MONITOR = re.compile(r"\b(?:z\s+monitorem|\+\s*monitor|monitor\s+\d{2}|zestaw\s+z\s+monitor)", re.I)
+
+
+def desktop(f, title, desc, attrs, listing):
+    t, d = norm(title), norm(desc)
+    for source, text in (("title", t), ("description", d)):
+        f.put("cpu", desktop_cpu(text), source)         # i5-9400F, Ryzen 5 2600X - przed wzorami laptopów
+    laptop(f, title, desc, attrs, listing)            # karta, RAM, dysk, linia procesora, system, segment
+    for source, text in (("title", t), ("description", d)):
+        chip = chipset(text)
+        if chip:
+            f.put("chipset", chip, source)
+            f.put("socket", CHIPSET_SOCKET[chip], source)
+        match = PSU.search(text)
+        if match:
+            watts = int(match.group(1) or match.group(2))
+            if 200 <= watts <= 2000:
+                f.put("psu_w", watts, source)
+        match = HDD.search(text)
+        if match:
+            f.put("hdd_gb", _gb(match.group(1) or match.group(2)), source)
+        if re.search(r"\b(?:nvme|m\.?2)\b", text):
+            f.put("ssd_type", "nvme", source)
+        elif re.search(r"\bssd\b", text):
+            f.put("ssd_type", "ssd", source)
+    if MONITOR.search(t):
+        f.put("with_monitor", True, "title")
+
+
+def desktop_key(f):
+    gpu = f.get("gpu") if f.get("gpu") and f.get("gpu") != "integrated" else None
+    cpu = f.get("cpu") or f.get("cpu_line")
+    if not gpu and not cpu:
+        return None
+    return f"{gpu or 'integrated'}|{cpu or '?'}|{f.get('ram_gb') or '?'}"
+
+
 # ---------------------------------------------------------------------------------------------- całość
 
 EXTRACTORS = {
@@ -574,6 +619,7 @@ EXTRACTORS = {
     "cpu": (cpu_part, cpu_key),
     "motherboard": (motherboard_part, motherboard_key),
     "bundle": (bundle_part, bundle_key),
+    "desktop": (desktop, desktop_key),
 }
 COLUMNS = ("model", "cpu", "cpu_line", "gpu", "ram_gb", "storage_gb", "screen_in", "refresh_hz", "battery_pct",
            "condition_grade", "for_parts", "locked", "cracked", "segment")

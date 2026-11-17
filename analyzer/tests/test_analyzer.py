@@ -611,7 +611,7 @@ def test_details_only_for_selected_catalogs(monkeypatch):
     monkeypatch.delenv("ANALYZER_DETAILS_CATALOGS", raising=False)
     monkeypatch.delenv("ANALYZER_DETAILS_CATEGORIES", raising=False)
     assert {"laptop", "phone", "console", "tablet", "ram", "gpu", "storage", "cpu", "motherboard",
-            "bundle"} == set(_details_catalogs())
+            "bundle", "desktop"} == set(_details_catalogs())
     monkeypatch.setenv("ANALYZER_DETAILS_CATALOGS", "all")
     assert _details_catalogs() is None
     monkeypatch.setenv("ANALYZER_DETAILS_CATALOGS", "3580,3661")         # dawny zapis numerami katalogów

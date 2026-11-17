@@ -23,7 +23,7 @@ NOW = datetime(2026, 10, 24, 8, tzinfo=UTC)          # ostatnie przejście = „
 RUN_HOURS = 4                                        # przejście trwa 4 h → initial_until = start + 4 h
 # 31.10: podzespoły z własnych katalogów Vinted (wcześniej mieszane 3582 / 3583 / 3584).
 CATALOG = {"laptop": 3580, "phone": 3661, "console": 3025, "tablet": 3728, "gpu": 3602, "ram": 3603,
-           "storage": 3607, "cpu": 3599, "motherboard": 3600, "bundle": 3601}
+           "storage": 3607, "cpu": 3599, "motherboard": 3600, "bundle": 3601, "desktop": 3581}
 
 
 def iso(ts):
@@ -85,6 +85,12 @@ BULK = {
     ],
     "bundle": [
         ("i5-9600kf", "lga1151", 750, 60, dict(cpu="i5-9600kf"), "Zestaw i5-9600KF + MSI Z390-A PRO", "MSI"),
+    ],
+    # 2026-11-17: komputery stacjonarne (3581)
+    "desktop": [
+        ("rtx 3060|i5-9400f|16", "rtx 3060", 2400, 80, dict(cpu="i5-9400f", gpu="rtx 3060", ram_gb=16,
+                                                            segment="gaming"),
+         "Komputer gamingowy i5-9400F RTX 3060 16GB", None),
     ],
 }
 

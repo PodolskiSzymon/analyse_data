@@ -44,7 +44,9 @@ CATALOG_NAMES = {3580: "laptopy", 3661: "telefony", 3025: "konsole", 3728: "tabl
                  # 2026-10-31 (lista użytkownika): podzespoły z WŁASNYCH katalogów Vinted zamiast ogólnych „mieszanych”
                  # 3582 (podzespoły), 3583 (nośniki), 3584 (akcesoria), w których kategorię zgadywały reguły / AI.
                  3603: "pamięci RAM", 3607: "dyski wewnętrzne", 3602: "karty graficzne", 3599: "procesory",
-                 3600: "płyty główne", 3601: "zestawy płyta + procesor"}
+                 3600: "płyty główne", 3601: "zestawy płyta + procesor",
+                 # 2026-11-17 (prośba użytkownika): komputery stacjonarne od 500 zł, pełna specyfikacja z ogłoszeń
+                 3581: "komputery stacjonarne"}
 # Dawne katalogi mieszane - już nie przeglądane; ich żywe oferty domyka migawka katalogu tej samej kategorii
 # (diff.finish_snapshot), a oferta widziana w nowym katalogu przechodzi do niego (db.upsert_item).
 RETIRED_CATALOGS = (3582, 3583, 3584)
@@ -55,15 +57,16 @@ RETIRED_CATALOGS = (3582, 3583, 3584)
 DEFAULT_PRICE_MIN = {3580: 700.0, 3661: 300.0, 3025: 300.0, 3728: 300.0,
                      # podzespoły (2026-10-31): progi jak dawne progi kategorii z katalogów mieszanych
                      3603: 100.0, 3607: 100.0, 3602: 150.0, 3599: 100.0, 3600: 100.0, 3601: 150.0,
+                     3581: 500.0,                     # komputery stacjonarne (użytkownik 17.11: od 500 zł)
                      # dawne mieszane (gdyby ktoś wpisał je w ANALYZER_CATALOGS): dolna granica crawla
                      3582: 100.0, 3583: 100.0, 3584: 100.0}
 # Nasze kategorie przedmiotu: te z własnym katalogiem Vinted biorą próg z katalogu, pozostałe - ANALYZER_PRICE_MIN_<NAZWA>.
 CATEGORY_CATALOG = {"laptop": 3580, "phone": 3661, "console": 3025, "tablet": 3728, "ram": 3603, "storage": 3607,
-                    "gpu": 3602, "cpu": 3599, "motherboard": 3600, "bundle": 3601}
+                    "gpu": 3602, "cpu": 3599, "motherboard": 3600, "bundle": 3601, "desktop": 3581}
 DEFAULT_CATEGORY_MIN = {"gpu": 150.0, "ram": 100.0, "storage": 100.0}
 # Szczegóły (details/sidebar) każdej oferty - domyślnie wszystkie nasze kategorie.
 DEFAULT_DETAILS_CATEGORIES = ("laptop", "phone", "console", "tablet", "gpu", "ram", "storage", "cpu", "motherboard",
-                              "bundle")
+                              "bundle", "desktop")
 
 
 def catalog_label(catalog_id):

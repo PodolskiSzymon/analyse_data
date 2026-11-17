@@ -268,6 +268,13 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
+000000000. (17.11) **Komputery stacjonarne (katalog 3581, od 500 zł)** - kategoria `desktop`: crawl jak inne katalogi
+   (`DEFAULT_PRICE_MIN[3581]=500`, `ANALYZER_PRICE_MIN_3581`), szczegóły wszystkich ofert, pełna specyfikacja
+   (`extract.desktop`: procesor - też desktopowy i5-9400F / Ryzen 5 5600, karta, RAM, dysk SSD / NVMe + HDD, zasilacz W,
+   chipset + gniazdo płyty, monitor w zestawie), grupy cen w tabeli `desktop.md` (karta + RAM; bez karty - procesor +
+   generacja + RAM). Sniper jeszcze NIE skanuje 3581 (brak w `SNIPER_CATALOGS`) - najpierw dane. Także 17.11 Sniper
+   nie pyta o wysyłkę (404), alert „Okazja, jeśli wysyłka ≤ X zł”.
+
 00000000. (17.11) **Wycena = dolne 10% cen aktywnych** (telefony, tablety, konsole; pomysł użytkownika) w Sniperze
    (`SNIPER_VALUE_SHARE`) i w tabelach wytycznych (`guide.LOW_SHARE`): 70% potwierdzonych sprzedaży ≤ 7 dni było po
    tej cenie albo drożej, dawny szacunek - 33%. Liczby: `POPYT.md`.

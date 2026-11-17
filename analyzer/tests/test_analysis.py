@@ -81,7 +81,7 @@ def test_suspicious_report_and_exclusions(flagged):
     assert truth.ids["blocked_console"] not in excluded and truth.ids["generic0"] not in excluded
     lines = suspicious.report(conn, aconn)
     row = next(line for line in lines if line.startswith("dup_title_price"))
-    assert row.split()[1:12] == ["0", "4", "0", "0", "0", "0", "0", "0", "0", "0", "4"]   # 10 kategorii + razem
+    assert row.split()[1:13] == ["0", "4", "0", "0", "0", "0", "0", "0", "0", "0", "0", "4"]  # 11 kategorii + razem
     assert any(f"https://www.vinted.pl/items/{truth.ids['off_olx']}" in line for line in lines)
     assert "(is_suspicious wyłączone" in "\n".join(lines)
     head = next(i for i, line in enumerate(lines) if line.startswith("stan       ofert"))
@@ -1718,3 +1718,23 @@ def test_remote_git_update_real_repo(tmp_path, monkeypatch):
     autos.clear()
     lines, changed = asyncio.run(remote.update_repos(None, git_fn=lambda f: answers[f], auto_fn=autos.append))
     assert changed and autos == []                                             # tylko Sniper - bez automatu
+
+
+def test_desktop_catalog_and_full_spec():
+    """17.11 (prośba użytkownika): komputery stacjonarne 3581 od 500 zł, pełna specyfikacja z ogłoszenia."""
+    from analyzer import classify, config, extract
+    assert config.CATALOG_NAMES[3581] == "komputery stacjonarne" and config.DEFAULT_PRICE_MIN[3581] == 500.0
+    assert classify.CATEGORY_BY_CATALOG[3581] == "desktop" and "desktop" in config.DEFAULT_DETAILS_CATEGORIES
+    assert 3581 in config.AnalyzerConfig().catalogs if hasattr(config, "AnalyzerConfig") else True
+    f, key = extract.extract("desktop", "Komputer gamingowy i5-9400F RTX 3060 12GB 16GB RAM SSD 512GB",
+                             "Zasilacz 650W 80+ Bronze, płyta B365M, dysk HDD 1TB, Windows 10", {})
+    spec = {k: v["value"] for k, v in f.items()}
+    assert key == "rtx 3060|i5-9400f|16"
+    assert spec["cpu"] == "i5-9400f" and spec["gpu"] == "rtx 3060" and spec["ram_gb"] == 16
+    assert spec["storage_gb"] == 512 and spec["hdd_gb"] == 1000 and spec["psu_w"] == 650
+    assert spec["chipset"] == "b365" and spec["socket"] == "LGA1151" and spec["segment"] == "gaming"
+    f, key = extract.extract("desktop", "PC Ryzen 5 5600 RX 6700 XT 32GB DDR4 1TB NVMe + monitor 24",
+                             "Zasilacz Corsair 750 W gold. Płyta B550.", {})
+    spec = {k: v["value"] for k, v in f.items()}
+    assert key == "rx 6700 xt|ryzen 5 5600|32" and spec["psu_w"] == 750 and spec["ssd_type"] == "nvme"
+    assert spec["with_monitor"] is True and spec["socket"] == "AM4"

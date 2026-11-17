@@ -39,7 +39,7 @@ LOW_CATEGORIES = ("phone", "tablet", "console")
 PROMO, SHIP = 26.0, 20.0
 CAT_TITLE = {"laptop": "Laptopy", "phone": "Telefony", "tablet": "Tablety", "console": "Konsole",
              "gpu": "Karty graficzne", "ram": "Pamięci RAM", "storage": "Dyski SSD", "cpu": "Procesory",
-             "motherboard": "Płyty główne", "bundle": "Zestawy płyta + procesor"}
+             "motherboard": "Płyty główne", "bundle": "Zestawy płyta + procesor", "desktop": "Komputery stacjonarne"}
 MIN_PROFIT = 300.0                           # zysk ≥ 300 zł zawsze
 # Minimalna marża: tanie (sprzedaż ≤ CHEAP_SALE) 28%, drogie (≥ EXPENSIVE_SALE) 25%, pomiędzy liniowo - jak Sniper
 # (sniper/evaluator.py: rule_min_margin, SNIPER_RULE_MARGIN_*).
@@ -135,6 +135,17 @@ def group_key(category, r):
         # bez generacji (sam „i5” w tytule) grupa miesza laptopy sprzed 10 lat z nowymi - pomijamy
         if line and gen and r["ram_gb"] and r["ram_gb"] >= 2:          # „1 GB RAM” = błąd odczytu
             return f"{line} {gen} · {r['ram_gb']} GB RAM (zintegrowana grafika)"
+        return None
+    if category == "desktop":
+        # 2026-11-17: komputer stacjonarny - cena głównie od karty graficznej (+ RAM), bez karty - procesor + RAM
+        gpu = (r["gpu"] or "").lower()
+        ram = r["ram_gb"] if r["ram_gb"] in (4, 8, 12, 16, 24, 32, 48, 64, 128) else None
+        if re.match(r"(rtx|gtx|rx|arc|quadro)\b", gpu):
+            return f"PC z {_gpu_name(gpu)}" + (f" · {ram} GB RAM" if ram else "")
+        line = analysis.cpu_line_of(r["cpu"], r["cpu_line"])
+        gen = cpu_generation(r["cpu"])
+        if line and gen and ram:
+            return f"PC {line} {gen} · {ram} GB RAM (zintegrowana grafika)"
         return None
     if category in ("phone", "tablet"):
         if not parts:
