@@ -704,7 +704,11 @@ def test_sniper_guide_files(relisted, flagged, tmp_path):
     assert "≤ 7 dni" in text and "sprzedaż 1 000 zł → 28.0%" in text and "sprzedaż 2 500 zł → 25.0%" in text
     assert "nigdy poniżej 300 zł" in text and "Sprzedawca z Polski" in text
     iphone = next(r for r in rows if r["name"] == "iphone 13 128 GB")
-    assert iphone["src"].startswith("zniknięte") and iphone["buy"] < iphone["sale"]
+    # 17.11: telefony / tablety / konsole - „sprzedam za ~” = dolne 10% cen aktywnych (iPad 10 64 GB: 1456 → ~1090)
+    assert iphone["src"] == "dolne 10% ofert" and iphone["buy"] < iphone["sale"] < iphone["p25"]
+    assert "dolne 10% cen wystawionych ofert" in text
+    gpu = result["gpu"][1]
+    assert all(not r["src"].startswith("dolne") for r in gpu)                       # podzespoły - po staremu
     # oszustwa (519 zł, flagi) nie zaniżają cen iPhone 16 Pro
     pro = next(r for r in rows if r["name"] == "iphone 16 pro 512 GB")
     assert pro["p25"] > 3000

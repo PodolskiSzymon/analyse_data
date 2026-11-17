@@ -30,6 +30,12 @@ from .comparables import condition_group
 STATES = ("active", "reserved", "sold", "blocked", "deleted", "closed")
 GONE = ("sold", "blocked", "deleted", "closed")
 MIN_GONE_FOR_S = 10
+# 2026-11-17 (iPad 10 64 GB: tabela „sprzedam za ~1456”, AI 1380, a nie schodzi za 1100; pomysł użytkownika „5-10%
+# najniższych cen”): telefony, tablety, konsole - „sprzedam za ~” = cena, poniżej której jest tylko LOW_SHARE ofert
+# aktywnych grupy (dolne 10%). Kopia 07.11: 70% potwierdzonych sprzedaży ≤ 7 dni było po tej cenie albo drożej,
+# dawnej wartości (max zniknięte, środek p25-mediana) - tylko 33%. Jak sniper/comparables.apply_clearing.
+LOW_SHARE = 0.10
+LOW_CATEGORIES = ("phone", "tablet", "console")
 PROMO, SHIP = 26.0, 20.0
 CAT_TITLE = {"laptop": "Laptopy", "phone": "Telefony", "tablet": "Tablety", "console": "Konsole",
              "gpu": "Karty graficzne", "ram": "Pamięci RAM", "storage": "Dyski SSD", "cpu": "Procesory",
@@ -232,7 +238,7 @@ def collect(conn, excluded=None, relists=None, ai_damaged=None, progress=None):
     return out
 
 
-def rows(groups, min_offers=8, costs=PROMO + SHIP):
+def rows(groups, min_offers=8, costs=PROMO + SHIP, low_share=None):
     """Wiersze tabeli: [grupa, n aktywnych, p25, mediana, p75, PL med, zagr med, zniknęło, sprzedanych, S, źródło S,
     max zakup, zysk, marża, % aktywnych poniżej max zakupu] - grupy z ≥ min_offers aktywnymi, od najliczniejszych."""
     pct = analysis.percentile
@@ -248,6 +254,8 @@ def rows(groups, min_offers=8, costs=PROMO + SHIP):
             sale, src = gone_med, f"zniknięte (n={len(g['gone'])})"
         else:
             sale, src = mid, "oferty p25–med"
+        if low_share:
+            sale, src = min(sale, pct(a, low_share)), f"dolne {low_share * 100:.0f}% ofert"
         deal = max_buy(sale, costs)
         below = sum(1 for x in a if deal and x <= deal[0]) / len(a) if deal else 0.0
         out.append({"name": name, "n": len(a), "p25": p25, "med": med, "p75": p75,
@@ -290,9 +298,13 @@ def header(category, costs, day, ai_count):
         "ostrożnie, uzasadnij cenę sprzedaży.",
         "2. Stan: tabela dotyczy sprawnych. Na części / blokada iCloud / zbity ekran → zwykle nie okazja (uszkodzone "
         "schodzą ~25–35% taniej i wolniej). Drobna usterka obniża cenę sprzedaży – uwzględnij ją.",
-        "3. **Cena sprzedaży** = kolumna „sprzedam za ~” (szybko, ≤ 7 dni, kupujący porównujący ceny). "
-        "Mocniejsza konfiguracja w grupie (więcej RAM / dysku, lepszy CPU, gwarancja, komplet) → bliżej p75; słabsza "
-        "→ bliżej p25. p75 = górna granica (kupujący nieświadomy).",
+        ("3. **Cena sprzedaży** = kolumna „sprzedam za ~” = dolne 10% cen wystawionych ofert tej grupy - po tyle "
+         "realnie schodzi w ≤ 7 dni (kupujący biorą najtańsze sensowne oferty; mediana i p75 to w dużej części oferty, "
+         "które wiszą). Wyżej najwyżej o ~10-20% i tylko z wyraźnym powodem (gwarancja, komplet z pudełkiem, rzadki "
+         "wariant), nigdy ponad medianę." if category in LOW_CATEGORIES else
+         "3. **Cena sprzedaży** = kolumna „sprzedam za ~” (szybko, ≤ 7 dni, kupujący porównujący ceny). "
+         "Mocniejsza konfiguracja w grupie (więcej RAM / dysku, lepszy CPU, gwarancja, komplet) → bliżej p75; słabsza "
+         "→ bliżej p25. p75 = górna granica (kupujący nieświadomy)."),
         "4. Okazja, gdy cena oferty (z wysyłką) ≤ „max zakup” – albo gdy własne wyliczenie zysku i marży spełnia "
         "regułę wyżej. Podaj: szacowaną cenę sprzedaży, zysk, marżę i dni do sprzedaży.",
         f"5. ⚠ przy grupie = ponad {MIXED_BELOW * 100:.0f}% wystawionych ofert już kosztuje ≤ max zakup – grupa miesza "
@@ -302,9 +314,13 @@ def header(category, costs, day, ai_count):
         "ofertach.", "",
         "## Skąd liczby",
         f"Oferty z Vinted (PL + zagranica) zebrane przez analizator; tylko sprawne (stan z AI dla {ai_count} ofert, "
-        "reszta z reguł), bez podejrzanych i ponownych wystawień. „Sprzedam za ~” = mediana ostatniej ceny ofert, które "
-        f"zniknęły (≥ {MIN_GONE_FOR_S}; część to usunięcia, nie sprzedaże), a przy mniejszej liczbie środek p25–mediana "
-        "ofert. To ceny WYSTAWIENIA (z „Zaproponuj cenę” kupujący płaci czasem mniej). „% ofert ≤ max” = jak często "
+        "reszta z reguł), bez podejrzanych i ponownych wystawień. "
+        + ("„Sprzedam za ~” = cena, poniżej której jest tylko 10% wystawionych ofert grupy (70% potwierdzonych "
+           "sprzedaży ≤ 7 dni było po tej cenie albo drożej). " if category in LOW_CATEGORIES else
+           "„Sprzedam za ~” = mediana ostatniej ceny ofert, które "
+           f"zniknęły (≥ {MIN_GONE_FOR_S}; część to usunięcia, nie sprzedaże), a przy mniejszej liczbie środek "
+           "p25–mediana ofert. ")
+        + "To ceny WYSTAWIENIA (z „Zaproponuj cenę” kupujący płaci czasem mniej). „% ofert ≤ max” = jak często "
         "trafia się okazja.", ""]
 
 
@@ -347,7 +363,7 @@ def build(conn, aconn, out, promo=PROMO, ship=SHIP, min_offers=8, progress=None)
     day = out.parent.name
     result = {}
     for category, groups in data.items():
-        rows_ = rows(groups, min_offers, costs)
+        rows_ = rows(groups, min_offers, costs, LOW_SHARE if category in LOW_CATEGORIES else None)
         if not rows_:
             continue
         n_shown = sum(1 for r in rows_ if practical(r))

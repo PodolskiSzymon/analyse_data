@@ -268,6 +268,10 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
+00000000. (17.11) **Wycena = dolne 10% cen aktywnych** (telefony, tablety, konsole; pomysł użytkownika) w Sniperze
+   (`SNIPER_VALUE_SHARE`) i w tabelach wytycznych (`guide.LOW_SHARE`): 70% potwierdzonych sprzedaży ≤ 7 dni było po
+   tej cenie albo drożej, dawny szacunek - 33%. Liczby: `POPYT.md`.
+
 0000000. (17.11) **iPad 10 64 GB z alertu 01.11 (9/10, zakup ~900 zł) nie schodzi za 1100 zł** → zniknięcie ≠
    sprzedaż: jego „szybkie zniknięcia” w danych to same usunięte / ukryte, zero potwierdzonych sprzedaży. Sniper:
    gorący tylko przy ≥ 2 potwierdzonych sprzedażach, ≥ 10 zniknięć bez sprzedaży = wolny, bez sprzedaży wycena AI ≤

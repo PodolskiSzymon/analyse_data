@@ -123,6 +123,18 @@ sprzedaż poza Vinted). U użytkownika dobre zakupy (S23, iPad A16) miały potwi
 sprzedaży wycena AI najwyżej szacunek × 1,0 → iPad 10 64 GB max zakup 857 zł (zakup 901 - bez alertu).
 Test wstecz z tą zmianą (te same dane i oferty co wyżej): 724 → 205 kandydatów na alert (wcześniej 247), odsprzedaż w 7 dni po wycenie programu 43% (było 34% po staremu), mediana zakładanego zysku 626 zł.
 
+**17.11 - wycena = dolne 10% cen aktywnych** (pomysł użytkownika: „5-10% najniższych cen jako wartość rynkowa”;
+mail z 01.11 podał 1380 zł, bo AI wzięło „sprzedam za ~1456” z tabeli = max(mediana zniknięć, środek p25-mediana)).
+Gdzie w rozkładzie cen aktywnych ofert modelu leżą ceny (kopia 07.11, bez oszustw / uszkodzonych / relistów):
+potwierdzone sprzedaże ≤ 7 dni - mediana na 19. percentylu (p25 na 7., p75 na 46.); nowe oferty wiszące ≥ 14 dni -
+na 40. Cena sprzedaży ≤ 7 dni / wycena (n = 273): dawny szacunek - mediana 0,91, sprzedaż ≥ wyceny 33%; **p10
+aktywnych - 1,10 i 70%**; p15 - 1,04 i 57%; p20 - 1,00 i 51%; rozkład trójkątny (p5, mediana, p95) na 10% - 0,99 i
+48% (ogon tanich ofert jest grubszy niż w trójkącie, więc zwykły kwantyl lepszy). Przypadki użytkownika (p10):
+iPad 10.9 (2022) 1091 (nie schodzi za 1100-1250, dziś rynek 800-1250), S23 856 (sprzedany za 1000), reMarkable 2
+1173 (1400), iPhone 12 450 (zysk tylko 80 zł), MatePad 11 583 (oczekiwał 850). Wdrożone: Sniper
+(`SNIPER_VALUE_SHARE`=0,10, `comparables.apply_clearing`, ≥ 5 aktywnych) i tabele analizatora (`guide.LOW_SHARE`,
+kolumna „sprzedam za ~” + opis dla AI) - telefony, tablety, konsole; nigdy ponad dawny szacunek.
+
 Klasy wszystkich modeli z ≥ 15 nowymi ofertami (`narzedzia/popyt.py`, okno 16-31.10, grupy po modelu - w Sniperze
 liczone po dopasowaniu tytułu, więc mogą się trochę różnić): gorące 15, normalne 122, wolne 22, martwe 4.
 * gorące: iPad A16, iPad mini A17 Pro, iPad Air (2022), iPad Air 11 (2024), iPhone 17 / 17 Pro / 17 Air, iPhone 16
