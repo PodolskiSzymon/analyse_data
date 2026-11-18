@@ -268,6 +268,16 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
+00000000000. (18.11) **Laptopy = cena szybkiej sprzedaży** (użytkownik: „chciałbym patrzeć na szybkie sprzedaże”):
+   szacunek = dolne 20% cen aktywnych ofert specyfikacji (Sniper `comparables.apply_laptop_fast`, AI ≤ szacunek × 1,1;
+   tabele `guide.LAPTOP_SHARE`), stare - dolne 10% (niżej). Test na kopii 07.11 (szacunek z danych do 27.10, 88 szybkich
+   sprzedaży używanych laptopów 28.10–07.11): mediana cena / szacunek - dawny 0,92 (po nim albo drożej 28%), mediana
+   aktywnych 0,87 (20%), p25 0,97 (41%), **dolne 20% 1,00 (51%)**, dolne 10% 1,06 (64%); karta / procesor / MacBook tak
+   samo. Mediana samych szybkich sprzedaży per specyfikacja - za mało danych (≥ 5 tylko w 16 z 88). Bramka na nowych
+   ofertach 28.10–07.11: kandydatów 141 → 22, z nich zniknęło w ≤ 3 dni 26% → 36%. Grupowanie bez zmian: karta + RAM +
+   dysk, bez karty procesor + generacja + RAM + dysk, MacBook z M - linia + chip + RAM + dysk; **MacBooki z Intelem nie
+   mają własnej grupy** (procesor + generacja razem z Windowsami) - do poprawy (rocznik), jeśli użytkownik zechce.
+
 0000000000. (18.11) **Stare laptopy = dolne 10% cen** (decyzja użytkownika: „tylko jeśli chodzi o wiek, bo te stare
    MacBooki słabo schodzą”; alert MacBook Air 2015 za 455 zł wyceniony na 820 zł). Stary = Intel do 7. generacji bez
    osobnej karty (także MacBooki z Intelem do 2017): Sniper `market.old_laptop` + `comparables.apply_old_laptop`

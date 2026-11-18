@@ -41,6 +41,10 @@ LOW_CATEGORIES = ("phone", "tablet", "console")
 # w 5-11% (Intel ≤ 7 gen.) i 16-23% (MacBook z Intelem ≤ 2017) - M1 / M2 38-40%; 35-73% ofert tych roczników jest
 # poniżej progu crawla 700 zł, więc mediany z bazy są zawyżone. Jak sniper/market.py: old_laptop.
 OLD_LAPTOP_GROUP = "do 7 gen."
+# 2026-11-18 (użytkownik: przy laptopach „chciałbym patrzeć na szybkie sprzedaże”): pozostałe laptopy - „sprzedam
+# za ~” = dolne 20% ofert grupy. Test na kopii 07.11 (dane do 27.10 → 88 szybkich sprzedaży 28.10-07.11): mediana
+# cena / dolne 20% = 1,00, dawna wartość 0,92 (po niej albo drożej tylko 28%). Jak sniper/comparables.apply_laptop_fast.
+LAPTOP_SHARE = 0.20
 
 
 def old_laptop_group(category, name):
@@ -277,10 +281,10 @@ def rows(groups, min_offers=8, costs=PROMO + SHIP, low_share=None, old_for=None)
             sale, src = gone_med, f"zniknięte (n={len(g['gone'])})"
         else:
             sale, src = mid, "oferty p25–med"
-        if low_share:
-            sale, src = min(sale, pct(a, low_share)), f"dolne {low_share * 100:.0f}% ofert"
-        elif old_for and old_for(name):
+        if old_for and old_for(name):
             sale, src = min(sale, pct(a, LOW_SHARE)), f"dolne {LOW_SHARE * 100:.0f}% ofert (stary, schodzi wolno)"
+        elif low_share:
+            sale, src = min(sale, pct(a, low_share)), f"dolne {low_share * 100:.0f}% ofert"
         deal = max_buy(sale, costs)
         below = sum(1 for x in a if deal and x <= deal[0]) / len(a) if deal else 0.0
         out.append({"name": name, "n": len(a), "p25": p25, "med": med, "p75": p75,
@@ -330,9 +334,13 @@ def header(category, costs, day, ai_count):
          "3. **Cena sprzedaży** = kolumna „sprzedam za ~” (szybko, ≤ 7 dni, kupujący porównujący ceny). "
          "Mocniejsza konfiguracja w grupie (więcej RAM / dysku, lepszy CPU, gwarancja, komplet) → bliżej p75; słabsza "
          "→ bliżej p25. p75 = górna granica (kupujący nieświadomy)."
-         + (" Wyjątek: grupy „do 7 gen.” (stare laptopy, także MacBooki z Intelem do 2017) schodzą wolno, a większość "
-            "ich ofert kosztuje poniżej 700 zł (baza zbiera laptopy od 700 zł) - tam „sprzedam za ~” = dolne 10% "
-            "wystawionych ofert; nie wyceniaj wyżej." if category == "laptop" else "")),
+         if category != "laptop" else
+         "3. **Cena sprzedaży** = kolumna „sprzedam za ~” = cena szybkiej sprzedaży: dolne 20% cen wystawionych ofert "
+         "grupy (po tyle laptopy schodzą w ≤ 3 dni; połowa szybkich sprzedaży po tej cenie albo drożej, tylko co "
+         "czwarta ≥ 1,1 × tyle). Wyżej najwyżej o ~10% i tylko z wyraźnym powodem (lepsza konfiguracja niż w grupie, "
+         "gwarancja, komplet z pudełkiem). Grupy „do 7 gen.” (stare laptopy, także MacBooki z Intelem do 2017) schodzą "
+         "wolno, a większość ich ofert kosztuje poniżej 700 zł (baza zbiera laptopy od 700 zł) - tam dolne 10%; nie "
+         "wyceniaj wyżej."),
         "4. Okazja, gdy cena oferty (z wysyłką) ≤ „max zakup” – albo gdy własne wyliczenie zysku i marży spełnia "
         "regułę wyżej. Podaj: szacowaną cenę sprzedaży, zysk, marżę i dni do sprzedaży.",
         f"5. ⚠ przy grupie = ponad {MIXED_BELOW * 100:.0f}% wystawionych ofert już kosztuje ≤ max zakup – grupa miesza "
@@ -345,6 +353,9 @@ def header(category, costs, day, ai_count):
         "reszta z reguł), bez podejrzanych i ponownych wystawień. "
         + ("„Sprzedam za ~” = cena, poniżej której jest tylko 10% wystawionych ofert grupy (70% potwierdzonych "
            "sprzedaży ≤ 7 dni było po tej cenie albo drożej). " if category in LOW_CATEGORIES else
+           "„Sprzedam za ~” = cena, poniżej której jest tylko 20% wystawionych ofert grupy (stare laptopy „do 7 gen.” - "
+           "10%); na danych do 27.10 mediana ceny szybkich sprzedaży 28.10-07.11 była dokładnie na tym poziomie. "
+           if category == "laptop" else
            "„Sprzedam za ~” = mediana ostatniej ceny ofert, które "
            f"zniknęły (≥ {MIN_GONE_FOR_S}; część to usunięcia, nie sprzedaże), a przy mniejszej liczbie środek "
            "p25–mediana ofert. ")
@@ -391,8 +402,8 @@ def build(conn, aconn, out, promo=PROMO, ship=SHIP, min_offers=8, progress=None)
     day = out.parent.name
     result = {}
     for category, groups in data.items():
-        rows_ = rows(groups, min_offers, costs, LOW_SHARE if category in LOW_CATEGORIES else None,
-                     lambda name, c=category: old_laptop_group(c, name))
+        share = LOW_SHARE if category in LOW_CATEGORIES else LAPTOP_SHARE if category == "laptop" else None
+        rows_ = rows(groups, min_offers, costs, share, lambda name, c=category: old_laptop_group(c, name))
         if not rows_:
             continue
         n_shown = sum(1 for r in rows_ if practical(r))

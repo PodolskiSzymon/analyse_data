@@ -744,6 +744,7 @@ def test_sale_price_takes_higher_estimate():
 def test_old_laptop_groups_use_low_prices():
     """2026-11-18: laptopy z Intelem do 7 gen. (zintegrowana grafika) - „sprzedam za ~” = dolne 10% ofert; nowsze
     i z kartą - jak dawniej (jak sniper/market.py: old_laptop)."""
+    from analyzer import guide
     from analyzer.guide import old_laptop_group, rows
     active = [700.0 + 30 * i for i in range(12)]                      # p10 733, (p25 + mediana) / 2 ≈ 824
     group = lambda: {"active": list(active), "active_pl": list(active), "active_zagr": [], "gone": [], "sold": []}  # noqa
@@ -753,6 +754,11 @@ def test_old_laptop_groups_use_low_prices():
                                       old_for=lambda n: old_laptop_group("laptop", n))}
     assert out[old]["sale"] == pytest.approx(733.0) and "stary" in out[old]["src"]
     assert out[new]["sale"] == pytest.approx(823.75) and out["GTX 1050"]["sale"] == pytest.approx(823.75)
+    # laptopy (18.11, „szybkie sprzedaże”): pozostałe grupy - dolne 20% (766), stare - nadal dolne 10%
+    out = {r["name"]: r for r in rows({old: group(), new: group()}, 8, low_share=guide.LAPTOP_SHARE,
+                                      old_for=lambda n: old_laptop_group("laptop", n))}
+    assert out[old]["sale"] == pytest.approx(733.0) and out[new]["sale"] == pytest.approx(766.0)
+    assert out[new]["src"] == "dolne 20% ofert"
     assert not old_laptop_group("tablet", old) and old_laptop_group("laptop", old)
 
 
