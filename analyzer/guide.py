@@ -36,6 +36,16 @@ MIN_GONE_FOR_S = 10
 # dawnej wartości (max zniknięte, środek p25-mediana) - tylko 33%. Jak sniper/comparables.apply_clearing.
 LOW_SHARE = 0.10
 LOW_CATEGORIES = ("phone", "tablet", "console")
+# 2026-11-18 (użytkownik: dolne 10% „tylko jeśli chodzi o wiek, bo te stare MacBooki słabo schodzą”): laptopy z Intelem
+# do 7. generacji bez osobnej karty (także MacBooki z Intelem do 2017). Kopia 07.11: nowa oferta znika w tydzień
+# w 5-11% (Intel ≤ 7 gen.) i 16-23% (MacBook z Intelem ≤ 2017) - M1 / M2 38-40%; 35-73% ofert tych roczników jest
+# poniżej progu crawla 700 zł, więc mediany z bazy są zawyżone. Jak sniper/market.py: old_laptop.
+OLD_LAPTOP_GROUP = "do 7 gen."
+
+
+def old_laptop_group(category, name):
+    """Grupa starych laptopów (wycena = dolne LOW_SHARE ofert)."""
+    return category == "laptop" and OLD_LAPTOP_GROUP in (name or "") and "zintegrowana" in (name or "")
 PROMO, SHIP = 26.0, 20.0
 CAT_TITLE = {"laptop": "Laptopy", "phone": "Telefony", "tablet": "Tablety", "console": "Konsole",
              "gpu": "Karty graficzne", "ram": "Pamięci RAM", "storage": "Dyski SSD", "cpu": "Procesory",
@@ -250,9 +260,10 @@ def collect(conn, excluded=None, relists=None, ai_damaged=None, progress=None):
     return out
 
 
-def rows(groups, min_offers=8, costs=PROMO + SHIP, low_share=None):
+def rows(groups, min_offers=8, costs=PROMO + SHIP, low_share=None, old_for=None):
     """Wiersze tabeli: [grupa, n aktywnych, p25, mediana, p75, PL med, zagr med, zniknęło, sprzedanych, S, źródło S,
-    max zakup, zysk, marża, % aktywnych poniżej max zakupu] - grupy z ≥ min_offers aktywnymi, od najliczniejszych."""
+    max zakup, zysk, marża, % aktywnych poniżej max zakupu] - grupy z ≥ min_offers aktywnymi, od najliczniejszych.
+    old_for(nazwa) → True: stara grupa (laptopy do 7 gen.) - też dolne LOW_SHARE ofert."""
     pct = analysis.percentile
     out = []
     for name, g in groups.items():
@@ -268,6 +279,8 @@ def rows(groups, min_offers=8, costs=PROMO + SHIP, low_share=None):
             sale, src = mid, "oferty p25–med"
         if low_share:
             sale, src = min(sale, pct(a, low_share)), f"dolne {low_share * 100:.0f}% ofert"
+        elif old_for and old_for(name):
+            sale, src = min(sale, pct(a, LOW_SHARE)), f"dolne {LOW_SHARE * 100:.0f}% ofert (stary, schodzi wolno)"
         deal = max_buy(sale, costs)
         below = sum(1 for x in a if deal and x <= deal[0]) / len(a) if deal else 0.0
         out.append({"name": name, "n": len(a), "p25": p25, "med": med, "p75": p75,
@@ -316,7 +329,10 @@ def header(category, costs, day, ai_count):
          "wariant), nigdy ponad medianę." if category in LOW_CATEGORIES else
          "3. **Cena sprzedaży** = kolumna „sprzedam za ~” (szybko, ≤ 7 dni, kupujący porównujący ceny). "
          "Mocniejsza konfiguracja w grupie (więcej RAM / dysku, lepszy CPU, gwarancja, komplet) → bliżej p75; słabsza "
-         "→ bliżej p25. p75 = górna granica (kupujący nieświadomy)."),
+         "→ bliżej p25. p75 = górna granica (kupujący nieświadomy)."
+         + (" Wyjątek: grupy „do 7 gen.” (stare laptopy, także MacBooki z Intelem do 2017) schodzą wolno, a większość "
+            "ich ofert kosztuje poniżej 700 zł (baza zbiera laptopy od 700 zł) - tam „sprzedam za ~” = dolne 10% "
+            "wystawionych ofert; nie wyceniaj wyżej." if category == "laptop" else "")),
         "4. Okazja, gdy cena oferty (z wysyłką) ≤ „max zakup” – albo gdy własne wyliczenie zysku i marży spełnia "
         "regułę wyżej. Podaj: szacowaną cenę sprzedaży, zysk, marżę i dni do sprzedaży.",
         f"5. ⚠ przy grupie = ponad {MIXED_BELOW * 100:.0f}% wystawionych ofert już kosztuje ≤ max zakup – grupa miesza "
@@ -375,7 +391,8 @@ def build(conn, aconn, out, promo=PROMO, ship=SHIP, min_offers=8, progress=None)
     day = out.parent.name
     result = {}
     for category, groups in data.items():
-        rows_ = rows(groups, min_offers, costs, LOW_SHARE if category in LOW_CATEGORIES else None)
+        rows_ = rows(groups, min_offers, costs, LOW_SHARE if category in LOW_CATEGORIES else None,
+                     lambda name, c=category: old_laptop_group(c, name))
         if not rows_:
             continue
         n_shown = sum(1 for r in rows_ if practical(r))

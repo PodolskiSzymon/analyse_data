@@ -741,6 +741,21 @@ def test_sale_price_takes_higher_estimate():
     assert rows(g)[0]["sale"] == 3900.0 and rows(g)[0]["src"].startswith("zniknięte")
 
 
+def test_old_laptop_groups_use_low_prices():
+    """2026-11-18: laptopy z Intelem do 7 gen. (zintegrowana grafika) - „sprzedam za ~” = dolne 10% ofert; nowsze
+    i z kartą - jak dawniej (jak sniper/market.py: old_laptop)."""
+    from analyzer.guide import old_laptop_group, rows
+    active = [700.0 + 30 * i for i in range(12)]                      # p10 733, (p25 + mediana) / 2 ≈ 824
+    group = lambda: {"active": list(active), "active_pl": list(active), "active_zagr": [], "gone": [], "sold": []}  # noqa
+    old, new = "intel core i5 do 7 gen. · 8 GB RAM (zintegrowana grafika)", \
+        "intel core i5 8–9 gen. · 8 GB RAM (zintegrowana grafika)"
+    out = {r["name"]: r for r in rows({old: group(), new: group(), "GTX 1050": group()}, 8,
+                                      old_for=lambda n: old_laptop_group("laptop", n))}
+    assert out[old]["sale"] == pytest.approx(733.0) and "stary" in out[old]["src"]
+    assert out[new]["sale"] == pytest.approx(823.75) and out["GTX 1050"]["sale"] == pytest.approx(823.75)
+    assert not old_laptop_group("tablet", old) and old_laptop_group("laptop", old)
+
+
 # ------------------------------------------------------------------ E2: archiwum zdjęć, E3: automat, alarm
 
 

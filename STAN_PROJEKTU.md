@@ -268,6 +268,18 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
+0000000000. (18.11) **Stare laptopy = dolne 10% cen** (decyzja użytkownika: „tylko jeśli chodzi o wiek, bo te stare
+   MacBooki słabo schodzą”; alert MacBook Air 2015 za 455 zł wyceniony na 820 zł). Stary = Intel do 7. generacji bez
+   osobnej karty (także MacBooki z Intelem do 2017): Sniper `market.old_laptop` + `comparables.apply_old_laptop`
+   (szacunek = p10 aktywnych, AI ≤ szacunek × 1,0, bramka od tego, `SNIPER_OLD_LAPTOP_RULES`), tabele `guide.rows`
+   (`old_laptop_group`). Kopia 07.11, nowa oferta znika w tydzień: Intel ≤ 5 gen. 5%, 6–7 gen. 11%, MacBook Intel
+   ≤ 2015 16%, 2016–17 23% (M1 38%, M2+ 40%, Intel 8–9 gen. 23%; laptopy z kartą, też GTX 10xx, 28%).
+   **Czekamy na decyzję: próg crawla laptopów 700 zł ukrywa tani rynek** - poniżej 700 zł jest 73% ofert MacBooków
+   z Intelem ≤ 2015 (mediana całego rynku 535 zł, w bazie 889 zł), 64% Intel ≤ 5 gen., 41% 6–7 gen., 35% MacBooków
+   2016–17; nowsze ~0–5%. `ANALYZER_PRICE_MIN_3580=300` = ~+10 tys. ofert (+60% laptopów, szczegóły jednorazowo
+   ~150 MB przez proxy), `=400` ~+7 tys. (+42%). Przy okazji: „Notebook” / „Chromebook” łapały się jako czytnik
+   (`LOW_DEMAND`: „e-book”) - laptop tracił okazję poza ceną ≤ 30% szacunku; naprawione.
+
 000000000. (17.11) **Komputery stacjonarne (katalog 3581, od 500 zł)** - kategoria `desktop`: crawl jak inne katalogi
    (`DEFAULT_PRICE_MIN[3581]=500`, `ANALYZER_PRICE_MIN_3581`), szczegóły wszystkich ofert, pełna specyfikacja
    (`extract.desktop`: procesor - też desktopowy i5-9400F / Ryzen 5 5600, karta, RAM, dysk SSD / NVMe + HDD, zasilacz W,
