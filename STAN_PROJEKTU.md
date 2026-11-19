@@ -273,7 +273,7 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
    z tytułu; nowych odczytów 34; iPhone 11 / XR z „5G” 105 razy; visible_text = tytuł w 32%). Pudełko: tekst „bez” →
    „nie” 96%; tekst milczy → „jest” w 38% ofert; użytkownik sprawdził próbkę - „jest” ~100% trafne, gubi pudełko na
    dalszych zdjęciach (dostawał 3). `vision-test --tylko-pudelko`: bez tytułu, jedno pole, 6 zdjęć po 512 px, plik
-   `*_qwen_pudelko.jsonl`, oferty z pudełkiem z pełnego testu przenoszone. `.bat` przestawiony. Czekamy na tempo i wyniki.
+   `*_qwen_pudelko.jsonl`, oferty z pudełkiem z pełnego testu przenoszone. **Porównanie (`vision-porownaj`, 100 ofert z pudełkiem wg pełnego testu + 40 „bez”): przyczyną wolnego tempa był brak Pillow (zdjęcia w pełnej rozdzielczości, 49,5 s, błędy 400).** Pełne pytanie 3 zdj. po 512 px: 96% w 4,5 s, po 768 px 99% w 8,7 s; samo pudełko 81-84%, po jednym zdjęciu 42-55%. `.bat`: pełne pytanie, 512 px, dalej w tym samym `*_qwen.jsonl` (~31 h na resztę).
 
 00000000000. (18.11) **Laptopy = cena szybkiej sprzedaży** (użytkownik: „chciałbym patrzeć na szybkie sprzedaże”):
    szacunek = dolne 20% cen aktywnych ofert specyfikacji (Sniper `comparables.apply_laptop_fast`, AI ≤ szacunek × 1,1;

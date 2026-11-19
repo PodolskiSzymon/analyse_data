@@ -54,14 +54,13 @@ echo === WIZJA (podejscie %PROBA%): uruchamiam llama-server z Qwen2.5-VL-3B ===
 taskkill /im llama-server.exe /f >nul 2>&1
 start "llama-wizja" /min "%LLAMA%" -hf ggml-org/Qwen2.5-VL-3B-Instruct-GGUF --host 127.0.0.1 --port 8081 -ngl 99 -c 8192
 timeout /t 120 /nobreak
-rem 19.11: tylko pudelko (pamiec / 5G model przepisywal z tytulu); wszystkie ~5100 ofert z pelnego testu (plik
-rem *_qwen.jsonl) przechodza bez ponownego pytania; wyniki: *_qwen_pudelko.jsonl / .txt. Rozmiar zdjec - wg wyniku
-rem pc_porownaj_pudelko.bat (512 / 384 / 320):
+rem 19.11: porownanie (140 ofert): pelne pytanie przy 3 zdjeciach po 512 px - 96% pudelek w 4,5 s (samo pudelko 81-84%,
+rem po jednym zdjeciu 42-55%, 768 px 99% w 8,7 s). Wyniki do tego samego *_qwen.jsonl - dalej od ~5100 ofert.
 set VISION_SIZE=512
-"%BASAL_ENV%\python.exe" -m analyzer vision-test --plik "%VISION_SAMPLE%" --model qwen --api openai --zdjecia 6 --zdjecia-dir "%PHOTOS%" --tylko-pudelko --przenies wszystkie --rozmiar %VISION_SIZE%
+"%BASAL_ENV%\python.exe" -m analyzer vision-test --plik "%VISION_SAMPLE%" --model qwen --api openai --zdjecia 3 --zdjecia-dir "%PHOTOS%" --rozmiar %VISION_SIZE%
 echo [%date% %time%] wizja - koniec podejscia %PROBA% >> "%CODE%\data\pc_kilka_dni.log"
-"%BASAL_ENV%\python.exe" -c "import sys,json; from analyzer import vision; d={r['id'] for r in vision.load_results(r'%VISION_SAMPLE%'.replace('.jsonl','_qwen_pudelko.jsonl')) if not r.get('error')}; n=sum(1 for _ in open(r'%VISION_SAMPLE%',encoding='utf-8')); print(f'ocenione {len(d)} / {n}'); sys.exit(0 if len(d) >= n - 50 else 1)"
+"%BASAL_ENV%\python.exe" -c "import sys,json; from analyzer import vision; d={r['id'] for r in vision.load_results(r'%VISION_SAMPLE%'.replace('.jsonl','_qwen.jsonl')) if not r.get('error')}; n=sum(1 for _ in open(r'%VISION_SAMPLE%',encoding='utf-8')); print(f'ocenione {len(d)} / {n}'); sys.exit(0 if len(d) >= n - 50 else 1)"
 if errorlevel 1 if %PROBA% LSS 50 goto wizja
 echo [%date% %time%] wizja gotowa >> "%CODE%\data\pc_kilka_dni.log"
 taskkill /im llama-server.exe /f
-echo === KONIEC - wyniki: %BASAL_DIR%\raport_45b_*.txt i obok %VISION_SAMPLE% plik *_qwen_pudelko.txt ===
+echo === KONIEC - wyniki: %BASAL_DIR%\raport_45b_*.txt i obok %VISION_SAMPLE% plik *_qwen.txt ===
