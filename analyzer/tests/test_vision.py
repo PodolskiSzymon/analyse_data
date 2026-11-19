@@ -285,3 +285,23 @@ def test_error_shows_server_message():
     answer, _s, error = vision.ask(httpx.Client(transport=httpx.MockTransport(handler)), "http://x", "qwen", "t",
                                    ["AAAA"], api="openai", box_only=True)
     assert answer is None and "exceeds the available context size" in error
+
+
+def test_box_per_photo_stops_at_first_yes():
+    """19.11: tryb po jednym - każde zdjęcie osobno, koniec na pierwszym „yes”; numer zdjęcia w wyniku."""
+    rows = vision.sample(_conn(), "a17", "phone", limit=1, max_photos=4)
+    rows[0]["photos"] = [f"https://images1.vinted.net/{k}.jpg" for k in range(5)]
+    asked = []
+
+    def handler(request):
+        if request.url.host.startswith("images"):
+            return httpx.Response(200, content=JPEG)
+        body = json.loads(request.content)
+        images = [c for c in body["messages"][0]["content"] if c["type"] == "image_url"]
+        assert len(images) == 1 and "this photo" in body["messages"][0]["content"][0]["text"]
+        asked.append(1)
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(
+            {"box_visible": "yes" if len(asked) == 2 else "no"})}}]})
+    results, _ = vision.run_test(rows, "qwen", "http://x", max_photos=5, client=httpx.Client(
+        transport=httpx.MockTransport(handler)), say=lambda _t: None, api="openai", box_only=True, per_photo=True)
+    assert len(asked) == 2 and results[0]["vision_box"] == "yes" and results[0]["box_photo"] == 2

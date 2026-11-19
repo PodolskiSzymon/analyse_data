@@ -685,6 +685,9 @@ def main(argv=None):
     p_vc.add_argument("--ile", type=int, default=100, help="ofert z pudełkiem")
     p_vc.add_argument("--bez", type=int, default=40, help="ofert z tekstem „bez pudełka”")
     p_vc.add_argument("--zdjecia-dir", default=None)
+    p_vc.add_argument("--po-jednym", action="store_true", help="każde zdjęcie osobnym pytaniem (koniec na „yes”)")
+    p_vt.add_argument("--po-jednym", action="store_true", help="z --tylko-pudelko: każde zdjęcie osobnym pytaniem, "
+                      "koniec na pierwszym „yes”")
     p_vt.add_argument("--tylko-pudelko", action="store_true", help="samo pudełko (bez tytułu w poleceniu, zdjęcia "
                       "512 px, krótka odpowiedź) -> plik *_<model>_pudelko.jsonl; oferty, w których pełny test już "
                       "widział pudełko, przenosi bez pytania")
@@ -1022,7 +1025,7 @@ def main(argv=None):
         _t, text, out = vision.compare_box_modes(
             args.plik, args.model, tuple(int(x) for x in args.rozmiary.split(",") if x.strip()), args.zdjecia,
             args.ile, args.bez, url, args.api, Path(args.zdjecia_dir) if args.zdjecia_dir else None,
-            say=lambda t: print(t, flush=True))
+            say=lambda t: print(t, flush=True), per_photo=args.po_jednym)
         print("\n" + text + f"\n\nRaport: {out}")
     elif args.command == "vision-test":
         from . import vision
@@ -1036,7 +1039,7 @@ def main(argv=None):
                                            photos_root=Path(args.zdjecia_dir) if args.zdjecia_dir else None,
                                            box_only=box, earlier_path=vision.results_path(args.plik, args.model),
                                            carry="all" if args.przenies == "wszystkie" else "boxes",
-                                           size=args.rozmiar)
+                                           size=args.rozmiar, per_photo=args.po_jednym)
         path, text = vision.save_results(results, summary, args.plik, args.model + (f"_{vision.BOX_TAG}" if box
                                                                                     else ""))
         print("\n" + "\n".join(text.split("\n")[:11]))

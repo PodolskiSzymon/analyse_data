@@ -58,6 +58,10 @@ BOX_PROMPT = """You see photos from a second-hand marketplace listing (Vinted). 
 of the product (phone or tablet) visible in ANY of the photos? Answer "yes", "no", or "unclear" if you cannot tell."""
 BOX_SCHEMA = {"type": "object", "properties": {"box_visible": {"type": "string", "enum": ["yes", "no", "unclear"]}},
               "required": ["box_visible"]}
+# 19.11 (test 140 ofert, 6 zdjęć naraz po 512 px: 81% pudełek; przegapione m.in. duże pudło na 1. zdjęciu - mały
+# model gubi się przy wielu obrazach): tryb „po jednym” - każde zdjęcie osobno, koniec na pierwszym „yes”.
+BOX_PROMPT_ONE = """This is one photo from a second-hand marketplace listing (Vinted) of a phone or tablet. Is the \
+original retail box / packaging of the device visible in this photo? Answer "yes", "no", or "unclear"."""
 BOX_SIZE = 512
 BOX_TAG = "pudelko"
 
@@ -231,7 +235,8 @@ def ask(client, url, model, title, images, api="ollama", box_only=False):
     """→ (odpowiedź jako dict albo None, sekundy, błąd). api: ollama (/api/chat) albo openai (llama.cpp
     llama-server: /v1/chat/completions - 2026-11-15, Ollama 0.40 nie widziała GTX 1060, a llama.cpp CUDA 12 tak).
     box_only: samo pudełko (BOX_PROMPT, bez tytułu, krótka odpowiedź)."""
-    prompt, schema = (BOX_PROMPT, BOX_SCHEMA) if box_only else (PROMPT.format(title=title), SCHEMA)
+    prompt, schema = (BOX_PROMPT if len(images) > 1 else BOX_PROMPT_ONE, BOX_SCHEMA) if box_only \
+        else (PROMPT.format(title=title), SCHEMA)
     if api == "openai":
         content = [{"type": "text", "text": prompt}] + [
             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b}"}} for b in images]
@@ -300,12 +305,13 @@ def load_results(path):
 
 def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=None, say=print, api="ollama",
              progress_path=None, photos_root=None, max_errors_in_row=20, box_only=False, earlier_path=None,
-             carry="boxes", size=None):
+             carry="boxes", size=None, per_photo=False):
     """progress_path: wynik każdej oferty dopisywany od razu (długi przebieg na kilka dni); przy ponownym
     uruchomieniu oferty już ocenione bez błędu są pomijane (wznawianie po restarcie / zaniku prądu).
     box_only: samo pudełko, zdjęcia BOX_SIZE px; earlier_path: wyniki pełnego testu - oferty, w których model już
     zobaczył pudełko („yes” było ~100% trafne), są przenoszone bez ponownego pytania (2026-11-19); carry="all" -
-    przenoszone wszystkie odpowiedzi pełnego testu (bez powtarzania ofert z 3 zdjęć). size: rozmiar zdjęć w px."""
+    przenoszone wszystkie odpowiedzi pełnego testu (bez powtarzania ofert z 3 zdjęć). size: rozmiar zdjęć w px.
+    per_photo (z box_only): każde zdjęcie osobnym pytaniem, koniec na pierwszym „yes” (box_photo = jego numer)."""
     import httpx
 
     own = client is None
@@ -340,10 +346,27 @@ def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=Non
             if not images:
                 say(f"  [{i}/{len(rows)}] {row['id']}: brak zdjęć (oferta usunięta?) - pomijam")
                 continue
-            answer, seconds, error = ask(client, url, model, row["title"], images, api, box_only)
+            box_photo = None
+            if box_only and per_photo:
+                answer, seconds, error, seen = None, 0.0, None, "no"
+                for k, image in enumerate(images, 1):
+                    one, sec, error = ask(client, url, model, row["title"], [image], api, True)
+                    seconds += sec
+                    if error:
+                        break
+                    value = (one or {}).get("box_visible")
+                    if value == "yes":
+                        seen, box_photo = "yes", k
+                        break
+                    if value == "unclear":
+                        seen = "unclear"
+                answer = None if error else {"box_visible": seen}
+            else:
+                answer, seconds, error = ask(client, url, model, row["title"], images, api, box_only)
             item = {"id": row["id"], "url": row["url"], "title": row["title"], "photos": len(images),
                     "state": row.get("state"), "price": row.get("price"), "condition": row.get("condition"),
-                    "seconds": round(seconds, 1), "error": error, "answer": answer, **compare(row, answer)}
+                    "seconds": round(seconds, 1), "error": error, "answer": answer, **compare(row, answer),
+                    **({"box_photo": box_photo} if box_only and per_photo else {})}
             results.append(item)
             if sink:
                 sink.write(json.dumps(item, ensure_ascii=False) + "\n")
@@ -357,8 +380,9 @@ def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=Non
                 continue
             in_row = 0
             if box_only:
+                where = f" (zdjęcie {box_photo})" if box_photo else ""
                 say(f"  [{i}/{len(rows)}] {row['id']} {seconds:.0f} s, {len(images)} zdj. | pudełko: tekst "
-                    f"{item['text_box'] or '?'}, zdjęcia {item.get('vision_box')} | {row['title'][:50]}")
+                    f"{item['text_box'] or '?'}, zdjęcia {item.get('vision_box')}{where} | {row['title'][:50]}")
                 continue
             say(f"  [{i}/{len(rows)}] {row['id']} {seconds:.0f} s | pudełko: tekst {item['text_box'] or '?'}, "
                 f"zdjęcia {item.get('vision_box')} | pamięć: tytuł {item['title_storage'] or '?'}, "
@@ -433,7 +457,7 @@ def save_results(results, summary, sample_path, model):
 
 # ------------------------------------------------------------------------- porównanie trybu „tylko pudełko” (19.11)
 def compare_box_modes(sample_path, model, sizes=(512, 384, 320), max_photos=6, n_pos=100, n_neg=40, url=None,
-                      api="openai", photos_root=None, client=None, say=print, seed=7):
+                      api="openai", photos_root=None, client=None, say=print, seed=7, per_photo=False):
     """Tryb „tylko pudełko” przy kilku rozmiarach zdjęć na ofertach z pełnego testu: n_pos, w których model widział
     pudełko (pełny test był tu ~100% trafny - sprawdzone ręcznie), i n_neg z tekstem „bez pudełka” (prawda = brak).
     Wyniki per rozmiar w *_<model>_pudelko_test<rozmiar>.jsonl (wznawialne). → (wiersze tabeli, tekst raportu)."""
@@ -458,24 +482,27 @@ def compare_box_modes(sample_path, model, sizes=(512, 384, 320), max_photos=6, n
     for size in sizes:
         say(f"\n=== {size} px ===")
         box_file = results_path(sample_path, model, box_only=True)
-        progress = box_file.with_name(f"{box_file.stem}_test{size}.jsonl")
+        progress = box_file.with_name(f"{box_file.stem}_test{size}{'_pojedynczo' if per_photo else ''}.jsonl")
         res, _ = run_test(picked, model, url or "http://127.0.0.1:8081", max_photos, client=client, say=say, api=api,
-                          progress_path=progress, photos_root=photos_root, box_only=True, size=size)
+                          progress_path=progress, photos_root=photos_root, box_only=True, size=size,
+                          per_photo=per_photo)
         ok = [r for r in res if not r.get("error") and r["id"] in truth]
-        table.append({"mode": f"tylko pudełko, {max_photos} zdj. po {size} px", "n": len(ok),
+        table.append({"mode": f"tylko pudełko, {max_photos} zdj. po {size} px" + (", po jednym" if per_photo else ""),
+                      "n": len(ok),
                       "found": sum(1 for r in ok if truth[r["id"]] and r.get("vision_box") == "yes"),
                       "false": sum(1 for r in ok if not truth[r["id"]] and r.get("vision_box") == "yes"),
                       "seconds": sum(r["seconds"] for r in ok) / len(ok) if ok else None})
     n_p, n_n = len(pos), len(neg)
     lines = [f"Porównanie trybów pudełka - {Path(sample_path).name}, model {model}",
              f"{n_p} ofert, w których pełny test widział pudełko (trafne ~100%), {n_n} z tekstem „bez pudełka”.", "",
-             f"{'tryb':38} {'s / ofertę':>10} {'pudełko znalezione':>19} {'fałszywe „jest”':>16}"]
+             f"{'tryb':48} {'s / ofertę':>10} {'pudełko znalezione':>19} {'fałszywe „jest”':>16}"]
     for t in table:
-        lines.append(f"{t['mode']:38} {t['seconds'] or 0:10.1f} {t['found']:>8} / {n_p:<4} ({t['found'] / max(n_p, 1):4.0%})"
+        lines.append(f"{t['mode']:48} {t['seconds'] or 0:10.1f} {t['found']:>8} / {n_p:<4} ({t['found'] / max(n_p, 1):4.0%})"
                      f" {t['false']:>6} / {n_n:<4}")
     lines += ["", "Pełny test widział tylko 3 pierwsze zdjęcia - tryb z 6 zdjęciami może znaleźć pudełka, których on "
               "nie widział (te nie są w tej próbce, bo liczymy tylko oferty, w których pełny test pudełko znalazł)."]
     text = "\n".join(lines)
-    out = results_path(sample_path, model).with_name(f"{results_path(sample_path, model).stem}_porownanie.txt")
+    out = results_path(sample_path, model).with_name(f"{results_path(sample_path, model).stem}_porownanie"
+                                                     f"{'_pojedynczo' if per_photo else ''}.txt")
     out.write_text(text + "\n", encoding="utf-8")
     return table, text, out
