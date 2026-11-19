@@ -664,6 +664,9 @@ def main(argv=None):
     p_vt.add_argument("--limit", type=int, default=None)
     p_vt.add_argument("--zdjecia-dir", default=None, help="lokalne archiwum zdjęć (np. D:\\photos) - najpierw dysk, "
                       "potem CDN")
+    p_vt.add_argument("--tylko-pudelko", action="store_true", help="samo pudełko (bez tytułu w poleceniu, zdjęcia "
+                      "512 px, krótka odpowiedź) -> plik *_<model>_pudelko.jsonl; oferty, w których pełny test już "
+                      "widział pudełko, przenosi bez pytania")
     p_bs = sub.add_parser("basal-sample", help="test basal, krok 2: oferty jednej rodziny (np. s23) z opisem -> "
                           "data/basal/*.jsonl + wydruk (bez sieci)")
     p_bs.add_argument("--rodzina", default="s23", help="rodzina (s23, gtx1060 ... albo v2: iphone_13, ps5 ...)")
@@ -997,11 +1000,14 @@ def main(argv=None):
         rows = vision.load_sample(args.plik)[:args.limit] if args.limit else vision.load_sample(args.plik)
         url = args.url or ("http://127.0.0.1:8081" if args.api == "openai" else "http://127.0.0.1:11434")
         print(f"Test {args.model} na {len(rows)} ofertach ({url}, {args.api}) ...", flush=True)
+        box = args.tylko_pudelko
         results, summary = vision.run_test(rows, args.model, url, args.zdjecia,
                                            say=lambda t: print(t, flush=True), api=args.api,
-                                           progress_path=vision.results_path(args.plik, args.model),
-                                           photos_root=Path(args.zdjecia_dir) if args.zdjecia_dir else None)
-        path, text = vision.save_results(results, summary, args.plik, args.model)
+                                           progress_path=vision.results_path(args.plik, args.model, box),
+                                           photos_root=Path(args.zdjecia_dir) if args.zdjecia_dir else None,
+                                           box_only=box, earlier_path=vision.results_path(args.plik, args.model))
+        path, text = vision.save_results(results, summary, args.plik, args.model + (f"_{vision.BOX_TAG}" if box
+                                                                                    else ""))
         print("\n" + "\n".join(text.split("\n")[:11]))
         print(f"\nRaport: {path}")
     elif args.command == "basal-sample" and (args.wszystkie or basal_v2_family(args.rodzina)):

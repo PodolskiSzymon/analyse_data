@@ -194,3 +194,36 @@ def test_stops_after_errors_in_row(tmp_path):
     results, _ = vision.run_test(rows, "qwen", "http://x", client=httpx.Client(transport=httpx.MockTransport(handler)),
                                  say=lambda _t: None, api="openai", max_errors_in_row=2)
     assert len(results) == 2
+
+
+def test_box_only_mode_carries_earlier_boxes(tmp_path):
+    """19.11: tryb „tylko pudełko” - bez tytułu w poleceniu, jedno pole w odpowiedzi, zdjęcia 512 px, osobny plik
+    wyników; oferty, w których pełny test widział pudełko, przechodzą bez ponownego pytania."""
+    rows = vision.sample(_conn(), "a17", "phone", limit=10, max_photos=4)
+    assert len(rows) >= 3
+    earlier = vision.results_path(tmp_path / "a17.jsonl", "qwen")
+    with open(earlier, "w", encoding="utf-8") as f:                    # pełny test: pierwsza oferta z pudełkiem
+        f.write(json.dumps({"id": rows[0]["id"], "url": rows[0]["url"], "title": rows[0]["title"], "error": None,
+                            "seconds": 50, "answer": {"box_visible": "yes"}, "text_box": None,
+                            "title_storage": None, "title_5g": False, "vision_box": "yes"}) + "\n")
+        f.write(json.dumps({"id": rows[1]["id"], "url": rows[1]["url"], "title": rows[1]["title"], "error": None,
+                            "seconds": 50, "answer": {"box_visible": "no"}, "text_box": None,
+                            "title_storage": None, "title_5g": False, "vision_box": "no"}) + "\n")
+    bodies = []
+
+    def handler(request):
+        if request.url.host.startswith("images"):
+            return httpx.Response(200, content=JPEG)
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"box_visible": "yes"}'}}]})
+    progress = vision.results_path(tmp_path / "a17.jsonl", "qwen", box_only=True)
+    assert progress.name == "a17_qwen_pudelko.jsonl"
+    results, summary = vision.run_test(rows, "qwen", "http://x", client=httpx.Client(
+        transport=httpx.MockTransport(handler)), say=lambda _t: None, api="openai", progress_path=progress,
+        box_only=True, earlier_path=earlier, max_photos=6)
+    assert len(bodies) == len(rows) - 1                                 # pierwsza przeniesiona, druga pytana ponownie
+    text = bodies[0]["messages"][0]["content"][0]["text"]
+    assert rows[1]["title"] not in text and "box" in text
+    assert bodies[0]["max_tokens"] == 30
+    assert list(bodies[0]["response_format"]["schema"]["properties"]) == ["box_visible"]
+    assert summary["answered"] == len(rows) and all(r["vision_box"] == "yes" for r in results)

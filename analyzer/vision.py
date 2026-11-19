@@ -49,6 +49,18 @@ SCHEMA = {
     "required": ["box_visible", "visible_text", "model", "storage_gb", "ram_gb", "network_5g", "screen_damage"],
 }
 
+# 2026-11-19 (test 5118 ofert, Qwen2.5-VL-3B): pamięć i 5G model przepisuje z tytułu / zgaduje z nazwy (pamięć zgodna
+# w 99%, ale w 88% z nich pojemność była w tytule; iPhone 11 z „5G” 105 razy; visible_text = tytuł w 32%), a pudełko
+# widzi trafnie (użytkownik sprawdził próbkę: „jest” ~100% trafnie; tekst „bez pudełka” → „nie” w 96%), tylko gubi
+# pudełko na dalszych zdjęciach (dostawał 3). Tryb „tylko pudełko”: bez tytułu w poleceniu, jedno pole w odpowiedzi,
+# więcej zdjęć w mniejszej rozdzielczości (BOX_SIZE px - pudełko to duży obiekt).
+BOX_PROMPT = """You see photos from a second-hand marketplace listing (Vinted). Is the original retail box / packaging \
+of the product (phone or tablet) visible in ANY of the photos? Answer "yes", "no", or "unclear" if you cannot tell."""
+BOX_SCHEMA = {"type": "object", "properties": {"box_visible": {"type": "string", "enum": ["yes", "no", "unclear"]}},
+              "required": ["box_visible"]}
+BOX_SIZE = 512
+BOX_TAG = "pudelko"
+
 # Tekst ogłoszenia - te same reguły co Sniper (sniper/market.py) i mediany (5G, pojemność).
 NO_BOX = re.compile(
     r"bez\s+(?:oryginalnego\s+|org\.?\s+)?(?:pude[łl]k|opakowani|kartonu|boxa?\b)|\bno\s+box\b|without\s+(?:the\s+)?box"
@@ -168,26 +180,26 @@ def _shrink(data, size=1024):
         return data
 
 
-def read_local(photos_root, listing_id, max_photos):
+def read_local(photos_root, listing_id, max_photos, size=1024):
     """Zdjęcia z lokalnego archiwum (photos.py: <root>/<id // 1e6>/<id>/01.jpg ...) → base64; [] gdy brak."""
     from .photos import local_photos
 
     images = []
     for path in local_photos(photos_root, listing_id)[:max_photos]:
         try:
-            images.append(base64.b64encode(_shrink(path.read_bytes())).decode())
+            images.append(base64.b64encode(_shrink(path.read_bytes(), size)).decode())
         except OSError:
             continue
     return images
 
 
-def fetch_photos(client, urls):
+def fetch_photos(client, urls, size=1024):
     images = []
     for url in urls:
         try:
             r = client.get(url, timeout=30)
             r.raise_for_status()
-            images.append(base64.b64encode(_shrink(r.content)).decode())
+            images.append(base64.b64encode(_shrink(r.content, size)).decode())
         except Exception:
             continue
     return images
@@ -203,18 +215,22 @@ def _json(text):
     return json.loads(text[start:end + 1] if start >= 0 else text)
 
 
-def ask(client, url, model, title, images, api="ollama"):
+def ask(client, url, model, title, images, api="ollama", box_only=False):
     """→ (odpowiedź jako dict albo None, sekundy, błąd). api: ollama (/api/chat) albo openai (llama.cpp
-    llama-server: /v1/chat/completions - 2026-11-15, Ollama 0.40 nie widziała GTX 1060, a llama.cpp CUDA 12 tak)."""
-    prompt = PROMPT.format(title=title)
+    llama-server: /v1/chat/completions - 2026-11-15, Ollama 0.40 nie widziała GTX 1060, a llama.cpp CUDA 12 tak).
+    box_only: samo pudełko (BOX_PROMPT, bez tytułu, krótka odpowiedź)."""
+    prompt, schema = (BOX_PROMPT, BOX_SCHEMA) if box_only else (PROMPT.format(title=title), SCHEMA)
     if api == "openai":
         content = [{"type": "text", "text": prompt}] + [
             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b}"}} for b in images]
         body = {"model": model, "temperature": 0, "messages": [{"role": "user", "content": content}],
-                "response_format": {"type": "json_object", "schema": SCHEMA}}
+                "response_format": {"type": "json_object", "schema": schema}}
+        if box_only:
+            body["max_tokens"] = 30
         path = "/v1/chat/completions"
     else:
-        body = {"model": model, "stream": False, "format": SCHEMA, "options": {"temperature": 0},
+        body = {"model": model, "stream": False, "format": schema,
+                "options": {"temperature": 0, **({"num_predict": 30} if box_only else {})},
                 "messages": [{"role": "user", "content": prompt, "images": images}]}
         path = "/api/chat"
     started = time.monotonic()
@@ -243,8 +259,8 @@ def compare(row, answer):
     return out
 
 
-def results_path(sample_path, model):
-    tag = re.sub(r"[^\w.-]+", "_", model)
+def results_path(sample_path, model, box_only=False):
+    tag = re.sub(r"[^\w.-]+", "_", model) + (f"_{BOX_TAG}" if box_only else "")
     sample_path = Path(sample_path)
     return sample_path.with_name(f"{sample_path.stem}_{tag}.jsonl")   # with_suffix psuł „qwen2.5vl” (kropka)
 
@@ -264,17 +280,27 @@ def load_results(path):
 
 
 def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=None, say=print, api="ollama",
-             progress_path=None, photos_root=None, max_errors_in_row=20):
+             progress_path=None, photos_root=None, max_errors_in_row=20, box_only=False, earlier_path=None):
     """progress_path: wynik każdej oferty dopisywany od razu (długi przebieg na kilka dni); przy ponownym
-    uruchomieniu oferty już ocenione bez błędu są pomijane (wznawianie po restarcie / zaniku prądu)."""
+    uruchomieniu oferty już ocenione bez błędu są pomijane (wznawianie po restarcie / zaniku prądu).
+    box_only: samo pudełko, zdjęcia BOX_SIZE px; earlier_path: wyniki pełnego testu - oferty, w których model już
+    zobaczył pudełko („yes” było ~100% trafne), są przenoszone bez ponownego pytania (2026-11-19)."""
     import httpx
 
     own = client is None
     client = client or httpx.Client(trust_env=False, follow_redirects=True)
+    size = BOX_SIZE if box_only else 1024
     results = [r for r in load_results(progress_path) if not r.get("error")] if progress_path else []
     done = {r["id"] for r in results}
     if done:
         say(f"  wznawiam: {len(done)} ofert już ocenionych - pomijam je")
+    if box_only and earlier_path:
+        carried = [r for r in load_results(earlier_path)
+                   if not r.get("error") and r.get("vision_box") == "yes" and r["id"] not in done]
+        if carried:
+            say(f"  z wcześniejszego testu: {len(carried)} ofert z pudełkiem na zdjęciach - bez ponownego pytania")
+            results += carried
+            done |= {r["id"] for r in carried}
     sink = open(progress_path, "w", encoding="utf-8") if progress_path else None
     if sink:
         for r in results:
@@ -285,13 +311,13 @@ def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=Non
         for i, row in enumerate(rows, 1):
             if row["id"] in done:
                 continue
-            images = read_local(photos_root, row["id"], max_photos) if photos_root is not None else []
+            images = read_local(photos_root, row["id"], max_photos, size) if photos_root is not None else []
             if not images:                                    # brak na dysku → CDN (żywa oferta)
-                images = fetch_photos(client, row["photos"][:max_photos])
+                images = fetch_photos(client, row["photos"][:max_photos], size)
             if not images:
                 say(f"  [{i}/{len(rows)}] {row['id']}: brak zdjęć (oferta usunięta?) - pomijam")
                 continue
-            answer, seconds, error = ask(client, url, model, row["title"], images, api)
+            answer, seconds, error = ask(client, url, model, row["title"], images, api, box_only)
             item = {"id": row["id"], "url": row["url"], "title": row["title"], "photos": len(images),
                     "state": row.get("state"), "price": row.get("price"), "condition": row.get("condition"),
                     "seconds": round(seconds, 1), "error": error, "answer": answer, **compare(row, answer)}
@@ -307,6 +333,10 @@ def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=Non
                     break
                 continue
             in_row = 0
+            if box_only:
+                say(f"  [{i}/{len(rows)}] {row['id']} {seconds:.0f} s, {len(images)} zdj. | pudełko: tekst "
+                    f"{item['text_box'] or '?'}, zdjęcia {item.get('vision_box')} | {row['title'][:50]}")
+                continue
             say(f"  [{i}/{len(rows)}] {row['id']} {seconds:.0f} s | pudełko: tekst {item['text_box'] or '?'}, "
                 f"zdjęcia {item.get('vision_box')} | pamięć: tytuł {item['title_storage'] or '?'}, "
                 f"zdjęcia {item.get('vision_storage') or '?'} | 5G: tytuł {'tak' if item['title_5g'] else '?'}, "

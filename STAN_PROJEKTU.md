@@ -268,6 +268,13 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
+000000000000. (19.11) **Model wizyjny (Qwen2.5-VL-3B, PC GTX 1060) - tylko pudełko.** Częściowe wyniki 5118 z 30 000
+   ofert (56 h, ~45 s / ofertę): pamięć i 5G model przepisuje z tytułu / zgaduje z nazwy (pamięć zgodna 99%, ale w 88%
+   z tytułu; nowych odczytów 34; iPhone 11 / XR z „5G” 105 razy; visible_text = tytuł w 32%). Pudełko: tekst „bez” →
+   „nie” 96%; tekst milczy → „jest” w 38% ofert; użytkownik sprawdził próbkę - „jest” ~100% trafne, gubi pudełko na
+   dalszych zdjęciach (dostawał 3). `vision-test --tylko-pudelko`: bez tytułu, jedno pole, 6 zdjęć po 512 px, plik
+   `*_qwen_pudelko.jsonl`, oferty z pudełkiem z pełnego testu przenoszone. `.bat` przestawiony. Czekamy na tempo i wyniki.
+
 00000000000. (18.11) **Laptopy = cena szybkiej sprzedaży** (użytkownik: „chciałbym patrzeć na szybkie sprzedaże”):
    szacunek = dolne 20% cen aktywnych ofert specyfikacji (Sniper `comparables.apply_laptop_fast`, AI ≤ szacunek × 1,1;
    tabele `guide.LAPTOP_SHARE`), stare - dolne 10% (niżej). Test na kopii 07.11 (szacunek z danych do 27.10, 88 szybkich
