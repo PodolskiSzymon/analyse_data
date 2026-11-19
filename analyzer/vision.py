@@ -457,7 +457,8 @@ def save_results(results, summary, sample_path, model):
 
 # ------------------------------------------------------------------------- porównanie trybu „tylko pudełko” (19.11)
 def compare_box_modes(sample_path, model, sizes=(512, 384, 320), max_photos=6, n_pos=100, n_neg=40, url=None,
-                      api="openai", photos_root=None, client=None, say=print, seed=7, per_photo=False):
+                      api="openai", photos_root=None, client=None, say=print, seed=7, per_photo=False,
+                      full_prompt=False):
     """Tryb „tylko pudełko” przy kilku rozmiarach zdjęć na ofertach z pełnego testu: n_pos, w których model widział
     pudełko (pełny test był tu ~100% trafny - sprawdzone ręcznie), i n_neg z tekstem „bez pudełka” (prawda = brak).
     Wyniki per rozmiar w *_<model>_pudelko_test<rozmiar>.jsonl (wznawialne). → (wiersze tabeli, tekst raportu)."""
@@ -482,12 +483,15 @@ def compare_box_modes(sample_path, model, sizes=(512, 384, 320), max_photos=6, n
     for size in sizes:
         say(f"\n=== {size} px ===")
         box_file = results_path(sample_path, model, box_only=True)
-        progress = box_file.with_name(f"{box_file.stem}_test{size}{'_pojedynczo' if per_photo else ''}.jsonl")
+        suffix = "_pojedynczo" if per_photo else "_pelne" if full_prompt else ""
+        progress = box_file.with_name(f"{box_file.stem}_test{size}{suffix}.jsonl")
+        # full_prompt (19.11): pełne polecenie (z tytułem, wszystkie pola) - czy to ono, a nie rozdzielczość, daje 100%
         res, _ = run_test(picked, model, url or "http://127.0.0.1:8081", max_photos, client=client, say=say, api=api,
-                          progress_path=progress, photos_root=photos_root, box_only=True, size=size,
-                          per_photo=per_photo)
+                          progress_path=progress, photos_root=photos_root, box_only=not full_prompt, size=size,
+                          per_photo=per_photo and not full_prompt)
         ok = [r for r in res if not r.get("error") and r["id"] in truth]
-        table.append({"mode": f"tylko pudełko, {max_photos} zdj. po {size} px" + (", po jednym" if per_photo else ""),
+        table.append({"mode": ("pełne pytanie" if full_prompt else "tylko pudełko") + f", {max_photos} zdj. po {size} px"
+                      + (", po jednym" if per_photo else ""),
                       "n": len(ok),
                       "found": sum(1 for r in ok if truth[r["id"]] and r.get("vision_box") == "yes"),
                       "false": sum(1 for r in ok if not truth[r["id"]] and r.get("vision_box") == "yes"),
@@ -503,6 +507,6 @@ def compare_box_modes(sample_path, model, sizes=(512, 384, 320), max_photos=6, n
               "nie widział (te nie są w tej próbce, bo liczymy tylko oferty, w których pełny test pudełko znalazł)."]
     text = "\n".join(lines)
     out = results_path(sample_path, model).with_name(f"{results_path(sample_path, model).stem}_porownanie"
-                                                     f"{'_pojedynczo' if per_photo else ''}.txt")
+                                                     f"{suffix}.txt")
     out.write_text(text + "\n", encoding="utf-8")
     return table, text, out

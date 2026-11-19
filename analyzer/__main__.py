@@ -685,6 +685,8 @@ def main(argv=None):
     p_vc.add_argument("--ile", type=int, default=100, help="ofert z pudełkiem")
     p_vc.add_argument("--bez", type=int, default=40, help="ofert z tekstem „bez pudełka”")
     p_vc.add_argument("--zdjecia-dir", default=None)
+    p_vc.add_argument("--pelne", action="store_true", help="pełne pytanie (z tytułem, wszystkie pola) zamiast samego "
+                      "pudełka - czy to polecenie, a nie rozdzielczość, daje trafność")
     p_vc.add_argument("--po-jednym", action="store_true", help="każde zdjęcie osobnym pytaniem (koniec na „yes”)")
     p_vt.add_argument("--po-jednym", action="store_true", help="z --tylko-pudelko: każde zdjęcie osobnym pytaniem, "
                       "koniec na pierwszym „yes”")
@@ -1025,7 +1027,7 @@ def main(argv=None):
         _t, text, out = vision.compare_box_modes(
             args.plik, args.model, tuple(int(x) for x in args.rozmiary.split(",") if x.strip()), args.zdjecia,
             args.ile, args.bez, url, args.api, Path(args.zdjecia_dir) if args.zdjecia_dir else None,
-            say=lambda t: print(t, flush=True), per_photo=args.po_jednym)
+            say=lambda t: print(t, flush=True), per_photo=args.po_jednym, full_prompt=args.pelne)
         print("\n" + text + f"\n\nRaport: {out}")
     elif args.command == "vision-test":
         from . import vision
