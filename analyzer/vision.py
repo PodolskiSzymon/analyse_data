@@ -280,25 +280,29 @@ def load_results(path):
 
 
 def run_test(rows, model, url="http://127.0.0.1:11434", max_photos=4, client=None, say=print, api="ollama",
-             progress_path=None, photos_root=None, max_errors_in_row=20, box_only=False, earlier_path=None):
+             progress_path=None, photos_root=None, max_errors_in_row=20, box_only=False, earlier_path=None,
+             carry="boxes", size=None):
     """progress_path: wynik każdej oferty dopisywany od razu (długi przebieg na kilka dni); przy ponownym
     uruchomieniu oferty już ocenione bez błędu są pomijane (wznawianie po restarcie / zaniku prądu).
     box_only: samo pudełko, zdjęcia BOX_SIZE px; earlier_path: wyniki pełnego testu - oferty, w których model już
-    zobaczył pudełko („yes” było ~100% trafne), są przenoszone bez ponownego pytania (2026-11-19)."""
+    zobaczył pudełko („yes” było ~100% trafne), są przenoszone bez ponownego pytania (2026-11-19); carry="all" -
+    przenoszone wszystkie odpowiedzi pełnego testu (bez powtarzania ofert z 3 zdjęć). size: rozmiar zdjęć w px."""
     import httpx
 
     own = client is None
     client = client or httpx.Client(trust_env=False, follow_redirects=True)
-    size = BOX_SIZE if box_only else 1024
+    size = size or (BOX_SIZE if box_only else 1024)
     results = [r for r in load_results(progress_path) if not r.get("error")] if progress_path else []
     done = {r["id"] for r in results}
     if done:
         say(f"  wznawiam: {len(done)} ofert już ocenionych - pomijam je")
     if box_only and earlier_path:
         carried = [r for r in load_results(earlier_path)
-                   if not r.get("error") and r.get("vision_box") == "yes" and r["id"] not in done]
+                   if not r.get("error") and r["id"] not in done
+                   and (carry == "all" or r.get("vision_box") == "yes")]
         if carried:
-            say(f"  z wcześniejszego testu: {len(carried)} ofert z pudełkiem na zdjęciach - bez ponownego pytania")
+            what = "ocenionych" if carry == "all" else "z pudełkiem na zdjęciach"
+            say(f"  z wcześniejszego testu: {len(carried)} ofert {what} - bez ponownego pytania")
             results += carried
             done |= {r["id"] for r in carried}
     sink = open(progress_path, "w", encoding="utf-8") if progress_path else None
@@ -406,3 +410,53 @@ def save_results(results, summary, sample_path, model):
     text = report_text(results, summary, model, sample_path.name)
     txt.write_text(text + "\n", encoding="utf-8")
     return txt, text
+
+
+# ------------------------------------------------------------------------- porównanie trybu „tylko pudełko” (19.11)
+def compare_box_modes(sample_path, model, sizes=(512, 384, 320), max_photos=6, n_pos=100, n_neg=40, url=None,
+                      api="openai", photos_root=None, client=None, say=print, seed=7):
+    """Tryb „tylko pudełko” przy kilku rozmiarach zdjęć na ofertach z pełnego testu: n_pos, w których model widział
+    pudełko (pełny test był tu ~100% trafny - sprawdzone ręcznie), i n_neg z tekstem „bez pudełka” (prawda = brak).
+    Wyniki per rozmiar w *_<model>_pudelko_test<rozmiar>.jsonl (wznawialne). → (wiersze tabeli, tekst raportu)."""
+    import random
+
+    rows = {r["id"]: r for r in load_sample(sample_path)}
+    full = [r for r in load_results(results_path(sample_path, model)) if not r.get("error") and r["id"] in rows]
+    rnd = random.Random(seed)
+    pos = [r for r in full if r.get("vision_box") == "yes"]
+    neg = [r for r in full if r.get("text_box") == "bez"]
+    pos, neg = rnd.sample(pos, min(n_pos, len(pos))), rnd.sample(neg, min(n_neg, len(neg)))
+    truth = {**{r["id"]: True for r in pos}, **{r["id"]: False for r in neg}}
+    picked = [rows[i] for i in truth]
+    rnd.shuffle(picked)
+    say(f"Porównanie: {len(pos)} ofert z pudełkiem (pełny test), {len(neg)} z tekstem „bez pudełka”; "
+        f"rozmiary {', '.join(map(str, sizes))} px, do {max_photos} zdjęć")
+    base = [r for r in full if r["id"] in truth]
+    table = [{"mode": "pełny test (3 zdj. po 1024 px)", "n": len(base),
+              "found": sum(1 for r in base if truth[r["id"]] and r.get("vision_box") == "yes"),
+              "false": sum(1 for r in base if not truth[r["id"]] and r.get("vision_box") == "yes"),
+              "seconds": sum(r["seconds"] for r in base) / len(base) if base else None}]
+    for size in sizes:
+        say(f"\n=== {size} px ===")
+        box_file = results_path(sample_path, model, box_only=True)
+        progress = box_file.with_name(f"{box_file.stem}_test{size}.jsonl")
+        res, _ = run_test(picked, model, url or "http://127.0.0.1:8081", max_photos, client=client, say=say, api=api,
+                          progress_path=progress, photos_root=photos_root, box_only=True, size=size)
+        ok = [r for r in res if not r.get("error") and r["id"] in truth]
+        table.append({"mode": f"tylko pudełko, {max_photos} zdj. po {size} px", "n": len(ok),
+                      "found": sum(1 for r in ok if truth[r["id"]] and r.get("vision_box") == "yes"),
+                      "false": sum(1 for r in ok if not truth[r["id"]] and r.get("vision_box") == "yes"),
+                      "seconds": sum(r["seconds"] for r in ok) / len(ok) if ok else None})
+    n_p, n_n = len(pos), len(neg)
+    lines = [f"Porównanie trybów pudełka - {Path(sample_path).name}, model {model}",
+             f"{n_p} ofert, w których pełny test widział pudełko (trafne ~100%), {n_n} z tekstem „bez pudełka”.", "",
+             f"{'tryb':38} {'s / ofertę':>10} {'pudełko znalezione':>19} {'fałszywe „jest”':>16}"]
+    for t in table:
+        lines.append(f"{t['mode']:38} {t['seconds'] or 0:10.1f} {t['found']:>8} / {n_p:<4} ({t['found'] / max(n_p, 1):4.0%})"
+                     f" {t['false']:>6} / {n_n:<4}")
+    lines += ["", "Pełny test widział tylko 3 pierwsze zdjęcia - tryb z 6 zdjęciami może znaleźć pudełka, których on "
+              "nie widział (te nie są w tej próbce, bo liczymy tylko oferty, w których pełny test pudełko znalazł)."]
+    text = "\n".join(lines)
+    out = results_path(sample_path, model).with_name(f"{results_path(sample_path, model).stem}_porownanie.txt")
+    out.write_text(text + "\n", encoding="utf-8")
+    return table, text, out

@@ -227,3 +227,39 @@ def test_box_only_mode_carries_earlier_boxes(tmp_path):
     assert bodies[0]["max_tokens"] == 30
     assert list(bodies[0]["response_format"]["schema"]["properties"]) == ["box_visible"]
     assert summary["answered"] == len(rows) and all(r["vision_box"] == "yes" for r in results)
+
+
+def test_compare_box_modes_and_carry_all(tmp_path):
+    """vision-porownaj: tryb „tylko pudełko” przy kilku rozmiarach na ofertach z pełnego testu; --przenies wszystkie."""
+    rows = vision.sample(_conn(), "a17", "phone", limit=10, max_photos=4)
+    sample = tmp_path / "a17.jsonl"
+    vision.save_sample(rows, "a17", tmp_path)
+    full = vision.results_path(sample, "qwen")
+    with open(full, "w", encoding="utf-8") as f:
+        for i, r in enumerate(rows):
+            f.write(json.dumps({"id": r["id"], "url": r["url"], "title": r["title"], "error": None, "seconds": 50.0,
+                                "answer": {}, "text_box": "bez" if i % 2 else None, "title_storage": None,
+                                "title_5g": False, "vision_box": "no" if i % 2 else "yes"}) + "\n")
+    sizes_seen = []
+
+    def handler(request):
+        if request.url.host.startswith("images"):
+            return httpx.Response(200, content=JPEG)
+        body = json.loads(request.content)
+        sizes_seen.append(len(body["messages"][0]["content"]) - 1)
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"box_visible": "yes"}'}}]})
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    n_pos, n_neg = (len(rows) + 1) // 2, len(rows) // 2
+    assert n_neg >= 1
+    table, text, out = vision.compare_box_modes(sample, "qwen", sizes=(512, 320), n_pos=n_pos, n_neg=n_neg,
+                                                url="http://x", client=client, say=lambda _t: None)
+    assert out.exists() and "320 px" in text and len(table) == 3
+    assert table[0]["found"] == n_pos and table[0]["false"] == 0       # pełny test
+    assert table[1]["found"] == n_pos and table[1]["false"] == n_neg and table[1]["n"] == len(rows)
+    assert (tmp_path / "a17_qwen_pudelko_test320.jsonl").exists()
+    # --przenies wszystkie: nic nie pytane ponownie
+    calls = len(sizes_seen)
+    results, _s = vision.run_test(vision.load_sample(sample), "qwen", "http://x", client=client, say=lambda _t: None,
+                                  api="openai", progress_path=vision.results_path(sample, "qwen", True),
+                                  box_only=True, earlier_path=full, carry="all")
+    assert len(sizes_seen) == calls and len(results) == len(rows)

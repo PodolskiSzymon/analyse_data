@@ -664,6 +664,22 @@ def main(argv=None):
     p_vt.add_argument("--limit", type=int, default=None)
     p_vt.add_argument("--zdjecia-dir", default=None, help="lokalne archiwum zdjęć (np. D:\\photos) - najpierw dysk, "
                       "potem CDN")
+    p_vt.add_argument("--rozmiar", type=int, default=None, help="rozmiar zdjęć w px (domyślnie 1024, z "
+                      "--tylko-pudelko 512)")
+    p_vt.add_argument("--przenies", choices=("pudelka", "wszystkie"), default="pudelka",
+                      help="z --tylko-pudelko: co przenieść z pełnego testu bez pytania (domyślnie oferty z pudełkiem; "
+                      "wszystkie = nie powtarzać już ocenionych)")
+    p_vc = sub.add_parser("vision-porownaj", help="porównanie trybu „tylko pudełko” (rozmiary zdjęć) z pełnym testem "
+                          "na ofertach, w których pełny test widział pudełko + z tekstem „bez pudełka”")
+    p_vc.add_argument("--plik", required=True)
+    p_vc.add_argument("--model", default="qwen")
+    p_vc.add_argument("--url", default=None)
+    p_vc.add_argument("--api", choices=("ollama", "openai"), default="openai")
+    p_vc.add_argument("--rozmiary", default="512,384,320")
+    p_vc.add_argument("--zdjecia", type=int, default=6)
+    p_vc.add_argument("--ile", type=int, default=100, help="ofert z pudełkiem")
+    p_vc.add_argument("--bez", type=int, default=40, help="ofert z tekstem „bez pudełka”")
+    p_vc.add_argument("--zdjecia-dir", default=None)
     p_vt.add_argument("--tylko-pudelko", action="store_true", help="samo pudełko (bez tytułu w poleceniu, zdjęcia "
                       "512 px, krótka odpowiedź) -> plik *_<model>_pudelko.jsonl; oferty, w których pełny test już "
                       "widział pudełko, przenosi bez pytania")
@@ -995,6 +1011,14 @@ def main(argv=None):
         print(f"Krok 2 (PC z kartą, llama-server :8081): python -m analyzer vision-test --plik \"{path}\" "
               f"--model qwen --api openai --zdjecia 3" + (f" --zdjecia-dir \"{args.zdjecia_dir}\""
                                                          if args.zdjecia_dir else ""))
+    elif args.command == "vision-porownaj":
+        from . import vision
+        url = args.url or ("http://127.0.0.1:8081" if args.api == "openai" else "http://127.0.0.1:11434")
+        _t, text, out = vision.compare_box_modes(
+            args.plik, args.model, tuple(int(x) for x in args.rozmiary.split(",") if x.strip()), args.zdjecia,
+            args.ile, args.bez, url, args.api, Path(args.zdjecia_dir) if args.zdjecia_dir else None,
+            say=lambda t: print(t, flush=True))
+        print("\n" + text + f"\n\nRaport: {out}")
     elif args.command == "vision-test":
         from . import vision
         rows = vision.load_sample(args.plik)[:args.limit] if args.limit else vision.load_sample(args.plik)
@@ -1005,7 +1029,9 @@ def main(argv=None):
                                            say=lambda t: print(t, flush=True), api=args.api,
                                            progress_path=vision.results_path(args.plik, args.model, box),
                                            photos_root=Path(args.zdjecia_dir) if args.zdjecia_dir else None,
-                                           box_only=box, earlier_path=vision.results_path(args.plik, args.model))
+                                           box_only=box, earlier_path=vision.results_path(args.plik, args.model),
+                                           carry="all" if args.przenies == "wszystkie" else "boxes",
+                                           size=args.rozmiar)
         path, text = vision.save_results(results, summary, args.plik, args.model + (f"_{vision.BOX_TAG}" if box
                                                                                     else ""))
         print("\n" + "\n".join(text.split("\n")[:11]))
