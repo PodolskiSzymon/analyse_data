@@ -8,6 +8,7 @@ set LLAMA=C:\llama-cuda\llama-server.exe
 set BASAL_ENV=C:\basal-env\Scripts
 set CODE=C:\analyse_data
 set PHOTOS=D:\photos
+set ANALYZER_DB=F:\analyzer.db
 set VISION_SAMPLE=F:\vision\telefony_uzywane.jsonl
 cd /d %CODE%
 taskkill /im llama-server.exe /f >nul 2>&1

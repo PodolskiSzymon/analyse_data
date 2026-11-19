@@ -83,10 +83,15 @@ def setup_logging(db_path):
     handlers = [console]
     if str(db_path) != ":memory:":
         path = Path(db_path).parent / "analyzer.log"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        to_file = logging.FileHandler(path, encoding="utf-8")
-        to_file.setFormatter(fmt)
-        handlers.append(to_file)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            to_file = logging.FileHandler(path, encoding="utf-8")
+            to_file.setFormatter(fmt)
+            handlers.append(to_file)
+        except OSError as exc:
+            # 2026-11-19: PC bez ANALYZER_DB → domyślna ścieżka serwera (C:\Users\szymo\...) - brak dostępu; polecenia
+            # bez bazy (vision-test / vision-porownaj) mają działać dalej, log tylko w konsoli.
+            print(f"(log tylko w konsoli - nie da się pisać do {path}: {exc.strerror})", flush=True)
     logging.basicConfig(level=logging.INFO, handlers=handlers, force=True)
     for noisy in ("httpx", "httpcore", "asyncio"):
         logging.getLogger(noisy).setLevel(logging.WARNING)

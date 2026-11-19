@@ -263,3 +263,16 @@ def test_compare_box_modes_and_carry_all(tmp_path):
                                   api="openai", progress_path=vision.results_path(sample, "qwen", True),
                                   box_only=True, earlier_path=full, carry="all")
     assert len(sizes_seen) == calls and len(results) == len(rows)
+
+
+def test_logging_without_access_to_db_folder(tmp_path, monkeypatch, capsys):
+    """19.11: PC bez ANALYZER_DB - folder logu niedostępny; polecenie ma działać dalej (log tylko w konsoli)."""
+    import logging
+
+    from analyzer import __main__ as cli
+
+    def deny(*_a, **_k):
+        raise PermissionError(13, "Permission denied")
+    monkeypatch.setattr(logging, "FileHandler", deny)
+    cli.setup_logging(tmp_path / "x" / "analyzer.db")
+    assert "log tylko w konsoli" in capsys.readouterr().out
