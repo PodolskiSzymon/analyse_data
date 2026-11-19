@@ -165,12 +165,24 @@ def load_sample(path):
 
 
 # ---------------------------------------------------------------------------------------------- krok 2: test
+NO_PILLOW = []      # 2026-11-19: bez Pillow zdjęcia szły w pełnej rozdzielczości (wolno, 400 = za mały kontekst)
+
+
 def _shrink(data, size=1024):
-    """Zdjęcie do ~1024 px (szybciej, mniej VRAM); bez Pillow - oryginał."""
+    """Zdjęcie do ~1024 px (szybciej, mniej VRAM); bez Pillow - oryginał (z ostrzeżeniem raz)."""
     try:
         from io import BytesIO
-
+    except ImportError:
+        return data
+    try:
         from PIL import Image
+    except ImportError:
+        if not NO_PILLOW:
+            NO_PILLOW.append(1)
+            print("  UWAGA: brak biblioteki Pillow - zdjęcia idą w pełnej rozdzielczości (wolno, błędy 400). "
+                  "Zainstaluj: <python> -m pip install pillow", flush=True)
+        return data
+    try:
         img = Image.open(BytesIO(data))
         img.thumbnail((size, size))
         buf = BytesIO()
@@ -242,7 +254,14 @@ def ask(client, url, model, title, images, api="ollama", box_only=False):
                 else data.get("message", {}).get("content", ""))
         return _json(text), time.monotonic() - started, None
     except Exception as exc:
-        return None, time.monotonic() - started, f"{type(exc).__name__}: {str(exc)[:150]}"
+        detail = ""
+        response = getattr(exc, "response", None)
+        if response is not None:                     # treść błędu serwera (np. „za mały kontekst”)
+            try:
+                detail = " | serwer: " + response.text[:200].replace("\n", " ")
+            except Exception:
+                detail = ""
+        return None, time.monotonic() - started, f"{type(exc).__name__}: {str(exc)[:90]}{detail}"
 
 
 def compare(row, answer):

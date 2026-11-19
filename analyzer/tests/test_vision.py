@@ -276,3 +276,12 @@ def test_logging_without_access_to_db_folder(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(logging, "FileHandler", deny)
     cli.setup_logging(tmp_path / "x" / "analyzer.db")
     assert "log tylko w konsoli" in capsys.readouterr().out
+
+
+def test_error_shows_server_message():
+    """19.11: błąd 400 z llama-server - w logu treść odpowiedzi serwera (np. przekroczony kontekst)."""
+    def handler(request):
+        return httpx.Response(400, json={"error": {"message": "the request exceeds the available context size"}})
+    answer, _s, error = vision.ask(httpx.Client(transport=httpx.MockTransport(handler)), "http://x", "qwen", "t",
+                                   ["AAAA"], api="openai", box_only=True)
+    assert answer is None and "exceeds the available context size" in error

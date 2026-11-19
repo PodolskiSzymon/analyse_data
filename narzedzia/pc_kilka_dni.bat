@@ -19,6 +19,8 @@ rem próbka robiona tu, z kopii bazy i zdjęć na dysku (także sprzedane / usun
 set VISION_SAMPLE=F:\vision\telefony_uzywane.jsonl
 if not exist "%CODE%\data" mkdir "%CODE%\data"
 cd /d %CODE%
+rem 19.11: Pillow zmniejsza zdjecia przed wyslaniem do modelu - bez niej szly w pelnej rozdzielczosci (wolno, bledy 400)
+"%BASAL_ENV%\python.exe" -m pip install -q pillow
 echo [%date% %time%] start > "%CODE%\data\pc_kilka_dni.log"
 
 rem ---------------------------------------------------------------- 0. próbka do wizji (raz; potem pomijana)
