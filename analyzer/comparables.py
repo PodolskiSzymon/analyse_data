@@ -77,6 +77,17 @@ def intel_mac_chip(model, cpu=""):
     return f"intel {year}"
 
 
+def with_code(spec, fields, hint):
+    """Specyfikacja uzupełniona z bazy modeli (analyzer/specdb.py), gdy pola oferty nie dały ścieżki do median (karta /
+    MacBook / procesor z generacją): procesor z kodu (linia z niego), karta - dedykowana z oferty albo z kodu; RAM,
+    dysk, model z oferty. Jak sniper/specs.py: with_code. fields = (model, cpu, cpu_line, gpu, ram_gb, storage_gb)."""
+    if not hint or (spec and (spec["gpu"] or spec["chip"] or spec["cpu_gen"])):
+        return spec
+    model, _cpu, _line, gpu, ram_gb, storage_gb = fields
+    gpu = gpu if gpu and DEDICATED_GPU.match(str(gpu).lower()) else hint.get("gpu")
+    return laptop_spec(model, hint.get("cpu"), None, gpu, ram_gb, storage_gb) or spec
+
+
 def laptop_spec(model, cpu, cpu_line, gpu, ram_gb, storage_gb):
     """Specyfikacja laptopa do median (jak sniper/specs.py: laptop_spec) → słownik albo None (za mało danych).
     Ścieżki: karta dedykowana | MacBook (linia + chip) | procesor (linia + generacja)."""
@@ -170,6 +181,7 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
                                    ssd INTEGER, price REAL, gone INTEGER, cond TEXT);
         CREATE TABLE desktop_specs (gpu TEXT, cpu_line TEXT, cpu_gen TEXT, chip TEXT, line TEXT, ram INTEGER,
                                     ssd INTEGER, price REAL, gone INTEGER, cond TEXT);
+        CREATE TABLE model_codes (code TEXT PRIMARY KEY, cpu TEXT, gpu TEXT);
     """)
     window = demand_window(conn)
     sql = f"""SELECT l.id, l.category, l.title, l.state, l.price_now, l.sold_price,
@@ -179,6 +191,10 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
               FROM listings l LEFT JOIN features f ON f.listing_id = l.id
               WHERE l.category IS NOT NULL AND l.state IN ({",".join("?" * len(STATES))})"""
     batch, specs, desktops, n, n_specs = [], [], [], 0, 0
+    # 2026-11-20: baza modeli (analyzer/specdb.py) - kod modelu w tytule uzupełnia brakujący procesor / kartę
+    from . import specdb
+    codes = specdb.load_for(conn)
+    n_coded = 0
     for r in conn.execute(sql, STATES):
         lid = r[0]
         if lid in excluded or lid in old_ids or ai_damaged.get(lid, bool(r[6])):
@@ -194,6 +210,10 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
             # 2026-11-20: komputery stacjonarne po specyfikacji jak laptopy (karta / procesor + generacja / RAM /
             # dysk) - tytuły PC („Komputer gamingowy”) nie trafiały w mediany po słowach
             spec = laptop_spec(*r[7:13]) if r[1] == "laptop" else laptop_spec(None, *r[8:13])
+            if codes and r[1] == "laptop":
+                found = with_code(spec, r[7:13], specdb.lookup(codes, r[2]))
+                n_coded += found is not spec
+                spec = found
             if spec:
                 (specs if r[1] == "laptop" else desktops).append(
                     (spec["gpu"], spec["cpu_line"], spec["cpu_gen"], spec["chip"], spec["line"], spec["ram"],
@@ -224,6 +244,10 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
     out.execute("INSERT INTO meta VALUES ('rows', ?)", (str(n),))
     out.execute("INSERT INTO meta VALUES ('laptop_specs', ?)", (str(n_specs),))
     out.execute("INSERT INTO meta VALUES ('desktop_specs', ?)", (str(len(desktops)),))
+    out.executemany("INSERT INTO model_codes VALUES (?, ?, ?)", [(c, v["cpu"], v["gpu"]) for c, v in codes.items()])
+    out.execute("INSERT INTO meta VALUES ('model_codes', ?)", (str(len(codes)),))
+    if codes:
+        say(f"  baza modeli: {len(codes)} kodów, uzupełniona specyfikacja {n_coded} laptopów")
     out.execute("INSERT INTO meta VALUES ('cond', '1')")
     out.execute("INSERT INTO meta VALUES ('demand', '1')")
     out.execute("INSERT INTO meta VALUES ('fresh_days', ?)",

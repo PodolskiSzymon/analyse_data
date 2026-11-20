@@ -674,6 +674,20 @@ def main(argv=None):
     p_vt.add_argument("--przenies", choices=("pudelka", "wszystkie"), default="pudelka",
                       help="z --tylko-pudelko: co przenieść z pełnego testu bez pytania (domyślnie oferty z pudełkiem; "
                       "wszystkie = nie powtarzać już ocenionych)")
+    # 2026-11-20: baza modeli laptopów (analyzer/specdb.py)
+    p_sl = sub.add_parser("specdb-learn", help="baza modeli: kody modeli z własnych ogłoszeń z podanym procesorem "
+                          "-> data/specdb.sqlite (bez sieci)")
+    p_sl.add_argument("--min", type=int, default=3, help="minimum ofert z kodem")
+    p_sc = sub.add_parser("specdb-crawl", help="baza modeli: spokojne pobieranie stron ze specyfikacjami (jedna strona "
+                          "naraz, przerwy 25-90 s, robots.txt; wznawia się)")
+    p_sc.add_argument("--strona", required=True, help="parser strony (analyzer/specdb.py: SITES)")
+    p_sc.add_argument("--start", default="", help="adresy startowe (listy modeli), po przecinku")
+    p_sc.add_argument("--max", type=int, default=200, help="najwięcej stron w tym przebiegu")
+    p_sc.add_argument("--przerwa", default="25-90", help="przerwa między stronami w sekundach, np. 25-90")
+    p_sp = sub.add_parser("specdb-parse", help="baza modeli: test parsera na zapisanym pliku HTML (bez sieci)")
+    p_sp.add_argument("--strona", required=True)
+    p_sp.add_argument("--plik", required=True)
+    sub.add_parser("specdb-status", help="baza modeli: ile kodów, stron, konfiguracji")
     p_vc = sub.add_parser("vision-porownaj", help="porównanie trybu „tylko pudełko” (rozmiary zdjęć) z pełnym testem "
                           "na ofertach, w których pełny test widział pudełko + z tekstem „bez pudełka”")
     p_vc.add_argument("--plik", required=True)
@@ -1021,6 +1035,30 @@ def main(argv=None):
         print(f"Krok 2 (PC z kartą, llama-server :8081): python -m analyzer vision-test --plik \"{path}\" "
               f"--model qwen --api openai --zdjecia 3" + (f" --zdjecia-dir \"{args.zdjecia_dir}\""
                                                          if args.zdjecia_dir else ""))
+    elif args.command in ("specdb-learn", "specdb-crawl", "specdb-parse", "specdb-status"):
+        from . import specdb
+        spec_path = specdb.default_path(cfg.db_path)
+        spec_conn = specdb.open_db(spec_path)
+        say = lambda t: print(t, flush=True)  # noqa: E731
+        if args.command == "specdb-learn":
+            from . import analysis
+            conn = analysis.open_ro(cfg.db_path)
+            n = specdb.learn(conn, spec_conn, args.min, progress=say)
+            print(f"Kodów z ogłoszeń: {n} → {spec_path}")
+        elif args.command == "specdb-crawl":
+            low, _, high = args.przerwa.partition("-")
+            fetcher = specdb.Fetcher(spec_conn, args.strona, pause=(float(low), float(high or low)), say=say)
+            starts = [u.strip() for u in args.start.split(",") if u.strip()]
+            pages, configs = specdb.crawl(spec_conn, args.strona, starts, args.max, fetcher, say)
+            print(f"Pobrane strony: {pages}, konfiguracji: {configs} → {spec_path}")
+        elif args.command == "specdb-parse":
+            html = Path(args.plik).read_text(encoding="utf-8", errors="replace")
+            parser = specdb.SITES[args.strona]
+            links = parser["list"](html, "https://example.invalid/")
+            print(f"Adresy modeli: {len(links)}" + "".join(f"\n  {u}" for u in links[:20]))
+            for c in parser["model"](html):
+                print(f"  {c}")
+        print(specdb.status(spec_conn))
     elif args.command == "vision-porownaj":
         from . import vision
         url = args.url or ("http://127.0.0.1:8081" if args.api == "openai" else "http://127.0.0.1:11434")

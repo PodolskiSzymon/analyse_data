@@ -268,6 +268,21 @@ nie okazja, inaczej ≤ 7), PL +1 → `evaluations.jsonl/.csv` (`stage` 1/2 / 2/
 
 ## 6. Czekamy od użytkownika (sprawdź, co przyszło; nie ponaglaj)
 
+0000000000000. (20.11) **Specyfikacja laptopów + PC + baza modeli.** (1) Kopia 07.11: 76% laptopów bez klucza do median
+   (17,6 tys. bez procesora w tekście, 5,5 tys. MacBooków z Intelem, ~6 tys. „i5” bez generacji, 0,9 tys. Celeron /
+   Pentium / Snapdragon). Reguły w obu repo (SPEC_PARITY, extract v6 → ponowna ekstrakcja przy `auto`): „i5 11 gen” →
+   generacja, „intel celeron / pentium” (N100+ / starsze), „amd athlon”, „snapdragon x”, MacBook z Intelem → chip
+   „intel <rok>” (≤ 2017 = stary); AI w Sniperze podaje `model_year` i „i5 11. gen”. Klucz ma ~34% zamiast 24%.
+   (2) **PC (3581) nie dostawały ocen**: mediany po słowach tytułu („Komputer gamingowy”) = brak danych → pominięte
+   przed AI. Teraz `desktop_specs` w comparables.db + Sniper `sniper/pc.py`: wycena po specyfikacji i **na części**
+   (karta / procesor / RAM / SSD z median części - dolne 20%; HDD, płyta, zasilacz wg mocy, obudowa - stałe
+   `SNIPER_PC_*`); na części tylko, gdy zysk ≥ zysk z całości + 200 zł (`SNIPER_PC_PARTS_EXTRA`), ntfy „🔧 Kup NA
+   CZĘŚCI”. (3) **Baza modeli** `analyzer/specdb.py` (`data/specdb.sqlite`): `specdb-learn` (kody z naszych ogłoszeń:
+   156 pewnych na kopii 07.11), `specdb-crawl` (spokojnie: 25-90 s, dłuższe przerwy, robots.txt, 403/429 = stop, cache
+   stron), `specdb-parse` (test parsera na pliku HTML), `specdb-status`; mapa `model_codes` w comparables.db, Sniper
+   uzupełnia nią procesor / kartę (MODEL_CODE_PARITY, CODE_FILL_PARITY). **Czekamy: próbki HTML / API stron ze
+   specyfikacjami od użytkownika (Icecat Open, Lenovo PSREF, LaptopMedia…) → parsery w `specdb.SITES`.**
+
 000000000000. (19.11) **Model wizyjny (Qwen2.5-VL-3B, PC GTX 1060) - tylko pudełko.** Częściowe wyniki 5118 z 30 000
    ofert (56 h, ~45 s / ofertę): pamięć i 5G model przepisuje z tytułu / zgaduje z nazwy (pamięć zgodna 99%, ale w 88%
    z tytułu; nowych odczytów 34; iPhone 11 / XR z „5G” 105 razy; visible_text = tytuł w 32%). Pudełko: tekst „bez” →
