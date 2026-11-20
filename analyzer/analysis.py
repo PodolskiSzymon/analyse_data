@@ -177,9 +177,16 @@ def cpu_line_of(cpu, cpu_line=None):
     if not cpu:
         return None
     cpu = str(cpu).lower()
-    match = re.match(r"(i[3579])-", cpu)
+    match = re.match(r"(i[3579])(?:-| \()", cpu)              # „i5-8350u”, „i5 (11. gen)” (generacja słownie)
     if match:
         return f"intel core {match.group(1)}"
+    # 2026-11-20: tanie linie razem (ceny podobne), Snapdragon X osobno - jak sniper/specs.py
+    if re.match(r"(celeron|pentium|intel processor n)", cpu):
+        return "intel celeron / pentium"
+    if cpu.startswith("athlon"):
+        return "amd athlon"
+    if cpu.startswith("snapdragon"):
+        return "snapdragon x"
     match = re.match(r"ultra ([579])", cpu)
     if match:
         return f"intel core ultra {match.group(1)}"

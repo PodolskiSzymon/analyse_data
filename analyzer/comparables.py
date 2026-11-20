@@ -64,6 +64,19 @@ def ssd_bucket(gb):
     return next((value for limit, value in SSD_BUCKETS if gb <= limit), 4000)
 
 
+def intel_mac_chip(model, cpu=""):
+    """MacBook z Intelem (2026-11-20, użytkownik: przy Apple liczy się wiek): rocznik z modelu → „intel 2019” (grupa
+    linia + rocznik + RAM + dysk zamiast mieszania z Windowsami po procesorze). 2020 bywa Intel albo M1 - tylko, gdy
+    procesor to Intel. Jak sniper/specs.py: intel_mac_chip."""
+    match = re.search(r"\b(20(?:0[6-9]|1\d|20))\b", model or "")
+    if not match or re.search(r"\bapple\b|\bm[1-5]\b", cpu or ""):
+        return None
+    year = int(match.group(1))
+    if year == 2020 and not re.match(r"(i[3579]|intel|core)", cpu or ""):
+        return None
+    return f"intel {year}"
+
+
 def laptop_spec(model, cpu, cpu_line, gpu, ram_gb, storage_gb):
     """Specyfikacja laptopa do median (jak sniper/specs.py: laptop_spec) → słownik albo None (za mało danych).
     Ścieżki: karta dedykowana | MacBook (linia + chip) | procesor (linia + generacja)."""
@@ -76,9 +89,10 @@ def laptop_spec(model, cpu, cpu_line, gpu, ram_gb, storage_gb):
     chip = re.search(r"apple (m\d(?: (?:pro|max|ultra))?)", cpu)
     line = ("macbook air" if "air" in model else "macbook pro" if "pro" in model else None) if "macbook" in model or chip \
         else None
+    chip = chip.group(1) if chip else intel_mac_chip(model, cpu) if line else None
     spec = {"gpu": gpu if DEDICATED_GPU.match(gpu) else None,
             "cpu_line": cpu_line_of(cpu or None, cpu_line), "cpu_gen": cpu_generation(cpu) if cpu else None,
-            "chip": chip.group(1) if chip else None, "line": line,
+            "chip": chip, "line": line,
             "ram": int(ram_gb) if ram_gb else None, "ssd": ssd_bucket(storage_gb)}
     if spec["cpu_line"] and spec["cpu_line"].startswith("intel core ultra"):
         spec["cpu_gen"] = "core ultra"

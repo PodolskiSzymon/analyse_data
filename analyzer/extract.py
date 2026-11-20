@@ -14,7 +14,8 @@ import json
 import re
 import unicodedata
 
-VERSION = 5          # v2 (2026-10-25): zaprzeczenia przy „na części” / pęknięciu („bez defektów”, „not broken”)
+# v6 (2026-11-20): procesor z generacją słownie („i5 11 gen”) → „i5 (11. gen)”.
+VERSION = 6          # v2 (2026-10-25): zaprzeczenia przy „na części” / pęknięciu („bez defektów”, „not broken”)
 # v5 (2026-11-08): usterka w zdaniu warunkowym („Jeśli sprzęt będzie uszkodzony, spisać protokół z kurierem” -
 # formułka handlarza w dziesiątkach ofert), „nigdy nie był uszkodzony”, „nu prezintă defecte”, „neturi defektų”,
 # zaprzeczenie PO słowie („defektu nav”), „nie włączany” (nowy, nie usterka) - porównanie z basalem 08.11: reguły
@@ -154,6 +155,25 @@ CPU_PATTERNS = (
     re.compile(r"\b(celeron|pentium|athlon|snapdragon x\s*(?:elite|plus))\s*-?\s*([a-z]?\d{3,5}[a-z]?)?\b"),
 )
 CPU_FAMILY = re.compile(r"\b(?:intel\s*)?(?:core\s*)?(i[3579])\b(?![-\s]*\d)|\bryzen\s*([3579])\b(?!\s*\d{3})")
+# 2026-11-20: sama linia + generacja słownie („i5 11 gen”, „i7 10th gen”, „8. generacji i5”, „i5 11/12 gen”) - bez
+# dokładnego modelu. → cpu „i5 (11. gen)” (analysis.cpu_line_of / guide.cpu_generation to rozumieją). Ta sama reguła
+# w unreachable_sniper/sniper/specs.py.
+_GEN = r"(\d{1,2})\s*(?:th|st|nd|rd|\.|-?(?:ej|tej|ma|ta))?\s*(?:/\s*\d{1,2}\s*)?(?:gen\w*|generac\w*|generat\w*)"
+CPU_GEN_TEXT = (re.compile(r"\b(?:intel\s*)?(?:core\s*)?(i[3579])\b(?![-\s]*\d{3})[\s,/-]{0,3}(?:\w+\s+){0,2}?" + _GEN),
+                re.compile(r"\b" + _GEN + r"\s*(?:intel\s*)?(?:core\s*)?(i[3579])\b"))
+
+
+def cpu_gen_text(text):
+    """„i5 11 gen” → „i5 (11. gen)” (generacje 2-14), inaczej None."""
+    for n, pattern in enumerate(CPU_GEN_TEXT):
+        match = pattern.search(text or "")
+        if match:
+            line, gen = (match.group(1), match.group(2)) if n == 0 else (match.group(2), match.group(1))
+            if 2 <= int(gen) <= 14:
+                return f"{line} ({int(gen)}. gen)"
+    return None
+
+
 GPU_PATTERNS = (
     re.compile(r"\b(rtx)\s*(a\d{3,4}|\d{4})\s*(ti|super)?\b"),
     re.compile(r"\b(gtx)\s*(\d{3,4})\s*(ti|super)?\b"),
@@ -264,9 +284,17 @@ def laptop(f, title, desc, attrs, listing):
     match = MACBOOK.search(t)
     if match:
         f.put("model", " ".join(p for p in ("macbook", match.group(1), match.group(2), match.group(3)) if p), "title")
+        model = f.get("model") or ""
+        # 2026-11-20: formularz „MacBook Pro” bez rocznika, a tytuł go ma → model z tytułu (rocznik = grupa MacBooków
+        # z Intelem). Jak sniper/specs.py: laptop_spec.
+        if match.group(3) and "macbook" in model and not re.search(r"\b20[12]\d\b", model):
+            f.data["model"] = {"value": " ".join(p for p in ("macbook", *match.groups()) if p), "source": "title"}
     for source, text in (("title", t), ("description", d)):
         f.put("cpu", _cpu(text), source)
     f.put("cpu_line", attrs.get("computer_cpu_line"), "attribute")
+    if not f.get("cpu"):
+        for source, text in (("title", t), ("description", d)):
+            f.put("cpu", cpu_gen_text(text), source)
     if not f.get("cpu"):
         for source, text in (("title", t), ("description", d)):
             match = CPU_FAMILY.search(text)

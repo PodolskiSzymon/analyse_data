@@ -48,8 +48,12 @@ LAPTOP_SHARE = 0.20
 
 
 def old_laptop_group(category, name):
-    """Grupa starych laptopów (wycena = dolne LOW_SHARE ofert)."""
-    return category == "laptop" and OLD_LAPTOP_GROUP in (name or "") and "zintegrowana" in (name or "")
+    """Grupa starych laptopów (wycena = dolne LOW_SHARE ofert): Intel do 7 gen. ze zintegrowaną grafiką albo (20.11)
+    MacBook z Intelem do 2017."""
+    name = name or ""
+    mac = re.match(r"MacBook (?:Air |Pro )?Intel (20\d\d)", name)
+    return category == "laptop" and ((OLD_LAPTOP_GROUP in name and "zintegrowana" in name)
+                                     or bool(mac and int(mac.group(1)) <= 2017))
 PROMO, SHIP = 26.0, 20.0
 CAT_TITLE = {"laptop": "Laptopy", "phone": "Telefony", "tablet": "Tablety", "console": "Konsole",
              "gpu": "Karty graficzne", "ram": "Pamięci RAM", "storage": "Dyski SSD", "cpu": "Procesory",
@@ -116,6 +120,16 @@ def cpu_generation(cpu):
     i5-8350u → „8–9 gen.”, i5-1240p → „12+ gen.”, ryzen 5 5500u → „4000–5000”. Ten sam „i5 · 16 GB” z 2013 i z 2022 r.
     to zupełnie inne ceny (2026-10-25: grupy bez generacji miały 12–14% ofert poniżej max zakupu = cena zawyżona)."""
     cpu = (cpu or "").lower()
+    m = re.match(r"i[3579] \((\d{1,2})\. gen\)", cpu)          # generacja słownie (extract.cpu_gen_text)
+    if m:
+        gen = int(m.group(1))
+        return "do 7 gen." if gen <= 7 else "8–9 gen." if gen <= 9 else "10–11 gen." if gen <= 11 else "12+ gen."
+    # 2026-11-20: tanie procesory - Celeron / Pentium / Athlon: N100 i nowsze osobno; Snapdragon X wg wersji
+    if re.match(r"(celeron|pentium|athlon|intel processor)", cpu):
+        return "N100+" if re.search(r"\bn[1-3]\d\d\b", cpu) else "starsze"
+    m = re.match(r"snapdragon x\s*(elite|plus)?", cpu)
+    if m:
+        return f"x {m.group(1)}" if m.group(1) else "x"
     m = re.match(r"i[3579]-(\d{3,5})", cpu)
     if m:
         d = m.group(1)
@@ -139,7 +153,13 @@ def group_key(category, r):
             line = "MacBook Pro" if "pro" in model else "MacBook Air" if "air" in model else "MacBook"
             chip = re.search(r"apple (m\d(?: (?:pro|max|ultra))?)", cpu)
             if not chip:
-                return None
+                # 2026-11-20: MacBook z Intelem - grupa po roczniku (jak comparables.intel_mac_chip)
+                from .comparables import intel_mac_chip
+                intel = intel_mac_chip(model, cpu)
+                if not intel:
+                    return None
+                return " ".join(x for x in (line, f"Intel {intel.split()[1]}",
+                                             _gb(r["ram_gb"]) and f"{r['ram_gb']} GB RAM") if x)
             return " ".join(x for x in (line, chip.group(1).upper().replace(" PRO", " Pro").replace(" MAX", " Max"),
                                          _gb(r["ram_gb"]) and f"{r['ram_gb']} GB RAM") if x)
         gpu = (r["gpu"] or "").lower()

@@ -1303,6 +1303,20 @@ SPEC_PARITY = [
      {"gpu": None, "cpu_line": "intel core i5", "cpu_gen": "10–11 gen.", "chip": None, "line": None, "ram": 8,
       "ssd": 512}),
     ("Laptop Lenovo", "Sprzedam, stan bdb", None),
+    # 2026-11-20: generacja słownie, tanie procesory, Snapdragon, MacBook z Intelem po roczniku
+    ("Laptop Dell i5 11 gen 16GB 512GB SSD", "",
+     {"gpu": None, "cpu_line": "intel core i5", "cpu_gen": "10–11 gen.", "chip": None, "line": None, "ram": 16,
+      "ssd": 512}),
+    ("Asus X515MA Celeron N4020 4GB 128GB", "",
+     {"gpu": None, "cpu_line": "intel celeron / pentium", "cpu_gen": "starsze", "chip": None, "line": None, "ram": 4,
+      "ssd": 128}),
+    ("Galaxy Book4 Edge Snapdragon X Elite 16GB 512GB", "",
+     {"gpu": None, "cpu_line": "snapdragon x", "cpu_gen": "x elite", "chip": None, "line": None, "ram": 16,
+      "ssd": 512}),
+    ("MacBook Pro 16 2019 i7 32GB 512GB", "",
+     {"gpu": None, "cpu_line": None, "cpu_gen": None, "chip": "intel 2019", "line": "macbook pro", "ram": 32,
+      "ssd": 512}),
+    ("MacBook Air 2020 8GB 256GB", "", None),                     # 2020: Intel albo M1 - bez procesora nie wiadomo
 ]
 
 
