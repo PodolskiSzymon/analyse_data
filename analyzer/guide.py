@@ -354,9 +354,9 @@ def header(category, costs, day, ai_count):
          "3. **Cena sprzedaży** = kolumna „sprzedam za ~” (szybko, ≤ 7 dni, kupujący porównujący ceny). "
          "Mocniejsza konfiguracja w grupie (więcej RAM / dysku, lepszy CPU, gwarancja, komplet) → bliżej p75; słabsza "
          "→ bliżej p25. p75 = górna granica (kupujący nieświadomy)."
-         if category != "laptop" else
+         if category not in ("laptop", "desktop") else
          "3. **Cena sprzedaży** = kolumna „sprzedam za ~” = cena szybkiej sprzedaży: dolne 20% cen wystawionych ofert "
-         "grupy (po tyle laptopy schodzą w ≤ 3 dni; połowa szybkich sprzedaży po tej cenie albo drożej, tylko co "
+         "grupy (po tyle laptopy / komputery schodzą w ≤ 3 dni; połowa szybkich sprzedaży po tej cenie albo drożej, tylko co "
          "czwarta ≥ 1,1 × tyle). Wyżej najwyżej o ~10% i tylko z wyraźnym powodem (lepsza konfiguracja niż w grupie, "
          "gwarancja, komplet z pudełkiem). Grupy „do 7 gen.” (stare laptopy, także MacBooki z Intelem do 2017) schodzą "
          "wolno, a większość ich ofert kosztuje poniżej 700 zł (baza zbiera laptopy od 700 zł) - tam dolne 10%; nie "
@@ -375,7 +375,7 @@ def header(category, costs, day, ai_count):
            "sprzedaży ≤ 7 dni było po tej cenie albo drożej). " if category in LOW_CATEGORIES else
            "„Sprzedam za ~” = cena, poniżej której jest tylko 20% wystawionych ofert grupy (stare laptopy „do 7 gen.” - "
            "10%); na danych do 27.10 mediana ceny szybkich sprzedaży 28.10-07.11 była dokładnie na tym poziomie. "
-           if category == "laptop" else
+           if category in ("laptop", "desktop") else
            "„Sprzedam za ~” = mediana ostatniej ceny ofert, które "
            f"zniknęły (≥ {MIN_GONE_FOR_S}; część to usunięcia, nie sprzedaże), a przy mniejszej liczbie środek "
            "p25–mediana ofert. ")
@@ -422,7 +422,8 @@ def build(conn, aconn, out, promo=PROMO, ship=SHIP, min_offers=8, progress=None)
     day = out.parent.name
     result = {}
     for category, groups in data.items():
-        share = LOW_SHARE if category in LOW_CATEGORIES else LAPTOP_SHARE if category == "laptop" else None
+        share = LOW_SHARE if category in LOW_CATEGORIES else LAPTOP_SHARE if category in ("laptop", "desktop") \
+            else None
         rows_ = rows(groups, min_offers, costs, share, lambda name, c=category: old_laptop_group(c, name))
         if not rows_:
             continue

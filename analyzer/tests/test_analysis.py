@@ -1259,6 +1259,9 @@ def test_comparables_db(relisted, flagged, tmp_path):
     office = db.execute("SELECT COUNT(*) FROM laptop_specs WHERE cpu_line='intel core i5' AND cpu_gen='8–9 gen.' "
                         "AND gpu IS NULL AND ram=16 AND ssd=256").fetchone()[0]
     assert gaming > 20 and mac > 20 and office > 20
+    # 2026-11-20: komputery stacjonarne po specyfikacji (osobna tabela, ta sama budowa)
+    desktops = int(db.execute("SELECT value FROM meta WHERE key='desktop_specs'").fetchone()[0])
+    assert desktops > 0 and db.execute("SELECT COUNT(*) FROM desktop_specs WHERE gpu IS NOT NULL").fetchone()[0] > 0
     # stan (2026-11-03): nowe / używane osobno, w ofertach i laptopach
     assert db.execute("SELECT value FROM meta WHERE key='cond'").fetchone()[0] == "1"
     conds = {c for (c,) in db.execute("SELECT DISTINCT cond FROM offers")}
@@ -1318,6 +1321,32 @@ SPEC_PARITY = [
       "ssd": 512}),
     ("MacBook Air 2020 8GB 256GB", "", None),                     # 2020: Intel albo M1 - bez procesora nie wiadomo
 ]
+
+
+# Te same przypadki w unreachable_sniper/sniper/tests/test_pc.py (DESKTOP_PARITY): specyfikacja komputera
+# stacjonarnego musi wychodzić tak samo w analizatorze (desktop_specs) i Sniperze (sniper/pc.py: desktop_spec).
+DESKTOP_PARITY = [
+    ("Komputer gamingowy i5-9400F RTX 3060 12GB 16GB RAM SSD 512GB", "Zasilacz 600W, płyta B365",
+     {"gpu": "rtx 3060", "cpu_line": "intel core i5", "cpu_gen": "8–9 gen.", "chip": None, "line": None, "ram": 16,
+      "ssd": 512}),
+    ("PC Ryzen 5 5600 RX 6700 XT 32GB DDR4 1TB NVMe + monitor 24", "",
+     {"gpu": "rx 6700 xt", "cpu_line": "amd ryzen 5", "cpu_gen": "4000–5000", "chip": None, "line": None, "ram": 32,
+      "ssd": 1000}),
+    ("Komputer i5-6500 16GB SSD 256", "Dysk HDD 1TB, zintegrowana grafika",
+     {"gpu": None, "cpu_line": "intel core i5", "cpu_gen": "do 7 gen.", "chip": None, "line": None, "ram": 16,
+      "ssd": 256}),
+    ("Komputer stacjonarny", "Sprzedam, działa", None),
+]
+
+
+def test_desktop_spec_parity_with_sniper():
+    from analyzer.comparables import laptop_spec
+    from analyzer.extract import extract
+    for title, desc, expected in DESKTOP_PARITY:
+        fields, _ = extract("desktop", title, desc, {})
+        get = lambda k: (fields.get(k) or {}).get("value")  # noqa: E731
+        assert laptop_spec(None, get("cpu"), get("cpu_line"), get("gpu"), get("ram_gb"), get("storage_gb")) \
+            == expected, title
 
 
 def test_laptop_spec_parity_with_sniper():

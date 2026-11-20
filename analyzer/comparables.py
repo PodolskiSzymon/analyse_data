@@ -168,6 +168,8 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
         CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
         CREATE TABLE laptop_specs (gpu TEXT, cpu_line TEXT, cpu_gen TEXT, chip TEXT, line TEXT, ram INTEGER,
                                    ssd INTEGER, price REAL, gone INTEGER, cond TEXT);
+        CREATE TABLE desktop_specs (gpu TEXT, cpu_line TEXT, cpu_gen TEXT, chip TEXT, line TEXT, ram INTEGER,
+                                    ssd INTEGER, price REAL, gone INTEGER, cond TEXT);
     """)
     window = demand_window(conn)
     sql = f"""SELECT l.id, l.category, l.title, l.state, l.price_now, l.sold_price,
@@ -176,7 +178,7 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
                      l.first_seen, l.last_seen
               FROM listings l LEFT JOIN features f ON f.listing_id = l.id
               WHERE l.category IS NOT NULL AND l.state IN ({",".join("?" * len(STATES))})"""
-    batch, specs, n, n_specs = [], [], 0, 0
+    batch, specs, desktops, n, n_specs = [], [], [], 0, 0
     for r in conn.execute(sql, STATES):
         lid = r[0]
         if lid in excluded or lid in old_ids or ai_damaged.get(lid, bool(r[6])):
@@ -188,11 +190,14 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
             continue
         cond = condition_group(r[13])
         batch.append((words, r[1], float(price), int(gone), cond, *demand_flags(window, r[1], r[3], r[14], r[15])))
-        if r[1] == "laptop":
-            spec = laptop_spec(*r[7:13])
+        if r[1] in ("laptop", "desktop"):
+            # 2026-11-20: komputery stacjonarne po specyfikacji jak laptopy (karta / procesor + generacja / RAM /
+            # dysk) - tytuły PC („Komputer gamingowy”) nie trafiały w mediany po słowach
+            spec = laptop_spec(*r[7:13]) if r[1] == "laptop" else laptop_spec(None, *r[8:13])
             if spec:
-                specs.append((spec["gpu"], spec["cpu_line"], spec["cpu_gen"], spec["chip"], spec["line"], spec["ram"],
-                              spec["ssd"], float(price), int(gone), cond))
+                (specs if r[1] == "laptop" else desktops).append(
+                    (spec["gpu"], spec["cpu_line"], spec["cpu_gen"], spec["chip"], spec["line"], spec["ram"],
+                     spec["ssd"], float(price), int(gone), cond))
         if len(batch) >= 20000:
             out.executemany("INSERT INTO offers VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", batch)
             n += len(batch)
@@ -208,12 +213,17 @@ def build(conn, path, excluded=None, old_ids=None, ai_damaged=None, progress=Non
     if specs:
         out.executemany("INSERT INTO laptop_specs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", specs)
         n_specs += len(specs)
+    if desktops:
+        out.executemany("INSERT INTO desktop_specs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", desktops)
     out.executescript("""
         CREATE INDEX laptop_specs_gpu ON laptop_specs(gpu, ram, ssd);
         CREATE INDEX laptop_specs_cpu ON laptop_specs(cpu_line, cpu_gen, ram, ssd);
-        CREATE INDEX laptop_specs_mac ON laptop_specs(line, chip, ram, ssd);""")
+        CREATE INDEX laptop_specs_mac ON laptop_specs(line, chip, ram, ssd);
+        CREATE INDEX desktop_specs_gpu ON desktop_specs(gpu, ram, ssd);
+        CREATE INDEX desktop_specs_cpu ON desktop_specs(cpu_line, cpu_gen, ram, ssd);""")
     out.execute("INSERT INTO meta VALUES ('rows', ?)", (str(n),))
     out.execute("INSERT INTO meta VALUES ('laptop_specs', ?)", (str(n_specs),))
+    out.execute("INSERT INTO meta VALUES ('desktop_specs', ?)", (str(len(desktops)),))
     out.execute("INSERT INTO meta VALUES ('cond', '1')")
     out.execute("INSERT INTO meta VALUES ('demand', '1')")
     out.execute("INSERT INTO meta VALUES ('fresh_days', ?)",
